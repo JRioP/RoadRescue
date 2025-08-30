@@ -11,11 +11,10 @@
         android:id="@+id/tabs"
         android:layout_width="409dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="25dp"
         android:background="@color/GhostWhite"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintTop_toBottomOf="@+id/pages">
 
         <com.google.android.material.tabs.TabItem
             android:id="@+id/login_tab"
@@ -33,11 +32,10 @@
 
     <androidx.viewpager.widget.ViewPager
         android:id="@+id/pages"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginTop="1dp"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_width="411dp"
+        android:layout_height="657dp"
+        android:layout_marginTop="25dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/tabs" />
+        app:layout_constraintTop_toTopOf="parent" />
 </androidx.constraintlayout.widget.ConstraintLayout>

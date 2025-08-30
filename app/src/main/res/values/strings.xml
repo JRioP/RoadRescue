@@ -11,10 +11,18 @@
     <string name="facebook">Facebook</string>
     <string name="google">Google</string>
     <string name="twitter">Twitter</string>
+
+    <!-- sign up-->
     <string name="sign_up_username">Username</string>
     <string name="sign_up_button">Sign up</string>
     <string name="sign_up_texttwo">Sign up with</string>
     <string name="sign_up_retype_password">Re-type Password</string>
+
     <!-- TODO: Remove or change this placeholder text -->
+    <!-- Verify -->
+    <string name="verify_text">Enter the 6-digit code sent via Email at</string>
+    <string name="verify_btn_text">Verify</string>
+    <string name="verify_edit_text">___</string>
+    <string name="resend_btn_text">Resend</string>
     <string name="hello_blank_fragment">Hello blank fragment</string>
 </resources>
