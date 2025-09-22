@@ -11,16 +11,44 @@
         android:id="@+id/signup_password_retype"
         android:layout_width="350dp"
         android:layout_height="48dp"
-        android:layout_marginTop="68dp"
+        android:layout_marginTop="10dp"
         android:background="@drawable/edit_text_bg"
         android:hint="@string/sign_up_retype_password"
         android:paddingLeft="10dp"
         android:paddingRight="10dp"
         android:textColor="@color/black"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.508"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/signup_email" />
+        app:layout_constraintTop_toBottomOf="@+id/signup_password" />
+
+    <com.google.android.material.textfield.TextInputEditText
+        android:id="@+id/signup_phone_number"
+        android:layout_width="270dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="10dp"
+        android:layout_marginEnd="23dp"
+        android:background="@drawable/edit_text_bg"
+        android:hint="@string/sign_up_phone_number"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:textColor="@color/black"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/signup_phone_number_country_code"
+        app:layout_constraintTop_toBottomOf="@+id/signup_password_retype" />
+
+    <com.google.android.material.textfield.TextInputEditText
+        android:id="@+id/signup_phone_number_country_code"
+        android:layout_width="70dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="30dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/edit_text_bg"
+        android:hint="@string/sign_up_phone_number_country_code"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:textColor="@color/black"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/signup_password_retype" />
 
     <ImageView
         android:id="@+id/imageView7"
@@ -59,12 +87,14 @@
         android:id="@+id/btn_signup"
         android:layout_width="250dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="10dp"
+        android:background="@color/GhostWhite"
         android:text="@string/sign_up_button"
         android:textSize="15sp"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.496"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/signup_password_retype" />
+        app:layout_constraintTop_toBottomOf="@+id/signup_phone_number" />
 
     <TextView
         android:id="@+id/signup_textView"

@@ -17,6 +17,8 @@
     <string name="sign_up_button">Sign up</string>
     <string name="sign_up_texttwo">Sign up with</string>
     <string name="sign_up_retype_password">Re-type Password</string>
+    <string name="sign_up_phone_number">Phone Number</string>
+    <string name="sign_up_phone_number_country_code">+63</string>
 
     <!-- TODO: Remove or change this placeholder text -->
     <!-- Verify -->
@@ -25,4 +27,9 @@
     <string name="verify_edit_text">___</string>
     <string name="resend_btn_text">Resend</string>
     <string name="hello_blank_fragment">Hello blank fragment</string>
+
+    <string name="viewpager_desc">Login and Signup pages</string>
+
+    <!-- forget password -->
+    <string name="forget_password_text">Forget Password</string>
 </resources>

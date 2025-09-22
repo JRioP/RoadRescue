@@ -54,8 +54,5 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         pager.addOnPageChangeListener(new TabLayout.TabLayoutOnPageChangeListener(tabs));
-
-        // Initialize Firebase Auth
-        mAuth = FirebaseAuth.getInstance();
     }
 }
