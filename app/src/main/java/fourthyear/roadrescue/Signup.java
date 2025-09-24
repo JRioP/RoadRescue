@@ -22,9 +22,9 @@ import com.google.firebase.auth.FirebaseUser;  // Added import
 public class Signup extends Fragment {
 
     public static final String TAG = "TAG";
-    EditText personUsername, personEmail, personPassword, personRPassword, phoneCountryCode, phoneNumber;
-    Button signupBtn;
-    FirebaseAuth fAuth;
+    private EditText personUsername, personEmail, personPassword, personRPassword, phoneCountryCode, phoneNumber;
+    private Button signupBtn;
+    private FirebaseAuth fAuth;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
