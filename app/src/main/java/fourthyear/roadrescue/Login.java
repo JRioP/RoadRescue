@@ -23,6 +23,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException;
+import com.google.firebase.auth.FirebaseUser;
 
 public class Login extends Fragment {
 
@@ -95,12 +96,28 @@ public class Login extends Fragment {
                         loginButton.setText("Login");
 
                         if (task.isSuccessful()) {
-                            // SECURE: Only allow access after successful authentication
-                            Toast.makeText(getActivity(), "Login successful!", Toast.LENGTH_SHORT).show();
-                            Intent intent = new Intent(getActivity(), homepage.class);
-                            startActivity(intent);
-                            if (getActivity() != null) {
-                                getActivity().finish(); // Prevent going back to login
+                            // Check if email is verified
+                            FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+                            if (user != null) {
+                                if (user.isEmailVerified()) {
+                                    // Email is verified - proceed to main homepage
+                                    Toast.makeText(getActivity(), "Login successful!", Toast.LENGTH_SHORT).show();
+                                    Intent intent = new Intent(getActivity(), homepage.class);
+                                    startActivity(intent);
+                                    if (getActivity() != null) {
+                                        getActivity().finish(); // Prevent going back to login
+                                    }
+                                } else {
+                                    // Email is not verified - redirect to non-verified homepage
+                                    Toast.makeText(getActivity(), "Please verify your email address", Toast.LENGTH_LONG).show();
+                                    Intent intent = new Intent(getActivity(), NonVerifiedHomepage.class);
+                                    // You can pass the user email or other info if needed
+                                    intent.putExtra("email", user.getEmail());
+                                    startActivity(intent);
+                                    if (getActivity() != null) {
+                                        getActivity().finish(); // Prevent going back to login
+                                    }
+                                }
                             }
                         } else {
                             handleLoginError(task.getException());

@@ -19,6 +19,7 @@
     <string name="sign_up_retype_password">Re-type Password</string>
     <string name="sign_up_phone_number">Phone Number</string>
     <string name="sign_up_phone_number_country_code">+63</string>
+    <string name="sign_up_termsandcondition">Terms And Conditions</string>
 
     <!-- TODO: Remove or change this placeholder text -->
     <!-- Verify -->
