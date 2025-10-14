@@ -23,7 +23,7 @@
 
     <!-- TODO: Remove or change this placeholder text -->
     <!-- Verify -->
-    <string name="verify_text">Enter the 6-digit code sent via Email at</string>
+    <string name="verify_text">Enter the 6-digit code sent via Phone at</string>
     <string name="verify_btn_text">Verify</string>
     <string name="verify_edit_text">___</string>
     <string name="resend_btn_text">Resend</string>
@@ -32,5 +32,24 @@
     <string name="viewpager_desc">Login and Signup pages</string>
 
     <!-- forget password -->
-    <string name="forget_password_text">Forget Password</string>
+    <string name="forget_password_text">Forgot Password</string>
+    <string name="forget_pass_button">Forget Password</string>
+
+    <!-- Homepage -->
+    <string name="current_location">Current Location</string>
+    <string name="location">Tanauan City</string>
+    <string name="SOS_Text">SOS</string>
+    <string name="services_text">What service are you looking for?</string>
+    <string name="towing_text">Towing</string>
+    <string name="jump_start_text">Towing</string>
+    <string name="fuel_delivery_text">Towing</string>
+    <string name="flat_tire_text">Towing</string>
+    <string name="notification_text">notification</string>
+    <string name="home_text">home</string>
+    <string name="chat_text">chat</string>
+    <string name="profile_text">profile</string>
+
+    <string name="recent_text">Recent</string>
+
+
 </resources>
