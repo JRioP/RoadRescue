@@ -33,8 +33,7 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
 
         // Add click listener
         holder.itemView.setOnClickListener(v -> {
-            // Handle item click here
-            // You can start a new activity or show a dialog
+
         });
     }
 
