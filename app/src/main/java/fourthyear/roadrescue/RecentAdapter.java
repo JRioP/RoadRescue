@@ -7,14 +7,13 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
-import fourthyear.roadrescue.RecentItem;
 
 public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder> {
 
-    private List<RecentItem> recentItems;
+    private final List<RecentItemModel> recentItemModels;
 
-    public RecentAdapter(List<RecentItem> recentItems) {
-        this.recentItems = recentItems;
+    public RecentAdapter(List<RecentItemModel> recentItemModels) {
+        this.recentItemModels = recentItemModels;
     }
 
     @NonNull
@@ -27,24 +26,21 @@ public class RecentAdapter extends RecyclerView.Adapter<RecentAdapter.ViewHolder
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        RecentItem item = recentItems.get(position);
+        RecentItemModel item = recentItemModels.get(position);
 
         holder.nameTextView.setText(item.getName());
         holder.locationTextView.setText(item.getLocation());
 
         // Add click listener
-        holder.itemView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // Handle item click here
-                // You can start a new activity or show a dialog
-            }
+        holder.itemView.setOnClickListener(v -> {
+            // Handle item click here
+            // You can start a new activity or show a dialog
         });
     }
 
     @Override
     public int getItemCount() {
-        return recentItems.size();
+        return recentItemModels.size();
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {

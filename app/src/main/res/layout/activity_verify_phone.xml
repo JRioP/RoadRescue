@@ -9,9 +9,10 @@
 
     <TextView
         android:id="@+id/textView3"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="304dp"
+        android:layout_height="66dp"
         android:layout_marginTop="50dp"
+        android:fontFamily="@font/poppins"
         android:text="@string/verify_text"
         android:textSize="20sp"
         android:textStyle="bold"
@@ -129,6 +130,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="50dp"
         android:text="@string/verify_btn_text"
+        android:backgroundTint="@color/blue"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
@@ -140,6 +142,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
         android:text="@string/resend_btn_text"
+        android:backgroundTint="@color/blue"
         android:visibility="invisible"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

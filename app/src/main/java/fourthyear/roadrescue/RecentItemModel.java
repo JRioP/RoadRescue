@@ -1,10 +1,10 @@
 package fourthyear.roadrescue;
 
-public class RecentItem {
+public class RecentItemModel {
     private String name;
     private String location;
 
-    public RecentItem(String name, String location) {
+    public RecentItemModel(String name, String location) {
         this.name = name;
         this.location = location;
     }

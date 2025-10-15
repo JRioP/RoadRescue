@@ -10,21 +10,26 @@
         android:id="@+id/emailTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="24dp"
+        android:fontFamily="@font/poppins"
         android:text="Please verify your email address"
-        android:textSize="18sp"
-        android:layout_marginBottom="24dp" />
+        android:textSize="18sp" />
 
     <Button
         android:id="@+id/resendVerificationButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Resend Verification Email"
-        android:layout_marginBottom="16dp" />
+        android:layout_marginBottom="16dp"
+        android:backgroundTint="@color/blue"
+        android:fontFamily="@font/poppins"
+        android:text="Resend Verification Email" />
 
     <Button
         android:id="@+id/logoutButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:backgroundTint="@color/blue"
+        android:fontFamily="@font/poppins"
         android:text="Logout" />
 
 </LinearLayout>

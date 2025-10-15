@@ -4,16 +4,17 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="16dp"
+    android:clickable="true"
+    android:focusable="true"
     android:background="@drawable/card"
     android:layout_margin="8dp">
 
-    <!-- Name of SP -->
     <TextView
         android:id="@+id/nameTextView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Name of SP"
-        android:textColor="#000000"
+        android:text="@string/item_recent_text"
+        android:textColor="@color/white"
         android:textSize="18sp"
         android:textStyle="bold" />
 
@@ -22,8 +23,8 @@
         android:id="@+id/locationTextView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Location"
-        android:textColor="#666666"
+        android:text="@string/item_location"
+        android:textColor="@color/GhostWhite"
         android:textSize="14sp"
         android:layout_marginTop="4dp" />
 

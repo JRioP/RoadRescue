@@ -51,5 +51,19 @@
 
     <string name="recent_text">Recent</string>
 
+    <!-- Back Button -->
+    <string name="back_button">Back Button</string>
+
+    <!-- Item Recent -->
+    <string name="item_recent_text">Name of SP</string>"
+    <string name="item_location">Location</string>
+
+
+    <!-- Notification -->
+    <string name="notification_text_two">Notifications</string>"
+    <string name="title_text_notification">Today</string>
+    <string name="item_title_text_notification">Notification Title</string>
+    <string name="item_notification_message_text">Notification message content goes here.</string>"
+    <string name="item_notification_time_text">10:30 AM</string>
 
 </resources>
