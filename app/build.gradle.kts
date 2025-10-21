@@ -41,13 +41,19 @@ dependencies {
     implementation(libs.constraintlayout)
     implementation(libs.firebase.auth)
     implementation(libs.recyclerview)
+    implementation(libs.firebase.firestore)
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
 
-    implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
+    implementation(platform("com.google.firebase:firebase-bom:34.4.0"))
     implementation("com.google.firebase:firebase-auth:24.0.1")
     implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-firestore:24.9.1")
+    implementation("com.google.firebase:firebase-auth:22.2.0")
+    implementation("com.firebaseui:firebase-ui-firestore:8.0.2")
+    implementation("com.google.code.gson:gson:2.10.1")
+
 
     implementation("com.google.android.gms:play-services-location:21.0.1")
     implementation("com.google.android.gms:play-services-maps:18.2.0")

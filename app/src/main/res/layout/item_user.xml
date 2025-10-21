@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="16dp"
+    android:background="?android:attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true">
+
+    <!-- Profile Picture Placeholder -->
+    <RelativeLayout
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_marginEnd="12dp">
+
+        <View
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:background="@color/gray"
+            android:clipToOutline="true"
+            android:outlineProvider="background" />
+
+        <!-- Online Indicator -->
+        <View
+            android:id="@+id/onlineIndicator"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentBottom="true"
+            android:background="@android:color/holo_green_dark"
+            android:clipToOutline="true"
+            android:outlineProvider="background" />
+
+    </RelativeLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/nameText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="User Name"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/black" />
+
+        <TextView
+            android:id="@+id/userTypeText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Mechanic"
+            android:textSize="14sp"
+            android:textColor="@android:color/darker_gray"
+            android:layout_marginTop="2dp" />
+
+        <TextView
+            android:id="@+id/onlineStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Online"
+            android:textSize="12sp"
+            android:layout_marginTop="2dp" />
+
+        <TextView
+            android:id="@+id/lastSeenText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Last seen: 2 hours ago"
+            android:textSize="11sp"
+            android:textColor="@android:color/darker_gray"
+            android:layout_marginTop="1dp"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <!-- Chat Button -->
+    <TextView
+        android:id="@+id/chatButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Chat"
+        android:textColor="@android:color/white"
+        android:background="@drawable/chat_button_background"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp"
+        android:textStyle="bold" />
+
+</LinearLayout>

@@ -8,6 +8,75 @@
     android:layout_height="match_parent"
     tools:context=".NotificationsActivity">
 
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/constraintLayout3"
+        android:layout_width="match_parent"
+        android:layout_height="70dp"
+        android:background="#171F55"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <ImageView
+            android:id="@+id/home_icon_btn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="50dp"
+            android:clickable="true"
+            android:contentDescription="@string/home_text"
+            android:focusable="true"
+            android:padding="10dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/notification_icon_btn"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.100000024"
+            app:srcCompat="@drawable/home" />
+
+        <ImageView
+            android:id="@+id/message_icon_btn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="50dp"
+            android:clickable="true"
+            android:contentDescription="@string/chat_text"
+            android:focusable="true"
+            android:padding="10dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/home_icon_btn"
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/chat_bubble" />
+
+        <ImageView
+            android:id="@+id/profile_icon_btn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="50dp"
+            android:layout_marginEnd="50dp"
+            android:clickable="true"
+            android:contentDescription="@string/profile_text"
+            android:focusable="true"
+            android:padding="10dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/message_icon_btn"
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/group_3" />
+
+        <ImageView
+            android:id="@+id/notification_icon_btn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="50dp"
+            android:clickable="true"
+            android:contentDescription="@string/notification_text"
+            android:focusable="true"
+            android:padding="10dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/notifications" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
     <ImageView
         android:id="@+id/back_btn"
         android:layout_width="wrap_content"
@@ -38,6 +107,7 @@
         android:layout_width="387dp"
         android:layout_height="610dp"
         android:layout_marginTop="10dp"
+        app:layout_constraintBottom_toTopOf="@+id/constraintLayout3"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/headerTitle" />

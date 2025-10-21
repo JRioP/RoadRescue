@@ -1,6 +1,7 @@
 package fourthyear.roadrescue;
 
 import android.app.Notification;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageButton;
@@ -26,6 +27,32 @@ public class NotificationsActivity extends AppCompatActivity {
         // Back button
         ImageView backButton = findViewById(R.id.back_btn);
         backButton.setOnClickListener(v -> finish());
+
+        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
+        notificationButton.setOnClickListener(v -> {
+            Intent intent = new Intent(NotificationsActivity.this, NotificationsActivity.class);
+            startActivity(intent);
+        });
+
+        ImageView profileButton = findViewById(R.id.profile_icon_btn);
+        //profileButton.setOnClickListener(v -> {
+        //    Intent intent = new Intent(homepage.this, ProfileActivity.class);
+        //    startActivity(intent);
+        //});
+
+        ImageView homeButton = findViewById(R.id.home_icon_btn);
+        homeButton.setOnClickListener(v -> {
+            Intent intent = new Intent(NotificationsActivity.this, homepage.class);
+            startActivity(intent);
+        });
+
+
+        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        messageButton.setOnClickListener(v -> {
+            Intent intent = new Intent(NotificationsActivity.this, ChatInboxActivity.class);
+            startActivity(intent);
+        });
+
 
         initializeNotifications();
         setupRecyclerView();
