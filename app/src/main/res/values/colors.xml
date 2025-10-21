@@ -5,5 +5,12 @@
     <color name="GhostWhite">#f8f8ff</color>
     <color name="Red">#B51A2B</color>
     <color name="blue">#1E3A8A</color>
+    <color name="light_green">#90EE90</color>
+    <color name="lightBlue">#00385A</color>
+    <color name="grey">#808080</color>
+    <color name="light_grey">#C0C0C0</color>
+    <color name="dark_grey">#A9A9A9</color>
+    <color name="gray">#808080</color>
+
 
 </resources>

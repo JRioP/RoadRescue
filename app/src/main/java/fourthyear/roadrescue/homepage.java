@@ -25,6 +25,27 @@ public class homepage extends AppCompatActivity {
             startActivity(intent);
         });
 
+        ImageView profileButton = findViewById(R.id.profile_icon_btn);
+        //profileButton.setOnClickListener(v -> {
+        //    Intent intent = new Intent(homepage.this, ProfileActivity.class);
+        //    startActivity(intent);
+        //});
+
+        ImageView homeButton = findViewById(R.id.home_icon_btn);
+        homeButton.setOnClickListener(v -> {
+            Intent intent = new Intent(homepage.this, homepage.class);
+            startActivity(intent);
+        });
+
+
+        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        messageButton.setOnClickListener(v -> {
+            Intent intent = new Intent(homepage.this, ChatInboxActivity.class);
+            startActivity(intent);
+        });
+
+
+
 
         initializeRecentItems();
         setupRecyclerView();
