@@ -13,6 +13,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.tasks.OnFailureListener;
@@ -42,6 +43,12 @@ public class Signup extends Fragment {
                              Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.activity_sign_up, container, false);
         initializeViews(v);
+
+        TextView termsAndConditionsBtn = v.findViewById(R.id.termsandconditions_btn);
+        termsAndConditionsBtn.setOnClickListener(view -> {
+            Intent intent = new Intent(getActivity(), NotificationsActivity.class);
+            startActivity(intent);
+        });
 
         fAuth = FirebaseAuth.getInstance();
 

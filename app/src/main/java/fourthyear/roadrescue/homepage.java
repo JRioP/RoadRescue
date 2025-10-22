@@ -4,21 +4,30 @@ import android.os.Bundle;
 import android.content.Intent;
 import android.widget.ImageView;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.constraintlayout.widget.ConstraintSet;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.OnMapReadyCallback;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class homepage extends AppCompatActivity {
 
     private List<RecentItemModel> recentItemModels;
+    private GoogleMap myMap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_homepage); // Make sure this matches your layout file name
 
+        //Navigation Buttons
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         notificationButton.setOnClickListener(v -> {
             Intent intent = new Intent(homepage.this, NotificationsActivity.class);
@@ -37,10 +46,16 @@ public class homepage extends AppCompatActivity {
             startActivity(intent);
         });
 
-
         ImageView messageButton = findViewById(R.id.message_icon_btn);
         messageButton.setOnClickListener(v -> {
             Intent intent = new Intent(homepage.this, ChatInboxActivity.class);
+            startActivity(intent);
+        });
+        //End of Navigation Buttons
+
+        ConstraintLayout towingButton = findViewById(R.id.towing_btn);
+        towingButton.setOnClickListener(v -> {
+            Intent intent = new Intent(homepage.this, MapActivity.class);
             startActivity(intent);
         });
 

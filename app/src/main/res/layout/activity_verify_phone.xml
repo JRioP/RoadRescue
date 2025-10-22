@@ -7,18 +7,28 @@
     android:layout_height="match_parent"
     tools:context=".VerifyPhone">
 
+    <View
+        android:id="@+id/statusBar10"
+        android:layout_width="0dp"
+        android:layout_height="24dp"
+        android:background="?attr/colorPrimaryDark"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <TextView
         android:id="@+id/textView3"
         android:layout_width="304dp"
         android:layout_height="66dp"
-        android:layout_marginTop="50dp"
+        android:layout_marginTop="20dp"
         android:fontFamily="@font/poppins"
         android:text="@string/verify_text"
         android:textSize="20sp"
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/statusBar10" />
 
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/digit_number_one"

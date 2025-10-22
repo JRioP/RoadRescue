@@ -80,49 +80,50 @@
             app:srcCompat="@drawable/group_3" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- Messages List -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/toolbar"
-        android:layout_width="0dp"
+        android:layout_width="411dp"
         android:layout_height="wrap_content"
-        android:padding="16dp"
         android:background="@color/blue"
-        app:layout_constraintTop_toTopOf="parent"
+        android:padding="16dp"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintTop_toBottomOf="@+id/statusBar4">
 
         <ImageView
             android:id="@+id/backButton"
             android:layout_width="48dp"
             android:layout_height="48dp"
+            android:contentDescription="Back"
             android:padding="12dp"
             android:src="@drawable/keyboard_arrow_down"
-            android:contentDescription="Back"
-            app:tint="@android:color/white"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            app:tint="@android:color/white" />
 
         <TextView
             android:id="@+id/userNameText"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:gravity="center"
             android:text="User Name"
+            android:textColor="@android:color/white"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:gravity="center"
-            android:textColor="@android:color/white"
-            app:layout_constraintStart_toEndOf="@id/backButton"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent" />
+            app:layout_constraintStart_toEndOf="@id/backButton"
+            app:layout_constraintTop_toTopOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Messages List -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/messagesRecyclerView"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:padding="8dp"
+        android:background="@color/GhostWhite"
         app:layout_constraintTop_toBottomOf="@id/toolbar"
         app:layout_constraintBottom_toTopOf="@id/messageInputContainer"
         app:layout_constraintStart_toStartOf="parent"
@@ -167,5 +168,14 @@
             app:layout_constraintTop_toTopOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <View
+        android:id="@+id/statusBar4"
+        android:layout_width="0dp"
+        android:layout_height="24dp"
+        android:background="?attr/colorPrimaryDark"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

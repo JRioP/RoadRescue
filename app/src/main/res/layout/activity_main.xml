@@ -8,6 +8,15 @@
     android:background="@color/GhostWhite"
     tools:context=".MainActivity">
 
+    <View
+        android:id="@+id/statusBar9"
+        android:layout_width="0dp"
+        android:layout_height="24dp"
+        android:background="?attr/colorPrimaryDark"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabs"
         android:layout_width="409dp"
@@ -34,10 +43,21 @@
 
     <androidx.viewpager.widget.ViewPager
         android:id="@+id/pages"
-        android:layout_width="411dp"
-        android:layout_height="750dp"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
         android:contentDescription="@string/viewpager_desc"
+        app:layout_constraintBottom_toTopOf="@+id/tabs"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/statusBar9">
+
+        <View
+            android:id="@+id/statusBar7"
+            android:layout_width="0dp"
+            android:layout_height="24dp"
+            android:background="?attr/colorPrimaryDark"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+    </androidx.viewpager.widget.ViewPager>
 </androidx.constraintlayout.widget.ConstraintLayout>
