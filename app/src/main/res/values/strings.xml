@@ -1,4 +1,7 @@
 <resources>
+    <!-- API Key-->
+    <string name="MyApiKey">AIzaSyC6PicArcksAs4_kGV_rbYvYxF1mRP4rp8</string>
+
     <string name="app_name">RoadRescue</string>
     <string name="login_text">Welcome Back</string>
     <string name="sign_up_text">Get Started</string>
@@ -41,9 +44,9 @@
     <string name="SOS_Text">SOS</string>
     <string name="services_text">What service are you looking for?</string>
     <string name="towing_text">Towing</string>
-    <string name="jump_start_text">Towing</string>
-    <string name="fuel_delivery_text">Towing</string>
-    <string name="flat_tire_text">Towing</string>
+    <string name="jump_start_text">Jump-Start</string>
+    <string name="fuel_delivery_text">Fuel Delivery</string>
+    <string name="flat_tire_text">Flat Tire \n Repair</string>
     <string name="notification_text">notification</string>
     <string name="home_text">home</string>
     <string name="chat_text">chat</string>
@@ -65,5 +68,6 @@
     <string name="item_title_text_notification">Notification Title</string>
     <string name="item_notification_message_text">Notification message content goes here.</string>"
     <string name="item_notification_time_text">10:30 AM</string>
+
 
 </resources>

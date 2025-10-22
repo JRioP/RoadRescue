@@ -17,12 +17,13 @@
         android:theme="@style/Theme.RoadRescue"
         tools:targetApi="31">
         <activity
-            android:name=".ChatConversationActivity" />
+            android:name=".MapActivity"
+            android:exported="false" />
+        <activity android:name=".ChatConversationActivity" />
         <activity
             android:name=".ChatInboxActivity"
             android:exported="false" />
-        <activity
-            android:name=".NotificationsActivity"/>
+        <activity android:name=".NotificationsActivity" />
         <activity
             android:name=".NonVerifiedHomepage"
             android:exported="false" />
@@ -45,6 +46,9 @@
             </intent-filter>
         </activity>
 
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="@string/MyApiKey" />
         <meta-data
             android:name="preloaded_fonts"
             android:resource="@array/preloaded_fonts" />

@@ -8,20 +8,28 @@
 
     <!-- Username Field with Floating Label -->
 
+    <View
+        android:id="@+id/statusBar6"
+        android:layout_width="0dp"
+        android:layout_height="24dp"
+        android:background="?attr/colorPrimaryDark"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
     <TextView
         android:id="@+id/signup_textView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="50dp"
+        android:layout_marginTop="30dp"
         android:fontFamily="@font/poppins"
         android:text="@string/sign_up_text"
         android:textSize="30sp"
         android:textStyle="bold"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.023" />
+        app:layout_constraintTop_toBottomOf="@+id/statusBar6" />
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/username_input_layout"
@@ -175,7 +183,7 @@
         app:layout_constraintTop_toBottomOf="@+id/country_code_input_layout" />
 
     <TextView
-        android:id="@+id/textView6"
+        android:id="@+id/termsandconditions_btn"
         android:layout_width="0dp"
         android:layout_height="48dp"
         android:layout_marginStart="8dp"
