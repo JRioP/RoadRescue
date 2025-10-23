@@ -1,27 +1,40 @@
 package fourthyear.roadrescue;
 
+import com.google.firebase.firestore.ServerTimestamp;
+
 import java.util.Date;
+import java.lang.Long; // Import Long to be explicit
 
 public class NotificationModel {
-    private final String id;
-    private final String title;
-    private final String message;
-    private final Date timestamp;
-    private boolean isRead;
+    private String title;
+    private String message;
+    private Long timestamp;
 
-    public NotificationModel(String id, String title, String message, Date timestamp) {
-        this.id = id;
+    private String status;
+
+    public NotificationModel() {}
+
+    public NotificationModel(String title, String message, Long timestamp, String status) {
         this.title = title;
         this.message = message;
         this.timestamp = timestamp;
-        this.isRead = false;
+        this.status = status;
     }
 
-    // Getters and setters
-    public String getId() { return id; }
+    // Getters and Setters
+
     public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+
     public String getMessage() { return message; }
-    public Date getTimestamp() { return timestamp; }
-    public boolean isRead() { return isRead; }
-    public void setRead(boolean read) { isRead = read; }
+    public void setMessage(String message) { this.message = message; }
+
+    public Long getTimestamp() { return timestamp; }
+
+    // MODIFIED: Parameter type is now Long
+    public void setTimestamp(Long timestamp) { this.timestamp = timestamp; }
+
+    // --- Existing status methods ---
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 }

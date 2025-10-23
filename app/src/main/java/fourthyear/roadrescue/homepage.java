@@ -59,6 +59,12 @@ public class homepage extends AppCompatActivity {
             startActivity(intent);
         });
 
+        ConstraintLayout jumpStartButton = findViewById(R.id.jump_start_btn);
+        jumpStartButton.setOnClickListener(v -> {
+            Intent intent = new Intent(homepage.this, ProviderMapActivity.class);
+            startActivity(intent);
+        });
+
 
 
 

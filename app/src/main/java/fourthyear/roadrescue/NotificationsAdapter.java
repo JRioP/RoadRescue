@@ -1,6 +1,5 @@
 package fourthyear.roadrescue;
 
-import android.app.Notification;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,12 +9,19 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Date; // Ensure java.util.Date is imported
 
+/**
+ * Adapter to display a list of notifications, supporting two view types:
+ * 1. String headers (e.g., "Today", "Yesterday")
+ * 2. NotificationModel items
+ */
 public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private static final int TYPE_HEADER = 0;
     private static final int TYPE_NOTIFICATION = 1;
 
+    // List to hold both String headers and NotificationModel objects
     private final List<Object> items;
 
     public NotificationsAdapter(List<Object> items) {
@@ -27,10 +33,10 @@ public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.View
         Object item = items.get(position);
         if (item instanceof String) {
             return TYPE_HEADER;
-        } else if (item instanceof Notification) {
+        } else if (item instanceof NotificationModel) {
             return TYPE_NOTIFICATION;
         }
-        return -1;
+        return -1; // Should not happen
     }
 
     @NonNull
@@ -39,9 +45,11 @@ public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.View
         LayoutInflater inflater = LayoutInflater.from(parent.getContext());
 
         if (viewType == TYPE_HEADER) {
+            // Assumes R.layout.item_notification_header exists
             View view = inflater.inflate(R.layout.item_notification_header, parent, false);
             return new HeaderViewHolder(view);
         } else {
+            // Assumes R.layout.item_notification exists
             View view = inflater.inflate(R.layout.item_notification, parent, false);
             return new NotificationViewHolder(view);
         }
@@ -49,10 +57,14 @@ public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.View
 
     @Override
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
-        if (holder.getItemViewType() == TYPE_HEADER) {
-            ((HeaderViewHolder) holder).bind((String) items.get(position));
-        } else {
-            ((NotificationViewHolder) holder).bind((NotificationModel) items.get(position));
+        Object item = items.get(position);
+        int viewType = holder.getItemViewType();
+
+        if (viewType == TYPE_HEADER) {
+            ((HeaderViewHolder) holder).bind((String) item);
+        } else if (viewType == TYPE_NOTIFICATION) {
+            // Cast to NotificationModel safely
+            ((NotificationViewHolder) holder).bind((NotificationModel) item);
         }
     }
 
@@ -61,6 +73,9 @@ public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.View
         return items.size();
     }
 
+    /**
+     * ViewHolder for the header (String) items.
+     */
     static class HeaderViewHolder extends RecyclerView.ViewHolder {
         private final TextView headerTitle;
 
@@ -74,6 +89,9 @@ public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.View
         }
     }
 
+    /**
+     * ViewHolder for the main NotificationModel items.
+     */
     static class NotificationViewHolder extends RecyclerView.ViewHolder {
         private final TextView notificationTitle;
         private final TextView notificationMessage;
@@ -90,9 +108,28 @@ public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.View
             notificationTitle.setText(notification.getTitle());
             notificationMessage.setText(notification.getMessage());
 
-            // Format time
+            Object rawTimestamp = notification.getTimestamp();
+            Date dateToFormat = null;
+
+            if (rawTimestamp == null) {
+                // If timestamp is null
+                notificationTime.setText("");
+                return;
+            } else if (rawTimestamp instanceof Date) {
+                // If it's already a Date object (most likely from Firestore Timestamp)
+                dateToFormat = (Date) rawTimestamp;
+            } else if (rawTimestamp instanceof Long) {
+                // If it's a Long (milliseconds), create a Date object
+                dateToFormat = new Date((Long) rawTimestamp);
+            } else {
+                // Handle unexpected type
+                notificationTime.setText("Time Unknown");
+                return;
+            }
+
+            // Format time using SimpleDateFormat
             SimpleDateFormat timeFormat = new SimpleDateFormat("hh:mm a", Locale.getDefault());
-            String time = timeFormat.format(notification.getTimestamp());
+            String time = timeFormat.format(dateToFormat);
             notificationTime.setText(time);
         }
     }

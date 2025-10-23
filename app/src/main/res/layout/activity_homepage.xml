@@ -166,7 +166,7 @@
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <androidx.constraintlayout.widget.ConstraintLayout
-            android:id="@+id/constraintLayout6"
+            android:id="@+id/jump_start_btn"
             android:layout_width="80dp"
             android:layout_height="80dp"
             android:layout_marginStart="30dp"
@@ -209,7 +209,7 @@
             android:layout_marginStart="30dp"
             android:layout_marginTop="20dp"
             android:background="@drawable/homepage_card_background"
-            app:layout_constraintStart_toEndOf="@+id/constraintLayout6"
+            app:layout_constraintStart_toEndOf="@+id/jump_start_btn"
             app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
@@ -280,7 +280,7 @@
             android:clickable="true"
             android:focusable="true"
             app:layout_constraintStart_toEndOf="@+id/constraintLayout8"
-            app:layout_constraintTop_toBottomOf="@+id/constraintLayout6">
+            app:layout_constraintTop_toBottomOf="@+id/jump_start_btn">
 
             <ImageView
                 android:id="@+id/imageView16"
