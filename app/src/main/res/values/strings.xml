@@ -69,5 +69,12 @@
     <string name="item_notification_message_text">Notification message content goes here.</string>"
     <string name="item_notification_time_text">10:30 AM</string>
 
+    <!-- Service Icons -->
+    <string name="towing_icon_description">Icon for towing service</string>
+    <string name="jump_start_icon_description">Icon for jump start service</string>
+    <string name="fuel_delivery_icon_description">Icon for fuel delivery service</string>
+    <string name="flat_tire_repair_icon_description">Icon for flat tire repair service</string>
+    <string name="service_five_icon_description">Icon for miscellaneous roadside service</string>
+    <string name="location_icon_description">Icon for miscellaneous roadside service</string>
 
 </resources>

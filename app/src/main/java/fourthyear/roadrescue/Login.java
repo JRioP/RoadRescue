@@ -15,7 +15,6 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
@@ -24,33 +23,38 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import android.content.SharedPreferences;
+import android.content.Context;
 
 public class Login extends Fragment {
 
     private Button loginButton;
     private EditText emailEditText, passwordEditText;
     private long lastAttemptTime = 0;
-    private static final long MIN_TIME_BETWEEN_ATTEMPTS = 2000; // 2 seconds
+    private static final long MIN_TIME_BETWEEN_ATTEMPTS = 2000;
+
+    private FirebaseFirestore db;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        // Inflate the layout for this fragment
         View view = inflater.inflate(R.layout.activity_login, container, false);
 
-        // Initialize views
+        db = FirebaseFirestore.getInstance();
+
         TextView forgotPassword = view.findViewById(R.id.btn_forget_password);
         loginButton = view.findViewById(R.id.btn_login);
         emailEditText = view.findViewById(R.id.login_email);
         passwordEditText = view.findViewById(R.id.login_password);
-
-        // Setup real-time input validation
         setupInputListeners();
-
         forgotPassword.setOnClickListener(new View.OnClickListener() {
+
             @Override
             public void onClick(View v) {
-                // Handle forgot password
                 Toast.makeText(getActivity(), "Forgot Password clicked", Toast.LENGTH_SHORT).show();
                 Intent intent = new Intent(getActivity(), ForgotPassword.class);
                 startActivity(intent);
@@ -63,64 +67,105 @@ public class Login extends Fragment {
                 authenticateUser();
             }
         });
-
         return view;
     }
 
     private void authenticateUser() {
-        // Rate limiting check
         long currentTime = System.currentTimeMillis();
+
         if (currentTime - lastAttemptTime < MIN_TIME_BETWEEN_ATTEMPTS) {
             Toast.makeText(getActivity(), "Please wait before trying again", Toast.LENGTH_SHORT).show();
             return;
         }
+
         lastAttemptTime = currentTime;
 
         String email = emailEditText.getText().toString().trim();
+
         String password = passwordEditText.getText().toString().trim();
 
-        // Input validation
         if (!validateInputs(email, password)) return;
 
-        // Show loading state
         loginButton.setEnabled(false);
+
         loginButton.setText("Verifying...");
 
-        // Firebase authentication
         FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password)
                 .addOnCompleteListener(getActivity(), new OnCompleteListener<AuthResult>() {
+
                     @Override
                     public void onComplete(@NonNull Task<AuthResult> task) {
-                        // Re-enable button
                         loginButton.setEnabled(true);
+
                         loginButton.setText("Login");
 
                         if (task.isSuccessful()) {
-                            // Check if email is verified
                             FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+
                             if (user != null) {
                                 if (user.isEmailVerified()) {
-                                    // Email is verified - proceed to main homepage
+
+                                    updateUserSession(user.getUid());
+
                                     Toast.makeText(getActivity(), "Login successful!", Toast.LENGTH_SHORT).show();
+
                                     Intent intent = new Intent(getActivity(), homepage.class);
+
                                     startActivity(intent);
+
                                     if (getActivity() != null) {
-                                        getActivity().finish(); // Prevent going back to login
+                                        getActivity().finish();
                                     }
+
                                 } else {
-                                    // Email is not verified - redirect to non-verified homepage
                                     Toast.makeText(getActivity(), "Please verify your email address", Toast.LENGTH_LONG).show();
+
                                     Intent intent = new Intent(getActivity(), NonVerifiedHomepage.class);
-                                    // You can pass the user email or other info if needed
+
                                     intent.putExtra("email", user.getEmail());
+
                                     startActivity(intent);
+
                                     if (getActivity() != null) {
-                                        getActivity().finish(); // Prevent going back to login
+                                        getActivity().finish();
                                     }
                                 }
                             }
                         } else {
                             handleLoginError(task.getException());
+                        }
+                    }
+
+                });
+
+    }
+
+    private void updateUserSession(String userId) {
+        String newSessionId = UUID.randomUUID().toString();
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("currentSessionId", newSessionId);
+        updates.put("lastLoginTimestamp", System.currentTimeMillis());
+
+        db.collection("users").document(userId)
+                .update(updates)
+                .addOnCompleteListener(new OnCompleteListener<Void>() {
+                    @Override
+                    public void onComplete(@NonNull Task<Void> task) {
+                        if (task.isSuccessful()) {
+                            Log.d("LoginSecurity", "New session ID recorded in Firestore for user: " + userId);
+
+                            // FIX: Save the newSessionId locally to SharedPreferences
+                            if (getActivity() != null) {
+                                SharedPreferences prefs = getActivity().getSharedPreferences("AppPrefs", Context.MODE_PRIVATE);
+                                prefs.edit()
+                                        .putString("currentSessionId", newSessionId)
+                                        .apply();
+                                Log.d("LoginSecurity", "Local session ID successfully saved to SharedPreferences.");
+                            }
+
+                        } else {
+                            Log.e("LoginSecurity", "Error recording new session ID: " + task.getException());
                         }
                     }
                 });
@@ -157,7 +202,6 @@ public class Login extends Fragment {
     private void handleLoginError(Exception exception) {
         String errorMessage;
 
-        // Don't reveal specific information to attackers
         if (exception instanceof FirebaseAuthInvalidUserException) {
             errorMessage = "Invalid credentials";
         } else if (exception instanceof FirebaseAuthInvalidCredentialsException) {
@@ -170,7 +214,6 @@ public class Login extends Fragment {
 
         Toast.makeText(getActivity(), errorMessage, Toast.LENGTH_LONG).show();
 
-        // Log detailed error for debugging (not shown to user)
         if (exception != null) {
             Log.e("LoginSecurity", "Auth error: " + exception.getMessage());
         }
@@ -178,6 +221,7 @@ public class Login extends Fragment {
 
     private void setupInputListeners() {
         TextWatcher textWatcher = new TextWatcher() {
+
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
@@ -188,20 +232,26 @@ public class Login extends Fragment {
             public void afterTextChanged(Editable s) {
                 validateInputsForButton();
             }
+
         };
 
         emailEditText.addTextChangedListener(textWatcher);
+
         passwordEditText.addTextChangedListener(textWatcher);
     }
 
     private void validateInputsForButton() {
         String email = emailEditText.getText().toString().trim();
+
         String password = passwordEditText.getText().toString().trim();
 
         boolean isValid = !email.isEmpty() &&
+
                 Patterns.EMAIL_ADDRESS.matcher(email).matches() &&
+
                 password.length() >= 6;
 
         loginButton.setEnabled(isValid);
+
     }
 }

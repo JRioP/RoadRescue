@@ -7,7 +7,7 @@
     android:layout_height="match_parent">
 
     <View
-        android:id="@+id/statusBar2"
+        android:id="@+id/statusBar"
         android:layout_width="0dp"
         android:layout_height="24dp"
         android:background="?attr/colorPrimaryDark"
@@ -23,67 +23,34 @@
         app:layout_constraintBottom_toTopOf="@+id/bottomNav"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/statusBar2" />
+        app:layout_constraintTop_toBottomOf="@+id/statusBar"
+        tools:context=".YourActivityName" />
 
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/destination_card" android:layout_width="0dp"
+    <TextView
+        android:id="@+id/status_text_view"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
-        app:cardCornerRadius="8dp"
-        app:cardElevation="8dp"
+        android:layout_marginTop="34dp"
+        android:layout_marginEnd="1dp"
+        android:text="Offline"
+        android:textColor="@color/lightBlue"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toStartOf="@+id/online_switch"
+        app:layout_constraintTop_toBottomOf="@+id/statusBar" />
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/online_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="150dp"
+        android:elevation="4dp"
+        android:padding="8dp"
+        android:textSize="18sp"
+        android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/statusBar2">
-
-        <EditText
-            android:id="@+id/destination_input"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@android:color/transparent"
-            android:hint="Tap on the map to set your destination."
-            android:imeOptions="actionDone"
-            android:inputType="textPostalAddress"
-            android:padding="12dp"
-            android:maxLines="1"
-            android:focusable="false"
-            android:clickable="true"
-            tools:ignore="Autofill" />
-
-    </com.google.android.material.card.MaterialCardView>
-
-    <Button
-        android:id="@+id/request_service_btn"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginEnd="24dp"
-        android:layout_marginBottom="8dp"
-        android:text="Request Towing Service"
-        android:backgroundTint="#00385A"
-        android:textColor="@android:color/white"
-        android:paddingTop="15dp"
-        android:paddingBottom="15dp"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@+id/edit_pickup_btn"  app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <Button
-        android:id="@+id/edit_pickup_btn"
-        android:layout_width="0dp" android:layout_height="wrap_content"
-        android:layout_marginStart="24dp" android:layout_marginEnd="24dp"   android:layout_marginBottom="8dp"
-        android:text="Edit Pickup Location"
-        android:backgroundTint="@color/lightBlue"  android:textColor="@android:color/white"
-        android:paddingTop="15dp"
-        android:paddingBottom="15dp"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@+id/bottomNav" app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintTop_toTopOf="@+id/map_fragment" />
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bottomNav"
