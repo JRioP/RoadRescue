@@ -9,13 +9,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Locale;
-import java.util.Date; // Ensure java.util.Date is imported
-
-/**
- * Adapter to display a list of notifications, supporting two view types:
- * 1. String headers (e.g., "Today", "Yesterday")
- * 2. NotificationModel items
- */
+import java.util.Date;
+// FIX: Change the generic type of the Adapter to RecyclerView.ViewHolder
+// since you are returning different specific ViewHolders (HeaderViewHolder and NotificationViewHolder).
+// Also, remove the unused 'NotificationsAdapter.ViewHolder' that was causing the error.
 public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private static final int TYPE_HEADER = 0;
@@ -41,6 +38,7 @@ public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.View
 
     @NonNull
     @Override
+    // FIX: Change return type from NotificationsAdapter.ViewHolder to RecyclerView.ViewHolder
     public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         LayoutInflater inflater = LayoutInflater.from(parent.getContext());
 
@@ -61,9 +59,10 @@ public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.View
         int viewType = holder.getItemViewType();
 
         if (viewType == TYPE_HEADER) {
+            // FIX: Ensure casting is done to the specific ViewHolder
             ((HeaderViewHolder) holder).bind((String) item);
         } else if (viewType == TYPE_NOTIFICATION) {
-            // Cast to NotificationModel safely
+            // FIX: Ensure casting is done to the specific ViewHolder
             ((NotificationViewHolder) holder).bind((NotificationModel) item);
         }
     }
@@ -112,17 +111,13 @@ public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.View
             Date dateToFormat = null;
 
             if (rawTimestamp == null) {
-                // If timestamp is null
                 notificationTime.setText("");
                 return;
             } else if (rawTimestamp instanceof Date) {
-                // If it's already a Date object (most likely from Firestore Timestamp)
                 dateToFormat = (Date) rawTimestamp;
             } else if (rawTimestamp instanceof Long) {
-                // If it's a Long (milliseconds), create a Date object
                 dateToFormat = new Date((Long) rawTimestamp);
             } else {
-                // Handle unexpected type
                 notificationTime.setText("Time Unknown");
                 return;
             }

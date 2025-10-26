@@ -3,102 +3,246 @@ package fourthyear.roadrescue;
 import android.os.Bundle;
 import android.content.Intent;
 import android.widget.ImageView;
+import android.content.SharedPreferences;
+import android.util.Log;
+import android.widget.Toast;
+import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
-import androidx.constraintlayout.widget.ConstraintSet;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.Timestamp;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class homepage extends AppCompatActivity {
 
+    private static final String TAG = "HomepageActivity";
     private List<RecentItemModel> recentItemModels;
-    private GoogleMap myMap;
+
+    private FirebaseAuth mAuth;
+    private FirebaseFirestore db;
+    private String localSessionId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_homepage); // Make sure this matches your layout file name
+        setContentView(R.layout.activity_homepage);
 
-        //Navigation Buttons
-        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        notificationButton.setOnClickListener(v -> {
-            Intent intent = new Intent(homepage.this, NotificationsActivity.class);
-            startActivity(intent);
-        });
+        Log.d(TAG, "Homepage onCreate started");
 
-        ImageView profileButton = findViewById(R.id.profile_icon_btn);
-        //profileButton.setOnClickListener(v -> {
-        //    Intent intent = new Intent(homepage.this, ProfileActivity.class);
-        //    startActivity(intent);
-        //});
+        mAuth = FirebaseAuth.getInstance();
+        db = FirebaseFirestore.getInstance();
 
-        ImageView homeButton = findViewById(R.id.home_icon_btn);
-        homeButton.setOnClickListener(v -> {
-            Intent intent = new Intent(homepage.this, homepage.class);
-            startActivity(intent);
-        });
+        // Check Firebase authentication first
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+        if (currentUser == null) {
+            Log.e(TAG, "No authenticated user found. Redirecting to login.");
+            redirectToLogin();
+            return;
+        }
 
-        ImageView messageButton = findViewById(R.id.message_icon_btn);
-        messageButton.setOnClickListener(v -> {
-            Intent intent = new Intent(homepage.this, ChatInboxActivity.class);
-            startActivity(intent);
-        });
-        //End of Navigation Buttons
+        Log.d(TAG, "User authenticated: " + currentUser.getEmail());
 
-        ConstraintLayout towingButton = findViewById(R.id.towing_btn);
-        towingButton.setOnClickListener(v -> {
-            Intent intent = new Intent(homepage.this, MapActivity.class);
-            startActivity(intent);
-        });
+        // Get session ID from SharedPreferences
+        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        localSessionId = prefs.getString("currentSessionId", null);
 
-        ConstraintLayout jumpStartButton = findViewById(R.id.jump_start_btn);
-        jumpStartButton.setOnClickListener(v -> {
-            Intent intent = new Intent(homepage.this, ProviderMapActivity.class);
-            startActivity(intent);
-        });
+        Log.d(TAG, "Retrieved session ID from SharedPreferences: " + localSessionId);
 
+        if (localSessionId == null) {
+            // If session ID is missing, create a new one instead of forcing logout
+            Log.w(TAG, "Local session ID is missing. Creating new session.");
+            createNewSession(currentUser);
+        } else {
+            // Validate existing session
+            checkSingleSessionConstraint();
+        }
 
-
-
+        setupUIComponents();
         initializeRecentItems();
         setupRecyclerView();
+    }
 
+    private void createNewSession(FirebaseUser user) {
+        String newSessionId = UUID.randomUUID().toString();
+        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        prefs.edit().putString("currentSessionId", newSessionId).apply();
 
+        localSessionId = newSessionId;
 
+        Log.i(TAG, "Created new session ID: " + newSessionId);
+
+        // Update Firestore with new session ID
+        db.collection("users").document(user.getUid())
+                .update("currentSessionId", newSessionId)
+                .addOnSuccessListener(aVoid -> {
+                    Log.i(TAG, "New session saved to Firestore successfully");
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to update session ID in Firestore", e);
+                    // Continue anyway since we have local session
+                    Toast.makeText(this, "Session initialized locally", Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void setupUIComponents() {
+        ConstraintLayout temporaryLogoutButton = findViewById(R.id.constraintLayout10);
+        if (temporaryLogoutButton != null) {
+            temporaryLogoutButton.setOnClickListener(v -> {
+                forceSignOut("You have been successfully logged out.");
+            });
+        }
+
+        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
+        if (notificationButton != null) {
+            notificationButton.setOnClickListener(v -> {
+                Intent intent = new Intent(homepage.this, NotificationsActivity.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView profileButton = findViewById(R.id.profile_icon_btn);
+        if (profileButton != null) {
+            profileButton.setOnClickListener(v -> {
+                // Consider changing this to ProfileActivity instead of homepage
+                Intent intent = new Intent(homepage.this, homepage.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView homeButton = findViewById(R.id.home_icon_btn);
+        if (homeButton != null) {
+            homeButton.setOnClickListener(v -> {
+                Intent intent = new Intent(homepage.this, homepage.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        if (messageButton != null) {
+            messageButton.setOnClickListener(v -> {
+                Intent intent = new Intent(homepage.this, ChatInboxActivity.class);
+                startActivity(intent);
+            });
+        }
+
+        ConstraintLayout towingButton = findViewById(R.id.towing_btn);
+        if (towingButton != null) {
+            towingButton.setOnClickListener(v -> {
+                Intent intent = new Intent(homepage.this, MapActivity.class);
+                startActivity(intent);
+            });
+        }
+
+        ConstraintLayout jumpStartButton = findViewById(R.id.jump_start_btn);
+        if (jumpStartButton != null) {
+            jumpStartButton.setOnClickListener(v -> {
+                Intent intent = new Intent(homepage.this, ProviderMapActivity.class);
+                startActivity(intent);
+            });
+        }
+    }
+
+    private void checkSingleSessionConstraint() {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
+
+        db.collection("users").document(user.getUid())
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        DocumentSnapshot document = task.getResult();
+                        if (document.exists()) {
+                            String dbSessionId = document.getString("currentSessionId");
+
+                            Log.d(TAG, "DB Session ID: " + dbSessionId);
+                            Log.d(TAG, "Local Session ID: " + localSessionId);
+
+                            if (dbSessionId == null) {
+                                // No session in Firestore, update with current local session
+                                Log.w(TAG, "No session ID in Firestore. Updating with local session.");
+                                db.collection("users").document(user.getUid())
+                                        .update("currentSessionId", localSessionId)
+                                        .addOnSuccessListener(aVoid ->
+                                                Log.i(TAG, "Session ID created in Firestore"))
+                                        .addOnFailureListener(e ->
+                                                Log.e(TAG, "Failed to create session ID in Firestore", e));
+                            } else if (!dbSessionId.equals(localSessionId)) {
+                                Log.w(TAG, "Session mismatch. Forcing sign out.");
+                                forceSignOut("Your account was logged into from another device.");
+                            } else {
+                                Log.i(TAG, "Session verified as active.");
+                            }
+                        } else {
+                            Log.e(TAG, "User document does not exist in Firestore!");
+                            // Instead of forcing logout, create the session field
+                            db.collection("users").document(user.getUid())
+                                    .update("currentSessionId", localSessionId)
+                                    .addOnSuccessListener(aVoid ->
+                                            Log.i(TAG, "Created session ID in new user document"))
+                                    .addOnFailureListener(e ->
+                                            Log.e(TAG, "Failed to create session ID in new user document", e));
+                        }
+                    } else {
+                        Log.e(TAG, "Failed to fetch user document for session check.", task.getException());
+                        // Don't force logout on Firestore errors - use local session
+                        Toast.makeText(this, "Warning: Could not verify session status.", Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private void forceSignOut(String message) {
+        Log.i(TAG, "Force sign out: " + message);
+
+        mAuth.signOut();
+
+        // Clear session data
+        getSharedPreferences("AppPrefs", MODE_PRIVATE).edit()
+                .remove("currentSessionId")
+                .apply();
+
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+
+        redirectToLogin();
+    }
+
+    private void redirectToLogin() {
+        Intent intent = new Intent(homepage.this, Login.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
     }
 
     private void initializeRecentItems() {
         recentItemModels = new ArrayList<>();
 
-        // Add sample data - replace with your actual data
         recentItemModels.add(new RecentItemModel("Home of BP", "Tanauan City, Leyte"));
         recentItemModels.add(new RecentItemModel("Medical Center", "Palo, Leyte"));
         recentItemModels.add(new RecentItemModel("Fire Station", "Tacloban City"));
         recentItemModels.add(new RecentItemModel("Police Station", "Dulag, Leyte"));
         recentItemModels.add(new RecentItemModel("Emergency Shelter", "Basey, Samar"));
-
-        // You can add more items here or load from database
     }
 
     private void setupRecyclerView() {
         RecyclerView recentRecyclerView = findViewById(R.id.recentRecyclerView);
-        RecentAdapter recentAdapter = new RecentAdapter(recentItemModels);
+        if (recentRecyclerView != null) {
+            RecentAdapter recentAdapter = new RecentAdapter(recentItemModels);
 
-        // Use LinearLayoutManager for vertical scrolling
-        LinearLayoutManager layoutManager = new LinearLayoutManager(this);
-        recentRecyclerView.setLayoutManager(layoutManager);
+            LinearLayoutManager layoutManager = new LinearLayoutManager(this);
+            recentRecyclerView.setLayoutManager(layoutManager);
 
-        recentRecyclerView.addItemDecoration(new ItemSpacingDecoration(16));
-
-        // Set the adapter
-        recentRecyclerView.setAdapter(recentAdapter);
+            recentRecyclerView.addItemDecoration(new ItemSpacingDecoration(16));
+            recentRecyclerView.setAdapter(recentAdapter);
+        }
     }
 }

@@ -1,7 +1,8 @@
 package fourthyear.roadrescue;
 
-import static android.content.ContentValues.TAG;
+// ... (existing imports) ...
 
+import static android.content.ContentValues.TAG;
 import android.content.Intent;
 import android.os.Bundle;
 import androidx.annotation.NonNull;
@@ -15,6 +16,10 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.text.TextWatcher;
+import android.text.Editable;
+
+import com.google.android.material.textfield.TextInputLayout;
 
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -30,11 +35,13 @@ import java.util.regex.Pattern;
 public class Signup extends Fragment {
 
     public static final String TAG = "SignupSecurity";
+
+    private TextInputLayout passwordInputLayout, retypePasswordInputLayout;
+
     private EditText personUsername, personEmail, personPassword, personRPassword, phoneCountryCode, phoneNumber;
     private Button signupBtn;
     private FirebaseAuth fAuth;
 
-    // Rate limiting
     private long lastSignupAttempt = 0;
     private static final long MIN_TIME_BETWEEN_SIGNUPS = 5000; // 5 seconds
 
@@ -65,20 +72,71 @@ public class Signup extends Fragment {
     private void initializeViews(View v) {
         personUsername = v.findViewById(R.id.signup_username);
         personEmail = v.findViewById(R.id.signup_email);
+
+        passwordInputLayout = v.findViewById(R.id.password_input_layout);
+        retypePasswordInputLayout = v.findViewById(R.id.retype_password_input_layout);
+
         personPassword = v.findViewById(R.id.signup_password);
         personRPassword = v.findViewById(R.id.signup_password_retype);
+
         phoneCountryCode = v.findViewById(R.id.signup_phone_number_country_code);
         phoneNumber = v.findViewById(R.id.signup_phone_number);
         signupBtn = v.findViewById(R.id.btn_signup);
+
+        personPassword.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) { /* Not used */ }
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                passwordInputLayout.setError(null);
+            }
+            @Override
+            public void afterTextChanged(Editable s) { /* Not used */ }
+        });
+
+        personRPassword.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) { /* Not used */ }
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                retypePasswordInputLayout.setError(null);
+            }
+            @Override
+            public void afterTextChanged(Editable s) { /* Not used */ }
+        });
+
+        personUsername.addTextChangedListener(new SimpleTextWatcher(personUsername));
+        personEmail.addTextChangedListener(new SimpleTextWatcher(personEmail));
+        phoneNumber.addTextChangedListener(new SimpleTextWatcher(phoneNumber));
+        phoneCountryCode.addTextChangedListener(new SimpleTextWatcher(phoneCountryCode));
+    }
+
+    // Helper class to quickly clear standard EditText errors
+    private static class SimpleTextWatcher implements TextWatcher {
+        private final EditText editText;
+        SimpleTextWatcher(EditText editText) {
+            this.editText = editText;
+        }
+        @Override
+        public void beforeTextChanged(CharSequence s, int start, int count, int after) { /* Not used */ }
+        @Override
+        public void onTextChanged(CharSequence s, int start, int before, int count) {
+            editText.setError(null);
+        }
+        @Override
+        public void afterTextChanged(Editable s) { /* Not used */ }
     }
 
     private void attemptSignup() {
-        // Rate limiting
         if (System.currentTimeMillis() - lastSignupAttempt < MIN_TIME_BETWEEN_SIGNUPS) {
             showToast("Please wait before trying again");
             return;
         }
         lastSignupAttempt = System.currentTimeMillis();
+
+        passwordInputLayout.setError(null);
+        retypePasswordInputLayout.setError(null);
+        personEmail.setError(null);
 
         if (validateAllFields()) {
             String email = personEmail.getText().toString().trim();
@@ -86,10 +144,40 @@ public class Signup extends Fragment {
             String phone = "+" + phoneCountryCode.getText().toString() + phoneNumber.getText().toString();
 
             signupBtn.setEnabled(false);
-            signupBtn.setText("Creating Account...");
+            signupBtn.setText("Checking Email...");
 
-            createFirebaseUser(email, password, phone);
+            // Start the check for existing email
+            checkIfEmailExists(email, password, phone);
         }
+    }
+
+    // MODIFIED: Method to check if the email is already registered and show red box/error
+    private void checkIfEmailExists(String email, String password, String phone) {
+        fAuth.fetchSignInMethodsForEmail(email)
+                .addOnCompleteListener(task -> {
+                    signupBtn.setText("Creating Account...");
+                    if (task.isSuccessful()) {
+                        boolean isNewUser = task.getResult().getSignInMethods().isEmpty();
+
+                        if (!isNewUser) {
+                            // FIX: Set error on the personEmail EditText, making the box glow red
+                            personEmail.setError("An account with this email already exists.");
+
+                            showToast("An account with this email already exists.");
+                            signupBtn.setEnabled(true);
+                            signupBtn.setText("Sign Up");
+                        } else {
+                            // Email is new, proceed with user creation
+                            createFirebaseUser(email, password, phone);
+                        }
+                    } else {
+                        // Error during the check (e.g., network error, invalid email format passed)
+                        Log.e(TAG, "Error checking email existence: " + task.getException());
+                        showToast("Error checking email. Please try again.");
+                        signupBtn.setEnabled(true);
+                        signupBtn.setText("Sign Up");
+                    }
+                });
     }
 
     private boolean validateAllFields() {
@@ -98,8 +186,8 @@ public class Signup extends Fragment {
         if (!validateUsername()) isValid = false;
         if (!validateEmail()) isValid = false;
         if (!validatePassword()) isValid = false;
-        if (!validatePhone()) isValid = false;
         if (!validatePasswordMatch()) isValid = false;
+        if (!validatePhone()) isValid = false;
 
         return isValid;
     }
@@ -132,7 +220,7 @@ public class Signup extends Fragment {
             return false;
         }
         if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            personEmail.setError("Please enter a valid email address");
+            personEmail.setError("Please send a valid email");
             return false;
         }
         return true;
@@ -140,18 +228,20 @@ public class Signup extends Fragment {
 
     private boolean validatePassword() {
         String password = personPassword.getText().toString().trim();
+
+        passwordInputLayout.setError(null);
+
         if (password.isEmpty()) {
-            personPassword.setError("Password is required");
+            passwordInputLayout.setError("Password is required");
             return false;
         }
         if (password.length() < 8) {
-            personPassword.setError("Password must be at least 8 characters");
+            passwordInputLayout.setError("Password must be at least 8 characters");
             return false;
         }
-        // Password strength requirements
         Pattern passwordPattern = Pattern.compile("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!])(?=\\S+$).{8,}$");
         if (!passwordPattern.matcher(password).matches()) {
-            personPassword.setError("Password must contain uppercase, lowercase, number and special character");
+            passwordInputLayout.setError("Password must contain uppercase, lowercase, number and special character");
             return false;
         }
         return true;
@@ -161,8 +251,10 @@ public class Signup extends Fragment {
         String password = personPassword.getText().toString().trim();
         String confirmPassword = personRPassword.getText().toString().trim();
 
+        retypePasswordInputLayout.setError(null);
+
         if (!password.equals(confirmPassword)) {
-            personRPassword.setError("Passwords do not match");
+            retypePasswordInputLayout.setError("Passwords do not match");
             return false;
         }
         return true;

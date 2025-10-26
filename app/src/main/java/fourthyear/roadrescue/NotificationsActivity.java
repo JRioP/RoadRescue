@@ -9,51 +9,46 @@ import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 // Other imports...
-import android.app.Notification;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.widget.ImageButton;
 import android.widget.ImageView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class NotificationsActivity extends AppCompatActivity {
 
     private static final String TAG = "NotificationsActivity";
 
-    // --- MODIFIED ---
-    private List<NotificationModel> notificationsList;
+    // FIX 1: Change the list type to List<Object> to match the adapter's constructor
+    private List<Object> notificationsList;
     private NotificationsAdapter notificationsAdapter;
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
-    private ListenerRegistration notificationListener; // To stop listener later
+    private ListenerRegistration notificationListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_notification);
 
-        // --- NEW ---
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
+
         notificationsList = new ArrayList<>();
 
-        // Setup UI (your existing back button, etc. code is fine)
         setupClickListeners();
         setupRecyclerView();
 
-        // --- MODIFIED ---
-        // REMOVE initializeNotifications();
+
         listenForNotifications();
     }
 
-    // --- NEW METHOD ---
+
     private void listenForNotifications() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) {
@@ -63,8 +58,6 @@ public class NotificationsActivity extends AppCompatActivity {
 
         String userId = currentUser.getUid();
 
-        // This query fetches all service requests made BY the current user
-        // and orders them by the most recent first.
         Query requestsQuery = db.collection("service_requests")
                 .whereEqualTo("customerId", userId)
                 .orderBy("timestamp", Query.Direction.DESCENDING);
@@ -75,19 +68,28 @@ public class NotificationsActivity extends AppCompatActivity {
                 return;
             }
 
-            notificationsList.clear(); // Clear the old list on every update
+            notificationsList.clear();
+
+            // OPTIONAL: Add a header before adding notifications, e.g., "Recent Activity"
+            // notificationsList.add("Recent Activity");
+
             for (QueryDocumentSnapshot doc : snapshots) {
-                // Convert the Firestore document into our NotificationModel object
+
                 NotificationModel notification = doc.toObject(NotificationModel.class);
 
-                // --- Generate user-friendly title and message based on status ---
-                switch (notification.getStatus()) {
+                // Ensure the status field is not null before checking,
+                // though toObject should initialize it to null if absent
+                String status = notification.getStatus();
+                if (status == null) {
+                    status = "unknown";
+                }
+
+                switch (status) {
                     case "pending":
                         notification.setTitle("Request Sent");
                         notification.setMessage("We are searching for a nearby service provider.");
                         break;
                     case "accepted":
-                        // Now you can safely use getStatus() thanks to the fix in the Canvas!
                         notification.setTitle("Request Accepted!");
                         notification.setMessage("A service provider is on their way to your location.");
                         break;
@@ -95,13 +97,17 @@ public class NotificationsActivity extends AppCompatActivity {
                         notification.setTitle("Service Completed");
                         notification.setMessage("Your vehicle service is complete. Please rate us!");
                         break;
-                    // Add more cases for "cancelled", "en-route", etc.
+                    default:
+                        // Handle other statuses or unknown status
+                        notification.setTitle("Status Update");
+                        notification.setMessage("The status of your service request is: " + status);
+                        break;
                 }
 
+                // Add the NotificationModel object to the List<Object>
                 notificationsList.add(notification);
             }
 
-            // Tell the adapter that the data has changed
             notificationsAdapter.notifyDataSetChanged();
             Log.d(TAG, "Notifications list updated. Count: " + notificationsList.size());
         });
@@ -109,24 +115,20 @@ public class NotificationsActivity extends AppCompatActivity {
 
     private void setupRecyclerView() {
         RecyclerView notificationsRecyclerView = findViewById(R.id.notificationsRecyclerView);
-        // --- MODIFIED FIX: Passing the list directly to the adapter ---
-        notificationsAdapter = new NotificationsAdapter(Collections.singletonList(notificationsList));
+
+        // FIX 3: Pass the now-correctly-typed notificationsList to the adapter
+        notificationsAdapter = new NotificationsAdapter(notificationsList);
+
         notificationsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         notificationsRecyclerView.setAdapter(notificationsAdapter);
     }
 
-    // --- DELETED ---
-    // private void initializeNotifications() { ... } // REMOVE THIS ENTIRE METHOD
 
     private void setupClickListeners() {
-        // Back button
         ImageView backButton = findViewById(R.id.back_btn);
         backButton.setOnClickListener(v -> finish());
-        // ... all your other button listeners ...
     }
 
-    // --- NEW METHOD ---
-    // Stop listening when the activity is destroyed to save resources
     @Override
     protected void onDestroy() {
         super.onDestroy();
