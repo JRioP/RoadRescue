@@ -1,6 +1,4 @@
 <resources>
-    <!-- API Key-->
-    <string name="MyApiKey">AIzaSyC6PicArcksAs4_kGV_rbYvYxF1mRP4rp8</string>
 
     <string name="app_name">RoadRescue</string>
     <string name="login_text">Welcome Back</string>
