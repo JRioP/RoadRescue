@@ -3,8 +3,12 @@ package fourthyear.roadrescue;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Address;
+import android.location.Geocoder;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -19,13 +23,16 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
-// ------------------- NEW FIREBASE IMPORTS -------------------
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-// -----------------------------------------------------------
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -54,31 +61,35 @@ public class MapActivity extends AppCompatActivity
 
     private boolean isSettingPickup = false;
 
+    private String pickupAddress;
+    private String destinationAddress;
+    private Geocoder geocoder;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
 
-        // --- Find Views ---
+        geocoder = new Geocoder(this, Locale.getDefault());
+
         destinationInput = findViewById(R.id.destination_input);
         destinationInput.setHint("Tap on the map to set your destination.");
         requestServiceButton = findViewById(R.id.request_service_btn);
         editPickupButton = findViewById(R.id.edit_pickup_btn);
 
-        // --- Set Click Listener for the Request Button ---
         requestServiceButton.setOnClickListener(v -> {
             if (pickupLatLng != null && destinationLatLng != null) {
-                sendServiceRequest(); // <-- Now calls the new Firebase logic
+                sendServiceRequest();
             } else {
                 Toast.makeText(this, "Please confirm both your pickup and destination locations.", Toast.LENGTH_LONG).show();
             }
         });
 
-        // --- Set Click Listener for the Edit Pickup Button ---
         editPickupButton.setOnClickListener(v -> toggleEditPickupMode());
 
-        // --- Navigation Buttons (Existing Logic) ---
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         notificationButton.setOnClickListener(v -> {
             Intent intent = new Intent(MapActivity.this, NotificationsActivity.class);
@@ -96,7 +107,6 @@ public class MapActivity extends AppCompatActivity
             Intent intent = new Intent(MapActivity.this, ChatInboxActivity.class);
             startActivity(intent);
         });
-        // End of Navigation Buttons
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
@@ -117,55 +127,91 @@ public class MapActivity extends AppCompatActivity
 
     @Override
     public void onMapClick(@NonNull LatLng point) {
-        // MODIFIED: Check the state to determine what to set
         if (isSettingPickup) {
             pickupLatLng = point;
-            // Exit pickup setting mode after selection
+            pickupAddress = "Loading address...";
+            getAddressFromLatLng(point, true);
             toggleEditPickupMode();
-            Toast.makeText(this, "Pickup location set manually.", Toast.LENGTH_SHORT).show();
         } else {
             destinationLatLng = point;
-            destinationInput.setText("Destination Set (Tap to change)");
-            Toast.makeText(this, "Destination location set.", Toast.LENGTH_SHORT).show();
+            destinationAddress = "Loading address...";
+            destinationInput.setText(destinationAddress);
+            getAddressFromLatLng(point, false);
         }
         updateMapWithMarkers();
     }
-
-    // ------------------- TOGGLE EDIT PICKUP MODE -------------------
 
     private void toggleEditPickupMode() {
         isSettingPickup = !isSettingPickup;
         if (isSettingPickup) {
-            // Inform the user and change the button's appearance/text
             Toast.makeText(this, "Tap on the map to set your new pickup location.", Toast.LENGTH_LONG).show();
             editPickupButton.setText("Confirm Pickup");
-            // Optionally hide the destination hint for clarity
             destinationInput.setVisibility(View.GONE);
         } else {
-            // Revert back to normal state (setting destination)
             editPickupButton.setText("Edit Pickup Location");
             destinationInput.setVisibility(View.VISIBLE);
         }
-        // Force a map redraw to give visual feedback (e.g., a temporary instruction marker)
         updateMapWithMarkers();
     }
 
-    // ------------------- SERVICE REQUEST LOGIC (NEW/REPLACED) -------------------
+    private void getAddressFromLatLng(LatLng latLng, boolean isPickup) {
+        executor.execute(() -> {
+            String addressText = "";
+            String fallbackAddress = String.format("Lat: %.4f, Lng: %.4f", latLng.latitude, latLng.longitude);
 
-    /**
-     * Sends a service request by writing the customer's ID, pickup, and destination
-     * coordinates to the "service_requests" collection in Firebase Firestore.
-     */
+            try {
+                List<Address> addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1);
+
+                if (addresses != null && !addresses.isEmpty()) {
+                    Address address = addresses.get(0);
+                    addressText = address.getAddressLine(0);
+
+                    if (addressText == null || addressText.isEmpty()) {
+                        StringBuilder sb = new StringBuilder();
+                        if (address.getFeatureName() != null) {
+                            sb.append(address.getFeatureName());
+                        } else if (address.getThoroughfare() != null) {
+                            sb.append(address.getThoroughfare());
+                        }
+
+                        if (address.getLocality() != null) {
+                            sb.append(", ").append(address.getLocality());
+                        }
+
+                        addressText = sb.length() > 0 ? sb.toString() : fallbackAddress;
+                    }
+                } else {
+                    Log.w("Geocoder", "No address found for " + latLng);
+                    addressText = fallbackAddress;
+                }
+            } catch (IOException e) {
+                Log.e("Geocoder", "Geocoder service not available or network error", e);
+                addressText = fallbackAddress;
+            }
+
+            final String finalAddressText = addressText;
+
+            handler.post(() -> {
+                if (isPickup) {
+                    pickupAddress = finalAddressText;
+                    Toast.makeText(MapActivity.this, "Pickup set: " + finalAddressText, Toast.LENGTH_SHORT).show();
+                } else {
+                    destinationAddress = finalAddressText;
+                    destinationInput.setText(finalAddressText);
+                    Toast.makeText(MapActivity.this, "Destination set: " + finalAddressText, Toast.LENGTH_SHORT).show();
+                }
+                updateMapWithMarkers();
+            });
+        });
+    }
+
     private void sendServiceRequest() {
-        // 1. Check if user is logged in
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser == null) {
             Toast.makeText(this, "You must be logged in to make a request.", Toast.LENGTH_SHORT).show();
-            // TODO: Optionally, redirect to LoginActivity
             return;
         }
 
-        // Location checks are already handled by the button's OnClickListener, but a final check is safe
         if (pickupLatLng == null || destinationLatLng == null) {
             Toast.makeText(this, "Pickup and destination must be set.", Toast.LENGTH_SHORT).show();
             return;
@@ -175,32 +221,37 @@ public class MapActivity extends AppCompatActivity
         Log.d("ServiceRequest", "Sending request for user: " + customerId);
         Log.d("ServiceRequest", "Pickup: " + pickupLatLng + ", Dest: " + destinationLatLng);
 
-        // 2. Create a data object for the request
         Map<String, Object> requestData = new HashMap<>();
         requestData.put("customerId", customerId);
         requestData.put("pickupLat", pickupLatLng.latitude);
         requestData.put("pickupLng", pickupLatLng.longitude);
         requestData.put("destinationLat", destinationLatLng.latitude);
         requestData.put("destinationLng", destinationLatLng.longitude);
-        requestData.put("status", "pending"); // Providers will listen for this
-        requestData.put("timestamp", System.currentTimeMillis()); // To sort requests by time
+        requestData.put("status", "pending");
+        requestData.put("timestamp", System.currentTimeMillis());
 
-        // 3. Get a reference to Firestore and add the new request
+        if (pickupAddress != null && !pickupAddress.isEmpty() && !pickupAddress.equals("Loading address...")) {
+            requestData.put("pickupAddress", pickupAddress);
+        } else {
+            requestData.put("pickupAddress", String.format("Lat: %.4f, Lng: %.4f", pickupLatLng.latitude, pickupLatLng.longitude));
+        }
+
+        if (destinationAddress != null && !destinationAddress.isEmpty() && !destinationAddress.equals("Loading address...")) {
+            requestData.put("destinationAddress", destinationAddress);
+        } else {
+            requestData.put("destinationAddress", String.format("Lat: %.4f, Lng: %.4f", destinationLatLng.latitude, destinationLatLng.longitude));
+        }
+
         FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("service_requests")
-                .add(requestData) // .add() creates a document with a random ID
+                .add(requestData)
                 .addOnSuccessListener(documentReference -> {
                     Toast.makeText(this, "Request sent! Searching for a provider...", Toast.LENGTH_LONG).show();
                     Log.d("ServiceRequest", "Request created with ID: " + documentReference.getId());
 
-                    // Hide buttons and disable input to prevent multiple requests
                     requestServiceButton.setVisibility(View.GONE);
                     editPickupButton.setVisibility(View.GONE);
-                    destinationInput.setEnabled(false); // Disable editing the destination
-
-                    // TODO: (Optional but recommended)
-                    // Move to a "waiting" screen or show a progress indicator
-                    // while listening for the status of this request to change from "pending" to "accepted".
+                    destinationInput.setEnabled(false);
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Failed to send request. Please try again.", Toast.LENGTH_SHORT).show();
@@ -208,20 +259,19 @@ public class MapActivity extends AppCompatActivity
                 });
     }
 
-    // ------------------- LOCATION & MAP UPDATES (Minor Changes) -------------------
-
     private void getDeviceLocation() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
 
-        // Only get the device's location if the user hasn't already set it manually
         if (pickupLatLng == null) {
             fusedLocationClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
                 @Override
                 public void onSuccess(Location location) {
                     if (location != null) {
                         pickupLatLng = new LatLng(location.getLatitude(), location.getLongitude());
+                        pickupAddress = "Loading address...";
+                        getAddressFromLatLng(pickupLatLng, true);
                         updateMapWithMarkers();
                     } else {
                         Log.e("MapActivity", "Location is null: Device might be slow or location services are off.");
@@ -240,16 +290,17 @@ public class MapActivity extends AppCompatActivity
         LatLngBounds.Builder builder = new LatLngBounds.Builder();
         boolean hasPoints = false;
 
-        // 1. Add Pickup Location (User's Current/Selected Location)
         if (pickupLatLng != null) {
+            String pickupTitle = (pickupAddress != null && !pickupAddress.isEmpty())
+                    ? pickupAddress
+                    : "Your Location (Pickup)";
             MyMap.addMarker(new MarkerOptions()
                     .position(pickupLatLng)
-                    .title("Your Location (Pickup)")
+                    .title(pickupTitle)
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
             builder.include(pickupLatLng);
             hasPoints = true;
         } else if (isSettingPickup) {
-            // NEW: Optional - Add a temporary instruction marker while setting pickup
             LatLng mapCenter = MyMap.getCameraPosition().target;
             MyMap.addMarker(new MarkerOptions()
                     .position(mapCenter)
@@ -258,17 +309,18 @@ public class MapActivity extends AppCompatActivity
                     .alpha(0.7f));
         }
 
-        // 2. Add Destination Location
         if (destinationLatLng != null) {
+            String destTitle = (destinationAddress != null && !destinationAddress.isEmpty())
+                    ? destinationAddress
+                    : "Towed To (Destination Pin)";
             MyMap.addMarker(new MarkerOptions()
                     .position(destinationLatLng)
-                    .title("Towed To (Destination Pin)")
+                    .title(destTitle)
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
             builder.include(destinationLatLng);
             hasPoints = true;
         }
 
-        // 3. Move Camera
         if (hasPoints) {
             if (pickupLatLng != null && destinationLatLng != null) {
                 MyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 100));
@@ -279,24 +331,18 @@ public class MapActivity extends AppCompatActivity
             }
         }
 
-        // 4. Manage Button Visibility
-        // Show the request button ONLY if both points are set AND we are NOT in edit mode
         if (pickupLatLng != null && destinationLatLng != null && !isSettingPickup) {
             requestServiceButton.setVisibility(View.VISIBLE);
-            editPickupButton.setVisibility(View.VISIBLE); // Keep it visible to allow re-editing
+            editPickupButton.setVisibility(View.VISIBLE);
         } else {
             requestServiceButton.setVisibility(View.GONE);
-            // Keep edit pickup button visible if we are in edit mode, otherwise show it only when a pickup is set
             if (!isSettingPickup && pickupLatLng != null) {
                 editPickupButton.setVisibility(View.VISIBLE);
             } else if (!isSettingPickup && pickupLatLng == null) {
-                // Hide it if no location is available yet (initial state)
                 editPickupButton.setVisibility(View.GONE);
             }
         }
     }
-
-    // ------------------- PERMISSION LOGIC (Unchanged) -------------------
 
     private void initializePermissionLauncher() {
         requestPermissionLauncher = registerForActivityResult(
@@ -313,7 +359,6 @@ public class MapActivity extends AppCompatActivity
                         getDeviceLocation();
                     } else {
                         Toast.makeText(this, "Location permission is required to find your position. You can set it manually by tapping 'Edit Pickup Location'.", Toast.LENGTH_LONG).show();
-                        // Allow manual setting even without permission
                         editPickupButton.setVisibility(View.VISIBLE);
                     }
                 });

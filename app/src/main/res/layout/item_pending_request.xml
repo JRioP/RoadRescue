@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="8dp"
+    android:background="@color/GhostWhite"
+    android:layout_marginBottom="8dp">
+
+    <LinearLayout
+        android:layout_width="243dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:padding="5dp"
+        android:layout_marginRight="20dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/request_info_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="New Request at [Location]"
+            android:textColor="@android:color/black"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/request_id_text"
+            android:layout_width="166dp"
+            android:layout_height="wrap_content"
+            android:text="ID: [Request ID]"
+            android:textColor="@android:color/darker_gray"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/accept_request_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Accept"
+        android:layout_gravity="center_vertical"/>
+
+</LinearLayout>

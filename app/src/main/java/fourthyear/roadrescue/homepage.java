@@ -1,27 +1,44 @@
 package fourthyear.roadrescue;
 
-import android.os.Bundle;
+import android.Manifest;
+import android.app.AlertDialog;
 import android.content.Intent;
-import android.widget.ImageView;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.location.Address;
+import android.location.Geocoder;
+import android.location.Location;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
-import android.widget.Toast;
 import android.view.View;
+import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
+
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.Timestamp;
+import com.google.firebase.firestore.FirebaseFirestore;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 public class homepage extends AppCompatActivity {
@@ -33,6 +50,10 @@ public class homepage extends AppCompatActivity {
     private FirebaseFirestore db;
     private String localSessionId;
 
+    private FusedLocationProviderClient fusedLocationClient;
+    private TextView locationTextView;
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -43,7 +64,6 @@ public class homepage extends AppCompatActivity {
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        // Check Firebase authentication first
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) {
             Log.e(TAG, "No authenticated user found. Redirecting to login.");
@@ -51,26 +71,28 @@ public class homepage extends AppCompatActivity {
             return;
         }
 
-        Log.d(TAG, "User authenticated: " + currentUser.getEmail());
-
-        // Get session ID from SharedPreferences
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-        localSessionId = prefs.getString("currentSessionId", null);
-
-        Log.d(TAG, "Retrieved session ID from SharedPreferences: " + localSessionId);
-
-        if (localSessionId == null) {
-            // If session ID is missing, create a new one instead of forcing logout
-            Log.w(TAG, "Local session ID is missing. Creating new session.");
-            createNewSession(currentUser);
-        } else {
-            // Validate existing session
-            checkSingleSessionConstraint();
-        }
-
         setupUIComponents();
         initializeRecentItems();
         setupRecyclerView();
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Log.d(TAG, "Running delayed tasks...");
+            SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+            localSessionId = prefs.getString("currentSessionId", null);
+            Log.d(TAG, "Retrieved session ID: " + localSessionId);
+
+            if (localSessionId == null) {
+                Log.w(TAG, "Local session ID is missing. Creating new session.");
+                createNewSession(currentUser);
+            } else {
+                checkSingleSessionConstraint();
+            }
+
+            checkLocationPermissionAndFetch();
+
+        }, 250);
     }
 
     private void createNewSession(FirebaseUser user) {
@@ -82,7 +104,6 @@ public class homepage extends AppCompatActivity {
 
         Log.i(TAG, "Created new session ID: " + newSessionId);
 
-        // Update Firestore with new session ID
         db.collection("users").document(user.getUid())
                 .update("currentSessionId", newSessionId)
                 .addOnSuccessListener(aVoid -> {
@@ -90,12 +111,13 @@ public class homepage extends AppCompatActivity {
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to update session ID in Firestore", e);
-                    // Continue anyway since we have local session
                     Toast.makeText(this, "Session initialized locally", Toast.LENGTH_SHORT).show();
                 });
     }
 
     private void setupUIComponents() {
+        locationTextView = findViewById(R.id.textView7);
+
         ConstraintLayout temporaryLogoutButton = findViewById(R.id.constraintLayout10);
         if (temporaryLogoutButton != null) {
             temporaryLogoutButton.setOnClickListener(v -> {
@@ -114,7 +136,6 @@ public class homepage extends AppCompatActivity {
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
         if (profileButton != null) {
             profileButton.setOnClickListener(v -> {
-                // Consider changing this to ProfileActivity instead of homepage
                 Intent intent = new Intent(homepage.this, homepage.class);
                 startActivity(intent);
             });
@@ -169,7 +190,6 @@ public class homepage extends AppCompatActivity {
                             Log.d(TAG, "Local Session ID: " + localSessionId);
 
                             if (dbSessionId == null) {
-                                // No session in Firestore, update with current local session
                                 Log.w(TAG, "No session ID in Firestore. Updating with local session.");
                                 db.collection("users").document(user.getUid())
                                         .update("currentSessionId", localSessionId)
@@ -185,7 +205,6 @@ public class homepage extends AppCompatActivity {
                             }
                         } else {
                             Log.e(TAG, "User document does not exist in Firestore!");
-                            // Instead of forcing logout, create the session field
                             db.collection("users").document(user.getUid())
                                     .update("currentSessionId", localSessionId)
                                     .addOnSuccessListener(aVoid ->
@@ -195,7 +214,6 @@ public class homepage extends AppCompatActivity {
                         }
                     } else {
                         Log.e(TAG, "Failed to fetch user document for session check.", task.getException());
-                        // Don't force logout on Firestore errors - use local session
                         Toast.makeText(this, "Warning: Could not verify session status.", Toast.LENGTH_SHORT).show();
                     }
                 });
@@ -206,7 +224,6 @@ public class homepage extends AppCompatActivity {
 
         mAuth.signOut();
 
-        // Clear session data
         getSharedPreferences("AppPrefs", MODE_PRIVATE).edit()
                 .remove("currentSessionId")
                 .apply();
@@ -217,7 +234,7 @@ public class homepage extends AppCompatActivity {
     }
 
     private void redirectToLogin() {
-        Intent intent = new Intent(homepage.this, Login.class);
+        Intent intent = new Intent(homepage.this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();
@@ -244,5 +261,97 @@ public class homepage extends AppCompatActivity {
             recentRecyclerView.addItemDecoration(new ItemSpacingDecoration(16));
             recentRecyclerView.setAdapter(recentAdapter);
         }
+    }
+
+    private void checkLocationPermissionAndFetch() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            fetchLastLocation();
+        } else if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Location Permission Needed")
+                    .setMessage("This app needs the location permission to show your current city. Please allow permission.")
+                    .setPositiveButton("OK", (dialog, which) -> {
+                        ActivityCompat.requestPermissions(homepage.this,
+                                new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                                LOCATION_PERMISSION_REQUEST_CODE);
+                    })
+                    .setNegativeButton("Cancel", (dialog, which) -> {
+                        dialog.dismiss();
+                        if (locationTextView != null) {
+                            locationTextView.setText("Location Denied");
+                        }
+                    })
+                    .create()
+                    .show();
+        } else {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                    LOCATION_PERMISSION_REQUEST_CODE);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                fetchLastLocation();
+            } else {
+                Toast.makeText(this, "Location permission is required to show your city", Toast.LENGTH_SHORT).show();
+                if (locationTextView != null) {
+                    locationTextView.setText("Location Denied");
+                }
+            }
+        }
+    }
+
+    private void fetchLastLocation() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
+        fusedLocationClient.getLastLocation()
+                .addOnSuccessListener(this, location -> {
+                    if (location != null && locationTextView != null) {
+                        Geocoder geocoder = new Geocoder(homepage.this, Locale.getDefault());
+                        try {
+                            List<Address> addresses = geocoder.getFromLocation(
+                                    location.getLatitude(),
+                                    location.getLongitude(),
+                                    1);
+
+                            if (addresses != null && !addresses.isEmpty()) {
+                                String cityName = addresses.get(0).getLocality();
+                                if (cityName != null && !cityName.isEmpty()) {
+                                    locationTextView.setText(cityName);
+                                } else {
+                                    String area = addresses.get(0).getSubAdminArea();
+                                    if(area != null) {
+                                        locationTextView.setText(area);
+                                    } else {
+                                        locationTextView.setText("City Not Found");
+                                    }
+                                }
+                            } else {
+                                locationTextView.setText("Address Not Found");
+                            }
+                        } catch (IOException e) {
+                            Log.e(TAG, "Geocoder failed", e);
+                            locationTextView.setText("Can't get address");
+                        }
+                    } else {
+                        if (locationTextView != null) {
+                            locationTextView.setText("Location N/A");
+                        }
+                    }
+                })
+                .addOnFailureListener(this, e -> {
+                    Log.e(TAG, "Failed to get location", e);
+                    if (locationTextView != null) {
+                        locationTextView.setText("Location Error");
+                    }
+                });
     }
 }
