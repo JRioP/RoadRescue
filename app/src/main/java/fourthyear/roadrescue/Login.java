@@ -15,6 +15,9 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.os.Handler; // Import Handler
+import android.os.Looper; // Import Looper
+
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
@@ -38,21 +41,42 @@ public class Login extends Fragment {
     private static final long MIN_TIME_BETWEEN_ATTEMPTS = 2000;
 
     private FirebaseFirestore db;
+    private FirebaseAuth mAuth;
+
+    // Add these for the loading overlay
+    private View loadingOverlay;
+    private Handler handler = new Handler(Looper.getMainLooper());
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        mAuth = FirebaseAuth.getInstance();
+        db = FirebaseFirestore.getInstance();
+
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+        if (currentUser != null) {
+            // User is already logged in, redirect them
+            redirectToHomepage(currentUser, false);
+        }
+    }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.activity_login, container, false);
 
-        db = FirebaseFirestore.getInstance();
-
         TextView forgotPassword = view.findViewById(R.id.btn_forget_password);
         loginButton = view.findViewById(R.id.btn_login);
         emailEditText = view.findViewById(R.id.login_email);
         passwordEditText = view.findViewById(R.id.login_password);
-        setupInputListeners();
-        forgotPassword.setOnClickListener(new View.OnClickListener() {
 
+        // Find the loading overlay from your XML
+        loadingOverlay = view.findViewById(R.id.loading_overlay);
+
+        setupInputListeners();
+
+        forgotPassword.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Toast.makeText(getActivity(), "Forgot Password clicked", Toast.LENGTH_SHORT).show();
@@ -70,82 +94,80 @@ public class Login extends Fragment {
         return view;
     }
 
+    // Helper method to show/hide the loading screen
+    private void showLoading(boolean isLoading) {
+        if (isLoading) {
+            if (loadingOverlay != null) loadingOverlay.setVisibility(View.VISIBLE);
+            loginButton.setEnabled(false);
+        } else {
+            if (loadingOverlay != null) loadingOverlay.setVisibility(View.GONE);
+            loginButton.setEnabled(true);
+        }
+    }
+
     private void authenticateUser() {
         long currentTime = System.currentTimeMillis();
-
         if (currentTime - lastAttemptTime < MIN_TIME_BETWEEN_ATTEMPTS) {
             Toast.makeText(getActivity(), "Please wait before trying again", Toast.LENGTH_SHORT).show();
             return;
         }
-
         lastAttemptTime = currentTime;
 
         String email = emailEditText.getText().toString().trim();
-
         String password = passwordEditText.getText().toString().trim();
 
         if (!validateInputs(email, password)) return;
 
-        loginButton.setEnabled(false);
+        // Show the loading screen
+        showLoading(true);
 
-        loginButton.setText("Verifying...");
-
-        FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password)
+        mAuth.signInWithEmailAndPassword(email, password)
                 .addOnCompleteListener(getActivity(), new OnCompleteListener<AuthResult>() {
-
                     @Override
                     public void onComplete(@NonNull Task<AuthResult> task) {
-                        loginButton.setEnabled(true);
 
-                        loginButton.setText("Login");
+                        // Start the 3-second delay *after* Firebase responds
+                        handler.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                // Hide the loader
+                                showLoading(false);
 
-                        if (task.isSuccessful()) {
-                            FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-
-                            if (user != null) {
-                                if (user.isEmailVerified()) {
-
-                                    updateUserSession(user.getUid());
-
-                                    Toast.makeText(getActivity(), "Login successful!", Toast.LENGTH_SHORT).show();
-
-                                    Intent intent = new Intent(getActivity(), homepage.class);
-
-                                    startActivity(intent);
-
-                                    if (getActivity() != null) {
-                                        getActivity().finish();
+                                if (task.isSuccessful()) {
+                                    FirebaseUser user = mAuth.getCurrentUser();
+                                    if (user != null) {
+                                        if (user.isEmailVerified()) {
+                                            updateUserSession(user);
+                                        } else {
+                                            redirectToHomepage(user, true);
+                                        }
                                     }
-
                                 } else {
-                                    Toast.makeText(getActivity(), "Please verify your email address", Toast.LENGTH_LONG).show();
-
-                                    Intent intent = new Intent(getActivity(), NonVerifiedHomepage.class);
-
-                                    intent.putExtra("email", user.getEmail());
-
-                                    startActivity(intent);
-
-                                    if (getActivity() != null) {
-                                        getActivity().finish();
-                                    }
+                                    handleLoginError(task.getException());
                                 }
                             }
-                        } else {
-                            handleLoginError(task.getException());
-                        }
+                        }, 3000); // Changed to 3000 milliseconds (3 seconds)
                     }
-
                 });
-
     }
 
-    private void updateUserSession(String userId) {
+    private void updateUserSession(FirebaseUser user) {
+        String userId = user.getUid();
         String newSessionId = UUID.randomUUID().toString();
 
         Map<String, Object> updates = new HashMap<>();
         updates.put("currentSessionId", newSessionId);
         updates.put("lastLoginTimestamp", System.currentTimeMillis());
+
+        if (getActivity() != null) {
+            SharedPreferences prefs = getActivity().getSharedPreferences("AppPrefs", Context.MODE_PRIVATE);
+            prefs.edit()
+                    .putString("currentSessionId", newSessionId)
+                    .apply();
+            Log.d("LoginSecurity", "Local session ID successfully saved to SharedPreferences.");
+        } else {
+            Log.e("LoginSecurity", "Activity is null, cannot save to SharedPreferences.");
+        }
 
         db.collection("users").document(userId)
                 .update(updates)
@@ -154,22 +176,42 @@ public class Login extends Fragment {
                     public void onComplete(@NonNull Task<Void> task) {
                         if (task.isSuccessful()) {
                             Log.d("LoginSecurity", "New session ID recorded in Firestore for user: " + userId);
-
-                            // FIX: Save the newSessionId locally to SharedPreferences
-                            if (getActivity() != null) {
-                                SharedPreferences prefs = getActivity().getSharedPreferences("AppPrefs", Context.MODE_PRIVATE);
-                                prefs.edit()
-                                        .putString("currentSessionId", newSessionId)
-                                        .apply();
-                                Log.d("LoginSecurity", "Local session ID successfully saved to SharedPreferences.");
-                            }
-
                         } else {
                             Log.e("LoginSecurity", "Error recording new session ID: " + task.getException());
                         }
+                        redirectToHomepage(user, true);
                     }
                 });
     }
+
+    private void redirectToHomepage(FirebaseUser user, boolean showLoginToast) {
+        if (getActivity() == null) return;
+
+        if (user.isEmailVerified()) {
+            if (showLoginToast) {
+                Toast.makeText(getActivity(), "Login successful!", Toast.LENGTH_SHORT).show();
+            }
+            Intent intent = new Intent(getActivity(), homepage.class);
+            startActivity(intent);
+
+            getActivity().overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
+
+            getActivity().finish();
+
+        } else {
+            if (showLoginToast) {
+                Toast.makeText(getActivity(), "Please verify your email address", Toast.LENGTH_LONG).show();
+            }
+            Intent intent = new Intent(getActivity(), NonVerifiedHomepage.class);
+            intent.putExtra("email", user.getEmail());
+            startActivity(intent);
+
+            getActivity().overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
+
+            getActivity().finish();
+        }
+    }
+
 
     private boolean validateInputs(String email, String password) {
         if (email.isEmpty()) {
@@ -212,7 +254,9 @@ public class Login extends Fragment {
             errorMessage = "Authentication failed. Try again.";
         }
 
-        Toast.makeText(getActivity(), errorMessage, Toast.LENGTH_LONG).show();
+        if (getActivity() != null) {
+            Toast.makeText(getActivity(), errorMessage, Toast.LENGTH_LONG).show();
+        }
 
         if (exception != null) {
             Log.e("LoginSecurity", "Auth error: " + exception.getMessage());
@@ -236,22 +280,16 @@ public class Login extends Fragment {
         };
 
         emailEditText.addTextChangedListener(textWatcher);
-
         passwordEditText.addTextChangedListener(textWatcher);
     }
 
     private void validateInputsForButton() {
         String email = emailEditText.getText().toString().trim();
-
         String password = passwordEditText.getText().toString().trim();
-
         boolean isValid = !email.isEmpty() &&
-
                 Patterns.EMAIL_ADDRESS.matcher(email).matches() &&
-
                 password.length() >= 6;
 
         loginButton.setEnabled(isValid);
-
     }
 }

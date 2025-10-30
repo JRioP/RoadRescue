@@ -1,7 +1,7 @@
 package fourthyear.roadrescue;
 
 import android.Manifest;
-import android.app.AlertDialog; // You need to add this import
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -9,6 +9,8 @@ import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
@@ -69,26 +71,28 @@ public class homepage extends AppCompatActivity {
             return;
         }
 
-        Log.d(TAG, "User authenticated: " + currentUser.getEmail());
-
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-        localSessionId = prefs.getString("currentSessionId", null);
-
-        Log.d(TAG, "Retrieved session ID from SharedPreferences: " + localSessionId);
-
-        if (localSessionId == null) {
-            Log.w(TAG, "Local session ID is missing. Creating new session.");
-            createNewSession(currentUser);
-        } else {
-            checkSingleSessionConstraint();
-        }
-
         setupUIComponents();
         initializeRecentItems();
         setupRecyclerView();
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-        checkLocationPermissionAndFetch();
+
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Log.d(TAG, "Running delayed tasks...");
+            SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+            localSessionId = prefs.getString("currentSessionId", null);
+            Log.d(TAG, "Retrieved session ID: " + localSessionId);
+
+            if (localSessionId == null) {
+                Log.w(TAG, "Local session ID is missing. Creating new session.");
+                createNewSession(currentUser);
+            } else {
+                checkSingleSessionConstraint();
+            }
+
+            checkLocationPermissionAndFetch();
+
+        }, 250);
     }
 
     private void createNewSession(FirebaseUser user) {
@@ -230,7 +234,7 @@ public class homepage extends AppCompatActivity {
     }
 
     private void redirectToLogin() {
-        Intent intent = new Intent(homepage.this, Login.class);
+        Intent intent = new Intent(homepage.this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();
@@ -259,25 +263,20 @@ public class homepage extends AppCompatActivity {
         }
     }
 
-    // --- THIS IS THE UPDATED METHOD ---
     private void checkLocationPermissionAndFetch() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
-            // Permission is already granted
             fetchLastLocation();
         } else if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
-            // User has denied permission before. Show a rationale.
             new AlertDialog.Builder(this)
                     .setTitle("Location Permission Needed")
                     .setMessage("This app needs the location permission to show your current city. Please allow permission.")
                     .setPositiveButton("OK", (dialog, which) -> {
-                        // After rationale, request permission again
                         ActivityCompat.requestPermissions(homepage.this,
                                 new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
                                 LOCATION_PERMISSION_REQUEST_CODE);
                     })
                     .setNegativeButton("Cancel", (dialog, which) -> {
-                        // User cancelled the rationale dialog
                         dialog.dismiss();
                         if (locationTextView != null) {
                             locationTextView.setText("Location Denied");
@@ -286,7 +285,6 @@ public class homepage extends AppCompatActivity {
                     .create()
                     .show();
         } else {
-            // No rationale needed (first time asking), just request the permission
             ActivityCompat.requestPermissions(this,
                     new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
                     LOCATION_PERMISSION_REQUEST_CODE);

@@ -15,6 +15,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ public class NotificationsActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_notification);
+        setupUIComponents();
 
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
@@ -134,6 +136,40 @@ public class NotificationsActivity extends AppCompatActivity {
         super.onDestroy();
         if (notificationListener != null) {
             notificationListener.remove();
+        }
+    }
+
+    private void setupUIComponents() {
+        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
+        if (notificationButton != null) {
+            notificationButton.setOnClickListener(v -> {
+                Intent intent = new Intent(NotificationsActivity.this, NotificationsActivity.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView profileButton = findViewById(R.id.profile_icon_btn);
+        if (profileButton != null) {
+            profileButton.setOnClickListener(v -> {
+                Intent intent = new Intent(NotificationsActivity.this, homepage.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView homeButton = findViewById(R.id.home_icon_btn);
+        if (homeButton != null) {
+            homeButton.setOnClickListener(v -> {
+                Intent intent = new Intent(NotificationsActivity.this, homepage.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        if (messageButton != null) {
+            messageButton.setOnClickListener(v -> {
+                Intent intent = new Intent(NotificationsActivity.this, ChatInboxActivity.class);
+                startActivity(intent);
+            });
         }
     }
 }
