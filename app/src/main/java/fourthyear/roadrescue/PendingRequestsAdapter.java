@@ -1,5 +1,10 @@
 package fourthyear.roadrescue;
 
+// ADDED IMPORTS
+import android.location.Location;
+import java.util.Locale;
+// END ADDED IMPORTS
+
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -7,10 +12,8 @@ import android.widget.Button;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-// REMOVED: import com.google.android.gms.maps.model.LatLng; // No longer needed in adapter
 import java.util.List;
 import java.util.Map;
-// REMOVED: import javax.annotation.Nullable; // Not used here
 
 public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequestsAdapter.ViewHolder> {
 
@@ -54,43 +57,66 @@ public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequests
         return pendingRequests.size();
     }
 
+    // --- VIEW HOLDER UPDATED ---
     static class ViewHolder extends RecyclerView.ViewHolder {
         TextView requestInfoText;
         TextView requestIdText;
         Button acceptButton;
+        TextView requestDistanceText; // 1. Find the new TextView
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);
             requestInfoText = itemView.findViewById(R.id.request_info_text);
             requestIdText = itemView.findViewById(R.id.request_id_text);
             acceptButton = itemView.findViewById(R.id.accept_request_button);
+            requestDistanceText = itemView.findViewById(R.id.request_distance_text); // 2. Assign it
         }
 
+        // --- BIND METHOD REPLACED ---
         void bind(final Map<String, Object> requestData,
                   final OnAcceptClickListener acceptListener,
                   final OnItemClickListener itemListener) {
 
+            // ... (existing code to get requestId, pickupLat, pickupLng, pickupAddress) ...
             String requestId = (String) requestData.get("requestId");
             Double pickupLat = (Double) requestData.get("pickupLat");
             Double pickupLng = (Double) requestData.get("pickupLng");
-
-            // Extract pickup address from the map data
             String pickupAddress = (String) requestData.get("pickupAddress");
-            String locationInfo;
 
-            // Prioritize displaying the full address if available
+            // 3. Add logic to get destination and calculate distance
+            Double destLat = (Double) requestData.get("destinationLat");
+            Double destLng = (Double) requestData.get("destinationLng");
+
+            String locationInfo;
             if (pickupAddress != null && !pickupAddress.isEmpty()) {
                 locationInfo = pickupAddress;
             } else if (pickupLat != null && pickupLng != null) {
-                // Fallback to coordinates if address is missing
                 locationInfo = String.format("Request at (%.4f, %.4f)", pickupLat, pickupLng);
             } else {
                 locationInfo = "Unknown Location";
             }
 
+            // Calculate distance
+            String distanceText = "Distance: N/A";
+            if (pickupLat != null && pickupLng != null && destLat != null && destLng != null) {
+                float[] results = new float[1];
+                Location.distanceBetween(pickupLat, pickupLng, destLat, destLng, results);
+                float distanceInMeters = results[0];
+
+                if (distanceInMeters > 1000) {
+                    float distanceInKm = distanceInMeters / 1000;
+                    distanceText = String.format(Locale.getDefault(), "Distance: %.2f km", distanceInKm);
+                } else {
+                    distanceText = String.format(Locale.getDefault(), "Distance: %.0f m", distanceInMeters);
+                }
+            }
+
+            // 4. Set all text fields
             requestInfoText.setText(locationInfo);
             requestIdText.setText("ID: " + (requestId != null ? requestId.substring(0, Math.min(requestId.length(), 8)) + "..." : "N/A"));
+            requestDistanceText.setText(distanceText); // Set the distance
 
+            // ... (existing click listeners) ...
             // Accept button listener
             acceptButton.setOnClickListener(v -> {
                 if (acceptListener != null && requestId != null) {
@@ -106,4 +132,5 @@ public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequests
             });
         }
     }
+    // --- END OF MERGE ---
 }
