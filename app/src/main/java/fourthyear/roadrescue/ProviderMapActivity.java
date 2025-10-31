@@ -4,6 +4,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.content.Intent;
+import android.graphics.Color; // ADDED
+import android.location.Location;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -27,8 +29,22 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline; // ADDED
+import com.google.android.gms.maps.model.PolylineOptions; // ADDED
+
+// --- ADDED IMPORTS FOR DIRECTIONS API ---
+import com.google.maps.GeoApiContext;
+import com.google.maps.DirectionsApi;
+import com.google.maps.model.DirectionsResult;
+import com.google.maps.model.DirectionsLeg;
+import com.google.maps.model.DirectionsRoute;
+import com.google.maps.android.PolyUtil; // For decoding the polyline
+import java.util.concurrent.Executors; // For background threads
+// --- END OF ADDED IMPORTS ---
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import javax.annotation.Nullable;
 
@@ -47,6 +63,12 @@ public class ProviderMapActivity extends AppCompatActivity
     private PendingRequestsAdapter pendingRequestsAdapter;
     private List<Map<String, Object>> pendingRequestsList = new ArrayList<>();
     private List<Marker> tempPendingRequestMarkers = new ArrayList<>();
+
+    // --- NEW: For Directions API ---
+    private GeoApiContext geoApiContext = null;
+    private Polyline activeJobPolyline;
+    private Polyline tempPendingRequestPolyline;
+    // --- END NEW ---
 
     // UI for Active Job Card
     private View activeJobCard;
@@ -68,6 +90,14 @@ public class ProviderMapActivity extends AppCompatActivity
 
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
+
+        // --- NEW: Initialize the GeoApiContext ---
+        if (geoApiContext == null) {
+            geoApiContext = new GeoApiContext.Builder()
+                    .apiKey(getString(R.string.google_maps_key))
+                    .build();
+        }
+        // --- END NEW ---
 
         statusTextView = findViewById(R.id.status_text_view);
         statusTextView.setText("Offline");
@@ -156,6 +186,11 @@ public class ProviderMapActivity extends AppCompatActivity
             MyMap.clear();
         }
         clearTempMarkers();
+        if (activeJobPolyline != null) { // Make sure to clear active polyline
+            activeJobPolyline.remove();
+            activeJobPolyline = null;
+        }
+
 
         pendingRequestsList.clear();
         if (pendingRequestsAdapter != null) {
@@ -169,11 +204,18 @@ public class ProviderMapActivity extends AppCompatActivity
         }
     }
 
+    // --- MODIFIED: clearTempMarkers ---
+    // Now clears the polyline too
     private void clearTempMarkers() {
         for (Marker marker : tempPendingRequestMarkers) {
             marker.remove();
         }
         tempPendingRequestMarkers.clear();
+
+        if (tempPendingRequestPolyline != null) {
+            tempPendingRequestPolyline.remove();
+            tempPendingRequestPolyline = null;
+        }
     }
 
     private void listenForPendingRequests() {
@@ -204,7 +246,7 @@ public class ProviderMapActivity extends AppCompatActivity
                         }
                         break;
                     case REMOVED:
-                        if(removeRequestFromList(pendingRequestsList, requestId)) {
+                        if (removeRequestFromList(pendingRequestsList, requestId)) {
                             listChanged = true;
                             Log.d(TAG, "Pending request removed from list: " + requestId);
                         }
@@ -276,6 +318,9 @@ public class ProviderMapActivity extends AppCompatActivity
         listenForPendingRequests();
     }
 
+    // This method *remains* from File 1.
+    // It sets the *initial* straight-line distance on the card.
+    // The Directions API call in updateUiWithRoute will *later* update this text.
     private void updateUiBasedOnJobStatus() {
         if (acceptedJobsList.isEmpty()) {
             activeJobCard.setVisibility(View.GONE);
@@ -295,8 +340,34 @@ public class ProviderMapActivity extends AppCompatActivity
             String destination = (String) activeJob.get(FIELD_DESTINATION_ADDRESS);
             String requestId = (String) activeJob.get("requestId");
 
+            // --- THIS IS THE STRAIGHT-LINE DISTANCE LOGIC ---
+            Double pickupLat = (Double) activeJob.get(FIELD_PICKUP_LAT);
+            Double pickupLng = (Double) activeJob.get(FIELD_PICKUP_LNG);
+            Double destLat = (Double) activeJob.get(FIELD_DEST_LAT);
+            Double destLng = (Double) activeJob.get(FIELD_DEST_LNG);
+
+            String distanceText = "N/A";
+            if (pickupLat != null && pickupLng != null && destLat != null && destLng != null) {
+                float[] results = new float[1];
+                Location.distanceBetween(pickupLat, pickupLng, destLat, destLng, results);
+                float distanceInMeters = results[0];
+
+                if (distanceInMeters > 1000) {
+                    float distanceInKm = distanceInMeters / 1000;
+                    distanceText = String.format(Locale.getDefault(), "%.2f km", distanceInKm);
+                } else {
+                    distanceText = String.format(Locale.getDefault(), "%.0f m", distanceInMeters);
+                }
+            }
+
+            // Find the new TextView
+            TextView activeJobDistance = findViewById(R.id.active_job_distance_text);
+
+            // Set the text
             activeJobPickup.setText(pickup != null ? pickup : "Not specified");
             activeJobDestination.setText(destination != null ? destination : "Not specified");
+            activeJobDistance.setText(distanceText + " (Straight Line)"); // Sets initial text
+            // --- END OF STRAIGHT-LINE LOGIC ---
 
             completeJobButton.setOnClickListener(v -> {
                 completeJob(requestId);
@@ -311,66 +382,45 @@ public class ProviderMapActivity extends AppCompatActivity
                 .update("status", "completed")
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(this, "Job marked complete. Awaiting status update.", Toast.LENGTH_LONG).show();
+                    // Go offline will clear the UI
+                    goOffline();
+                    // Go back online to listen for new jobs
+                    goOnline();
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Failed to update job status.", Toast.LENGTH_SHORT).show();
                 });
     }
 
+    // --- MODIFIED: onItemClick ---
+    // This now just gets the locations and calls the new method.
     @Override
     public void onItemClick(Map<String, Object> requestData) {
-        if (MyMap == null) {
-            Log.w(TAG, "Map is not ready, cannot show pending request.");
-            return;
-        }
+        if (MyMap == null) return;
 
         Double pickupLat = (Double) requestData.get(FIELD_PICKUP_LAT);
         Double pickupLng = (Double) requestData.get(FIELD_PICKUP_LNG);
         Double destLat = (Double) requestData.get(FIELD_DEST_LAT);
         Double destLng = (Double) requestData.get(FIELD_DEST_LNG);
-        String pickupName = (String) requestData.get(FIELD_PICKUP_ADDRESS);
-        String destinationName = (String) requestData.get(FIELD_DESTINATION_ADDRESS);
-        String requestId = (String) requestData.get("requestId");
 
-        String pickupTitle = (pickupName != null && !pickupName.isEmpty())
-                ? pickupName
-                : "Pending Pickup";
-        String destinationTitle = (destinationName != null && !destinationName.isEmpty())
-                ? destinationName
-                : "Pending Destination";
+        if (pickupLat != null && pickupLng != null && destLat != null && destLng != null) {
+            LatLng pickup = new LatLng(pickupLat, pickupLng);
+            LatLng destination = new LatLng(destLat, destLng);
 
-        if (pickupLat != null && pickupLng != null) {
-            LatLng pickupLocation = new LatLng(pickupLat, pickupLng);
-            Log.d(TAG, "Showing pending request on map. Pickup: " + pickupLocation);
-
+            // Call the new method to get the route
+            getDirectionsAndDrawRoute(pickup, destination, true); // true = temporary
+        } else if (pickupLat != null && pickupLng != null) {
+            // No destination, just zoom to pickup
             clearTempMarkers();
-
+            LatLng pickup = new LatLng(pickupLat, pickupLng);
             Marker pickupMarker = MyMap.addMarker(new MarkerOptions()
-                    .position(pickupLocation)
-                    .title(pickupTitle)
+                    .position(pickup)
+                    .title("Pending Pickup")
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)));
             tempPendingRequestMarkers.add(pickupMarker);
-
-            LatLngBounds.Builder builder = new LatLngBounds.Builder();
-            builder.include(pickupLocation);
-
-            if (destLat != null && destLng != null) {
-                LatLng destinationLocation = new LatLng(destLat, destLng);
-                Log.d(TAG, "Destination: " + destinationLocation);
-
-                Marker destinationMarker = MyMap.addMarker(new MarkerOptions()
-                        .position(destinationLocation)
-                        .title(destinationTitle)
-                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)));
-                tempPendingRequestMarkers.add(destinationMarker);
-                builder.include(destinationLocation);
-            }
-
-            LatLngBounds bounds = builder.build();
-            MyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100));
-
+            MyMap.animateCamera(CameraUpdateFactory.newLatLngZoom(pickup, 15f));
         } else {
-            Log.w(TAG, "Pickup location data is null, cannot move camera or add marker.");
+            Log.w(TAG, "Pickup location data is null.");
         }
     }
 
@@ -391,6 +441,8 @@ public class ProviderMapActivity extends AppCompatActivity
                 });
     }
 
+    // --- MODIFIED: drawAllAcceptedJobs ---
+    // This now also just gets locations and calls the new method.
     private void drawAllAcceptedJobs() {
         if (MyMap == null) {
             Log.e(TAG, "GoogleMap instance (MyMap) is null. Cannot draw jobs.");
@@ -399,6 +451,7 @@ public class ProviderMapActivity extends AppCompatActivity
 
         MyMap.clear();
         clearTempMarkers();
+        if (activeJobPolyline != null) activeJobPolyline.remove();
 
         if (acceptedJobsList.isEmpty()) {
             Toast.makeText(this, "No active jobs.", Toast.LENGTH_SHORT).show();
@@ -407,64 +460,145 @@ public class ProviderMapActivity extends AppCompatActivity
 
         Toast.makeText(this, "Displaying your active job.", Toast.LENGTH_SHORT).show();
 
-        LatLngBounds.Builder boundsBuilder = new LatLngBounds.Builder();
-        boolean hasPoints = false;
+        // We only care about the first (only) active job
+        Map<String, Object> jobData = acceptedJobsList.get(0);
 
-        for (Map<String, Object> jobData : acceptedJobsList) {
-            Double pickupLat = (Double) jobData.get(FIELD_PICKUP_LAT);
-            Double pickupLng = (Double) jobData.get(FIELD_PICKUP_LNG);
-            Double destLat = (Double) jobData.get(FIELD_DEST_LAT);
-            Double destLng = (Double) jobData.get(FIELD_DEST_LNG);
+        Double pickupLat = (Double) jobData.get(FIELD_PICKUP_LAT);
+        Double pickupLng = (Double) jobData.get(FIELD_PICKUP_LNG);
+        Double destLat = (Double) jobData.get(FIELD_DEST_LAT);
+        Double destLng = (Double) jobData.get(FIELD_DEST_LNG);
 
-            String pickupName = (String) jobData.get(FIELD_PICKUP_ADDRESS);
-            String destinationName = (String) jobData.get(FIELD_DESTINATION_ADDRESS);
-            String requestId = (String) jobData.get("requestId");
+        if (pickupLat != null && pickupLng != null && destLat != null && destLng != null) {
+            LatLng pickup = new LatLng(pickupLat, pickupLng);
+            LatLng destination = new LatLng(destLat, destLng);
 
-            if (pickupLat == null || pickupLng == null || requestId == null) continue;
-
-            String pickupTitle = (pickupName != null && !pickupName.isEmpty())
-                    ? pickupName
-                    : "PICKUP: Job " + requestId.substring(0, Math.min(requestId.length(), 4)) + "...";
-
-            LatLng pickupLocation = new LatLng(pickupLat, pickupLng);
-
-            MyMap.addMarker(new MarkerOptions()
-                    .position(pickupLocation)
-                    .title(pickupTitle)
-                    .snippet("Status: Accepted")
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
-
-            boundsBuilder.include(pickupLocation);
-            hasPoints = true;
-
-            if (destLat != null && destLng != null) {
-                String destinationTitle = (destinationName != null && !destinationName.isEmpty())
-                        ? destinationName
-                        : "DESTINATION: Job " + requestId.substring(0, Math.min(requestId.length(), 4)) + "...";
-
-                LatLng destinationLocation = new LatLng(destLat, destLng);
+            // Call the new method to get the route
+            getDirectionsAndDrawRoute(pickup, destination, false); // false = active job
+        } else {
+            Log.w(TAG, "Missing location data for active job.");
+            // Fallback to old marker drawing if no destination
+            if (pickupLat != null && pickupLng != null) {
+                LatLng pickup = new LatLng(pickupLat, pickupLng);
                 MyMap.addMarker(new MarkerOptions()
-                        .position(destinationLocation)
-                        .title(destinationTitle)
-                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
-
-                boundsBuilder.include(destinationLocation);
+                        .position(pickup)
+                        .title("PICKUP")
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
+                MyMap.animateCamera(CameraUpdateFactory.newLatLngZoom(pickup, 15f));
             }
         }
+    }
 
-        if (hasPoints) {
-            LatLngBounds bounds = boundsBuilder.build();
-            MyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100));
+    // --- NEW METHOD: Calls the Directions API ---
+    private void getDirectionsAndDrawRoute(LatLng pickup, LatLng destination, boolean isTemporary) {
+        Log.d(TAG, "Getting directions from " + pickup + " to " + destination);
+
+        // Must run on a background thread
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                DirectionsResult result = DirectionsApi.newRequest(geoApiContext)
+                        .origin(new com.google.maps.model.LatLng(pickup.latitude, pickup.longitude))
+                        .destination(new com.google.maps.model.LatLng(destination.latitude, destination.longitude))
+                        .await();
+
+                // Now, update the UI on the main thread
+                runOnUiThread(() -> updateUiWithRoute(result, isTemporary));
+
+            } catch (Exception e) {
+                Log.e(TAG, "Directions API failed", e);
+                runOnUiThread(() -> Toast.makeText(this, "Could not get directions.", Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
+    // --- NEW METHOD: Updates the UI with the result ---
+    private void updateUiWithRoute(DirectionsResult result, boolean isTemporary) {
+        if (MyMap == null) return;
+
+        // Clear previous temp markers/lines if this is a new temp request
+        if (isTemporary) {
+            clearTempMarkers();
+        }
+
+        if (result.routes != null && result.routes.length > 0) {
+            DirectionsRoute route = result.routes[0];
+            DirectionsLeg leg = route.legs[0];
+
+            // Get the encoded polyline string
+            String encodedPolyline = route.overviewPolyline.getEncodedPath();
+            List<LatLng> decodedPath = PolyUtil.decode(encodedPolyline);
+
+            // Add markers
+            LatLng pickup = decodedPath.get(0);
+            LatLng destination = decodedPath.get(decodedPath.size() - 1);
+
+            LatLngBounds.Builder boundsBuilder = new LatLngBounds.Builder();
+            boundsBuilder.include(pickup);
+            boundsBuilder.include(destination);
+
+            if (isTemporary) {
+                // Add orange/green markers for pending job
+                Marker pMarker = MyMap.addMarker(new MarkerOptions()
+                        .position(pickup)
+                        .title("Pending Pickup")
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)));
+
+                Marker dMarker = MyMap.addMarker(new MarkerOptions()
+                        .position(destination)
+                        .title("Pending Destination")
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)));
+
+                tempPendingRequestMarkers.add(pMarker);
+                tempPendingRequestMarkers.add(dMarker);
+
+                tempPendingRequestPolyline = MyMap.addPolyline(new PolylineOptions()
+                        .addAll(decodedPath)
+                        .width(10)
+                        .color(0x80FF5722)); // Semi-transparent orange
+            } else {
+                // Add red/blue markers for active job
+                MyMap.addMarker(new MarkerOptions()
+                        .position(pickup)
+                        .title("PICKUP")
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
+
+                MyMap.addMarker(new MarkerOptions()
+                        .position(destination)
+                        .title("DESTINATION")
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
+
+                activeJobPolyline = MyMap.addPolyline(new PolylineOptions()
+                        .addAll(decodedPath)
+                        .width(12)
+                        .color(0xFFD32F2F)); // Solid red
+
+                // Update the active job card with real distance/time
+                String distance = leg.distance.humanReadable;
+                String duration = leg.duration.humanReadable;
+
+                TextView activeJobDistance = findViewById(R.id.active_job_distance_text);
+                activeJobDistance.setText(distance + " (" + duration + ")");
+            }
+
+            // Zoom map
+            MyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 100));
+
+        } else {
+            Toast.makeText(this, "No routes found.", Toast.LENGTH_SHORT).show();
         }
     }
+
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         goOffline();
+        // --- NEW: Shut down the GeoApiContext ---
+        if (geoApiContext != null) {
+            geoApiContext.shutdown();
+        }
     }
 
-    // THIS IS THE FIX
+    // THIS IS THE FIX from file 1
     @Override
     public void onAcceptClick(String requestId, Map<String, Object> requestData) {
         // Enforce one job at a time
@@ -477,7 +611,7 @@ public class ProviderMapActivity extends AppCompatActivity
         acceptJob(requestId, requestData);
         clearTempMarkers();
 
-        if(removeRequestFromList(pendingRequestsList, requestId) && pendingRequestsAdapter != null && pendingRequestsRecyclerView != null) {
+        if (removeRequestFromList(pendingRequestsList, requestId) && pendingRequestsAdapter != null && pendingRequestsRecyclerView != null) {
             pendingRequestsAdapter.notifyDataSetChanged();
             pendingRequestsRecyclerView.setVisibility(pendingRequestsList.isEmpty() ? View.GONE : View.VISIBLE);
         }

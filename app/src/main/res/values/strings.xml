@@ -1,5 +1,4 @@
 <resources>
-
     <string name="app_name">RoadRescue</string>
     <string name="login_text">Welcome Back</string>
     <string name="sign_up_text">Get Started</string>
@@ -47,10 +46,10 @@
     <string name="flat_tire_text">Flat Tire \n Repair</string>
     <string name="notification_text">notification</string>
     <string name="home_text">home</string>
-    <string name="chat_text">chat</string>
+    <string name="message_text">Message</string>
     <string name="profile_text">profile</string>
-
     <string name="recent_text">Recent</string>
+    <string name="title_notification">Notification</string>
 
     <!-- Back Button -->
     <string name="back_button">Back Button</string>
