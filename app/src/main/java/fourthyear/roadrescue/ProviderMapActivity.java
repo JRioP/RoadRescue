@@ -1,10 +1,11 @@
 package fourthyear.roadrescue;
 
+// Imports from File 1
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import android.content.Intent;
-import android.graphics.Color; // ADDED
+import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
 import android.util.Log;
@@ -29,24 +30,34 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.model.Polyline; // ADDED
-import com.google.android.gms.maps.model.PolylineOptions; // ADDED
-
-// --- ADDED IMPORTS FOR DIRECTIONS API ---
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.maps.GeoApiContext;
 import com.google.maps.DirectionsApi;
 import com.google.maps.model.DirectionsResult;
 import com.google.maps.model.DirectionsLeg;
 import com.google.maps.model.DirectionsRoute;
-import com.google.maps.android.PolyUtil; // For decoding the polyline
-import java.util.concurrent.Executors; // For background threads
-// --- END OF ADDED IMPORTS ---
-
+import com.google.maps.android.PolyUtil;
+import java.util.concurrent.Executors;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import javax.annotation.Nullable;
+
+// --- NEW IMPORTS FROM FILE 2 ---
+import android.Manifest;
+import android.content.pm.PackageManager;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
+import android.os.Looper;
+import androidx.annotation.NonNull; // Added for @NonNull
+// --- END NEW IMPORTS ---
 
 public class ProviderMapActivity extends AppCompatActivity
         implements OnMapReadyCallback, PendingRequestsAdapter.OnAcceptClickListener, PendingRequestsAdapter.OnItemClickListener {
@@ -64,10 +75,15 @@ public class ProviderMapActivity extends AppCompatActivity
     private List<Map<String, Object>> pendingRequestsList = new ArrayList<>();
     private List<Marker> tempPendingRequestMarkers = new ArrayList<>();
 
-    // --- NEW: For Directions API ---
+    // --- For Directions API (from File 1) ---
     private GeoApiContext geoApiContext = null;
     private Polyline activeJobPolyline;
     private Polyline tempPendingRequestPolyline;
+
+    // --- NEW: For Provider's Own Location (from File 2) ---
+    private FusedLocationProviderClient fusedLocationClient;
+    private LocationCallback locationCallback;
+    private LatLng providerCurrentLocation;
     // --- END NEW ---
 
     // UI for Active Job Card
@@ -91,13 +107,15 @@ public class ProviderMapActivity extends AppCompatActivity
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
 
-        // --- NEW: Initialize the GeoApiContext ---
+        // --- Initialize GeoApiContext (from File 1) ---
         if (geoApiContext == null) {
             geoApiContext = new GeoApiContext.Builder()
                     .apiKey(getString(R.string.google_maps_key))
                     .build();
         }
-        // --- END NEW ---
+
+        // --- Initialize FusedLocationClient (from File 2) ---
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
         statusTextView = findViewById(R.id.status_text_view);
         statusTextView.setText("Offline");
@@ -153,6 +171,8 @@ public class ProviderMapActivity extends AppCompatActivity
         if (statusTextView.getText().toString().equals("Online")) {
             listenForAcceptedJobs();
         }
+        // --- ADDED FROM FILE 2 ---
+        enableMyLocation();
     }
 
     private void setupPendingRequestsRecyclerView() {
@@ -162,15 +182,19 @@ public class ProviderMapActivity extends AppCompatActivity
         pendingRequestsRecyclerView.setAdapter(pendingRequestsAdapter);
     }
 
+    // --- MODIFIED goOnline ---
     private void goOnline() {
         Toast.makeText(this, "You are online.", Toast.LENGTH_SHORT).show();
         statusTextView.setText("Online");
+        startProviderLocationUpdates(); // Start tracking provider's location
         listenForAcceptedJobs();
     }
 
+    // --- MODIFIED goOffline ---
     private void goOffline() {
         Toast.makeText(this, "You are offline.", Toast.LENGTH_SHORT).show();
         statusTextView.setText("Offline");
+        stopProviderLocationUpdates(); // Stop tracking provider's location
 
         if (pendingRequestListener != null) {
             pendingRequestListener.remove();
@@ -204,8 +228,74 @@ public class ProviderMapActivity extends AppCompatActivity
         }
     }
 
-    // --- MODIFIED: clearTempMarkers ---
-    // Now clears the polyline too
+    // --- ADDED NEW METHODS FROM FILE 2 ---
+
+    private void startProviderLocationUpdates() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "Location permission not granted. Cannot get provider location.");
+            // Request permission. We assume it's granted for this flow.
+            // You should have a proper permission request flow here.
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1002);
+            return;
+        }
+
+        // This is the location request for the provider's device
+        LocationRequest locationRequest = LocationRequest.create();
+        locationRequest.setInterval(10000); // 10 seconds
+        locationRequest.setFastestInterval(5000); // 5 seconds
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+        locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(@NonNull LocationResult locationResult) {
+                for (Location location : locationResult.getLocations()) {
+                    if (location != null) {
+                        providerCurrentLocation = new LatLng(location.getLatitude(), location.getLongitude());
+                        Log.d(TAG, "Provider location updated: " + providerCurrentLocation);
+
+                        // Update the adapter with the new location
+                        if (pendingRequestsAdapter != null) {
+                            pendingRequestsAdapter.updateProviderLocation(providerCurrentLocation);
+                        }
+                    }
+                }
+            }
+        };
+
+        // Suppress permission check because we just checked it
+        try {
+            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper());
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException in requestLocationUpdates: " + e.getMessage());
+        }
+    }
+
+    private void stopProviderLocationUpdates() {
+        if (fusedLocationClient != null && locationCallback != null) {
+            fusedLocationClient.removeLocationUpdates(locationCallback);
+            locationCallback = null;
+        }
+    }
+
+    private void enableMyLocation() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            if (MyMap != null) {
+                try {
+                    MyMap.setMyLocationEnabled(true);
+                } catch (SecurityException e) {
+                    Log.e(TAG, "SecurityException on setMyLocationEnabled: " + e.getMessage());
+                }
+            }
+        } else {
+            // Request permission if not already granted
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1002);
+        }
+    }
+    // --- END OF NEW METHODS FROM FILE 2 ---
+
+
+    // --- ALL METHODS BELOW ARE FROM FILE 1 (THE BASE FILE) ---
+
     private void clearTempMarkers() {
         for (Marker marker : tempPendingRequestMarkers) {
             marker.remove();
@@ -318,9 +408,6 @@ public class ProviderMapActivity extends AppCompatActivity
         listenForPendingRequests();
     }
 
-    // This method *remains* from File 1.
-    // It sets the *initial* straight-line distance on the card.
-    // The Directions API call in updateUiWithRoute will *later* update this text.
     private void updateUiBasedOnJobStatus() {
         if (acceptedJobsList.isEmpty()) {
             activeJobCard.setVisibility(View.GONE);
@@ -340,7 +427,6 @@ public class ProviderMapActivity extends AppCompatActivity
             String destination = (String) activeJob.get(FIELD_DESTINATION_ADDRESS);
             String requestId = (String) activeJob.get("requestId");
 
-            // --- THIS IS THE STRAIGHT-LINE DISTANCE LOGIC ---
             Double pickupLat = (Double) activeJob.get(FIELD_PICKUP_LAT);
             Double pickupLng = (Double) activeJob.get(FIELD_PICKUP_LNG);
             Double destLat = (Double) activeJob.get(FIELD_DEST_LAT);
@@ -360,14 +446,11 @@ public class ProviderMapActivity extends AppCompatActivity
                 }
             }
 
-            // Find the new TextView
             TextView activeJobDistance = findViewById(R.id.active_job_distance_text);
 
-            // Set the text
             activeJobPickup.setText(pickup != null ? pickup : "Not specified");
             activeJobDestination.setText(destination != null ? destination : "Not specified");
-            activeJobDistance.setText(distanceText + " (Straight Line)"); // Sets initial text
-            // --- END OF STRAIGHT-LINE LOGIC ---
+            activeJobDistance.setText(distanceText + " (Straight Line)");
 
             completeJobButton.setOnClickListener(v -> {
                 completeJob(requestId);
@@ -382,9 +465,7 @@ public class ProviderMapActivity extends AppCompatActivity
                 .update("status", "completed")
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(this, "Job marked complete. Awaiting status update.", Toast.LENGTH_LONG).show();
-                    // Go offline will clear the UI
                     goOffline();
-                    // Go back online to listen for new jobs
                     goOnline();
                 })
                 .addOnFailureListener(e -> {
@@ -392,8 +473,6 @@ public class ProviderMapActivity extends AppCompatActivity
                 });
     }
 
-    // --- MODIFIED: onItemClick ---
-    // This now just gets the locations and calls the new method.
     @Override
     public void onItemClick(Map<String, Object> requestData) {
         if (MyMap == null) return;
@@ -407,10 +486,8 @@ public class ProviderMapActivity extends AppCompatActivity
             LatLng pickup = new LatLng(pickupLat, pickupLng);
             LatLng destination = new LatLng(destLat, destLng);
 
-            // Call the new method to get the route
             getDirectionsAndDrawRoute(pickup, destination, true); // true = temporary
         } else if (pickupLat != null && pickupLng != null) {
-            // No destination, just zoom to pickup
             clearTempMarkers();
             LatLng pickup = new LatLng(pickupLat, pickupLng);
             Marker pickupMarker = MyMap.addMarker(new MarkerOptions()
@@ -441,8 +518,6 @@ public class ProviderMapActivity extends AppCompatActivity
                 });
     }
 
-    // --- MODIFIED: drawAllAcceptedJobs ---
-    // This now also just gets locations and calls the new method.
     private void drawAllAcceptedJobs() {
         if (MyMap == null) {
             Log.e(TAG, "GoogleMap instance (MyMap) is null. Cannot draw jobs.");
@@ -460,7 +535,6 @@ public class ProviderMapActivity extends AppCompatActivity
 
         Toast.makeText(this, "Displaying your active job.", Toast.LENGTH_SHORT).show();
 
-        // We only care about the first (only) active job
         Map<String, Object> jobData = acceptedJobsList.get(0);
 
         Double pickupLat = (Double) jobData.get(FIELD_PICKUP_LAT);
@@ -472,11 +546,9 @@ public class ProviderMapActivity extends AppCompatActivity
             LatLng pickup = new LatLng(pickupLat, pickupLng);
             LatLng destination = new LatLng(destLat, destLng);
 
-            // Call the new method to get the route
             getDirectionsAndDrawRoute(pickup, destination, false); // false = active job
         } else {
             Log.w(TAG, "Missing location data for active job.");
-            // Fallback to old marker drawing if no destination
             if (pickupLat != null && pickupLng != null) {
                 LatLng pickup = new LatLng(pickupLat, pickupLng);
                 MyMap.addMarker(new MarkerOptions()
@@ -488,11 +560,9 @@ public class ProviderMapActivity extends AppCompatActivity
         }
     }
 
-    // --- NEW METHOD: Calls the Directions API ---
     private void getDirectionsAndDrawRoute(LatLng pickup, LatLng destination, boolean isTemporary) {
         Log.d(TAG, "Getting directions from " + pickup + " to " + destination);
 
-        // Must run on a background thread
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
                 DirectionsResult result = DirectionsApi.newRequest(geoApiContext)
@@ -500,7 +570,6 @@ public class ProviderMapActivity extends AppCompatActivity
                         .destination(new com.google.maps.model.LatLng(destination.latitude, destination.longitude))
                         .await();
 
-                // Now, update the UI on the main thread
                 runOnUiThread(() -> updateUiWithRoute(result, isTemporary));
 
             } catch (Exception e) {
@@ -510,11 +579,9 @@ public class ProviderMapActivity extends AppCompatActivity
         });
     }
 
-    // --- NEW METHOD: Updates the UI with the result ---
     private void updateUiWithRoute(DirectionsResult result, boolean isTemporary) {
         if (MyMap == null) return;
 
-        // Clear previous temp markers/lines if this is a new temp request
         if (isTemporary) {
             clearTempMarkers();
         }
@@ -523,11 +590,9 @@ public class ProviderMapActivity extends AppCompatActivity
             DirectionsRoute route = result.routes[0];
             DirectionsLeg leg = route.legs[0];
 
-            // Get the encoded polyline string
             String encodedPolyline = route.overviewPolyline.getEncodedPath();
             List<LatLng> decodedPath = PolyUtil.decode(encodedPolyline);
 
-            // Add markers
             LatLng pickup = decodedPath.get(0);
             LatLng destination = decodedPath.get(decodedPath.size() - 1);
 
@@ -536,7 +601,6 @@ public class ProviderMapActivity extends AppCompatActivity
             boundsBuilder.include(destination);
 
             if (isTemporary) {
-                // Add orange/green markers for pending job
                 Marker pMarker = MyMap.addMarker(new MarkerOptions()
                         .position(pickup)
                         .title("Pending Pickup")
@@ -555,7 +619,6 @@ public class ProviderMapActivity extends AppCompatActivity
                         .width(10)
                         .color(0x80FF5722)); // Semi-transparent orange
             } else {
-                // Add red/blue markers for active job
                 MyMap.addMarker(new MarkerOptions()
                         .position(pickup)
                         .title("PICKUP")
@@ -571,7 +634,6 @@ public class ProviderMapActivity extends AppCompatActivity
                         .width(12)
                         .color(0xFFD32F2F)); // Solid red
 
-                // Update the active job card with real distance/time
                 String distance = leg.distance.humanReadable;
                 String duration = leg.duration.humanReadable;
 
@@ -579,7 +641,6 @@ public class ProviderMapActivity extends AppCompatActivity
                 activeJobDistance.setText(distance + " (" + duration + ")");
             }
 
-            // Zoom map
             MyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 100));
 
         } else {
@@ -587,21 +648,17 @@ public class ProviderMapActivity extends AppCompatActivity
         }
     }
 
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        goOffline();
-        // --- NEW: Shut down the GeoApiContext ---
+        goOffline(); // This will also call stopProviderLocationUpdates()
         if (geoApiContext != null) {
             geoApiContext.shutdown();
         }
     }
 
-    // THIS IS THE FIX from file 1
     @Override
     public void onAcceptClick(String requestId, Map<String, Object> requestData) {
-        // Enforce one job at a time
         if (!acceptedJobsList.isEmpty()) {
             Toast.makeText(this, "You already have an active job. Complete it first.", Toast.LENGTH_LONG).show();
             return;
@@ -614,6 +671,24 @@ public class ProviderMapActivity extends AppCompatActivity
         if (removeRequestFromList(pendingRequestsList, requestId) && pendingRequestsAdapter != null && pendingRequestsRecyclerView != null) {
             pendingRequestsAdapter.notifyDataSetChanged();
             pendingRequestsRecyclerView.setVisibility(pendingRequestsList.isEmpty() ? View.GONE : View.VISIBLE);
+        }
+    }
+
+    // Handle permission request result (newly added)
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 1002) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission was granted
+                enableMyLocation();
+                if (statusTextView.getText().toString().equals("Online")) {
+                    startProviderLocationUpdates();
+                }
+            } else {
+                // Permission was denied
+                Toast.makeText(this, "Location permission is required to go online.", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 }
