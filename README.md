@@ -1,2 +1,2 @@
 # RoadRescue
-A Capstone Application of STI Tanauan.
+A Capstone Application for STI Tanauan.
