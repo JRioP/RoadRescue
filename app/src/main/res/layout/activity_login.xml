@@ -8,6 +8,15 @@
     tools:context=".Login">
 
     <View
+        android:id="@+id/top_background"
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+        android:background="@drawable/login_top_background"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <View
         android:id="@+id/statusBar5"
         android:layout_width="0dp"
         android:layout_height="24dp"
@@ -20,25 +29,27 @@
         android:id="@+id/textView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="50dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginTop="120dp"
         android:fontFamily="@font/poppins"
-        android:text="@string/login_text"
+        android:text="Welcome Back,"
+        android:textColor="@android:color/white"
         android:textSize="30sp"
         android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/statusBar5" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/email_input_layout"
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-        android:layout_width="350dp"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="50dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="32dp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.504"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textView">
+        app:layout_constraintTop_toBottomOf="@+id/top_background">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/login_email"
@@ -47,19 +58,22 @@
             android:fontFamily="@font/poppins"
             android:hint="@string/email"
             android:inputType="textEmailAddress"
-            android:paddingLeft="10dp"
-            android:paddingRight="10dp" />
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp" />
 
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/password_input_layout"
         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-        android:layout_width="350dp"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginStart="32dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="32dp"
         app:endIconMode="password_toggle"
         app:endIconTint="@color/black"
+        app:errorIconDrawable="@null"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/email_input_layout">
@@ -71,8 +85,8 @@
             android:fontFamily="@font/poppins"
             android:hint="@string/password"
             android:inputType="textPassword"
-            android:paddingLeft="10dp"
-            android:paddingRight="10dp" />
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp" />
 
     </com.google.android.material.textfield.TextInputLayout>
 
@@ -106,13 +120,17 @@
 
     <Button
         android:id="@+id/btn_login"
-        android:layout_width="250dp"
-        android:layout_height="wrap_content"
+        android:layout_width="0dp"
+        android:layout_height="50dp"
+        android:layout_marginStart="32dp"
         android:layout_marginTop="20dp"
-        android:backgroundTint="@color/blue"
+        android:layout_marginEnd="32dp"
+        android:background="@drawable/login_button_background"
         android:fontFamily="@font/poppins"
         android:text="@string/sign_in"
-        android:textSize="15sp"
+        android:textAllCaps="false"
+        android:textColor="@android:color/white"
+        android:textSize="18sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/checkBox" />

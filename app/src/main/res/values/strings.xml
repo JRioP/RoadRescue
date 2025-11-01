@@ -12,6 +12,13 @@
     <string name="google">Google</string>
     <string name="twitter">Twitter</string>
 
+    <!-- splash Page-->
+    <string name="splash_text">Your Journey, Our Priority</string>
+    <string name="splash_button">Get Started"</string>
+    <string name="splash_button_texttwo">Login</string>
+
+
+
     <!-- sign up-->
     <string name="sign_up_username">Username</string>
     <string name="sign_up_button">Sign up</string>
@@ -73,5 +80,7 @@
     <string name="flat_tire_repair_icon_description">Icon for flat tire repair service</string>
     <string name="service_five_icon_description">Icon for miscellaneous roadside service</string>
     <string name="location_icon_description">Icon for miscellaneous roadside service</string>
+
+    <!-- Activity Map -->
 
 </resources>

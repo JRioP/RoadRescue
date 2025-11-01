@@ -1,5 +1,6 @@
 package fourthyear.roadrescue;
 
+import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.activity.EdgeToEdge;
@@ -36,6 +37,9 @@ public class MainActivity extends AppCompatActivity {
 
         adapter = new PageAdapter(getSupportFragmentManager(),FragmentPagerAdapter.BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT,tabs.getTabCount());
         pager.setAdapter(adapter);
+
+        int fragmentIndex = getIntent().getIntExtra("LOAD_FRAGMENT_INDEX", 0);
+        pager.setCurrentItem(fragmentIndex);
 
         tabs.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
