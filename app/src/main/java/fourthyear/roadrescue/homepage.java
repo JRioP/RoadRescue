@@ -136,7 +136,7 @@ public class homepage extends AppCompatActivity {
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
         if (profileButton != null) {
             profileButton.setOnClickListener(v -> {
-                Intent intent = new Intent(homepage.this, homepage.class);
+                Intent intent = new Intent(homepage.this, ProfileActivity.class);
                 startActivity(intent);
             });
         }

@@ -18,7 +18,6 @@
     <string name="splash_button_texttwo">Login</string>
 
 
-
     <!-- sign up-->
     <string name="sign_up_username">Username</string>
     <string name="sign_up_button">Sign up</string>
@@ -82,5 +81,10 @@
     <string name="location_icon_description">Icon for miscellaneous roadside service</string>
 
     <!-- Activity Map -->
+
+    <!-- Profile -->
+    <string name="profile_text_page">Profile</string>"
+    <string name="profile_name">Juan Dela Cruz</string>
+    
 
 </resources>
