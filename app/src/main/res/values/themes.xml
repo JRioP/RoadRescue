@@ -7,5 +7,13 @@
         font-family: poppins;
     </style>
 
+    <style name="Divider">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">1dp</item>
+        <item name="android:background">#F0F0F0</item>
+        <item name="android:layout_marginStart">56dp</item>
+        <item name="android:layout_marginEnd">16dp</item>
+    </style>
+
     <style name="Theme.RoadRescue" parent="Base.Theme.RoadRescue" />
 </resources>

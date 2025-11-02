@@ -204,28 +204,4 @@ public class ChatConversationActivity extends AppCompatActivity {
             messagesListener.remove();
         }
     }
-
-    private void createSampleChats() {
-        String currentUserId = getCurrentUserId();
-
-        // Sample chat data
-        Map<String, Object> chat1 = new HashMap<>();
-        chat1.put("participants", Arrays.asList(currentUserId, "user1"));
-        chat1.put("userName", "John's Auto Repair");
-        chat1.put("lastMessage", "Thanks for choosing our service!");
-        chat1.put("price", "$20");
-        chat1.put("lastMessageTimestamp", com.google.firebase.Timestamp.now());
-
-        db.collection("chats").add(chat1);
-
-        Map<String, Object> chat2 = new HashMap<>();
-        chat2.put("participants", Arrays.asList(currentUserId, "user2"));
-        chat2.put("userName", "Sarah Mechanic");
-        chat2.put("lastMessage", "Your car is ready for pickup");
-        chat2.put("price", "$45");
-        chat2.put("lastMessageTimestamp", com.google.firebase.Timestamp.now());
-        chat2.put("unreadCount", 2);
-
-        db.collection("chats").add(chat2);
-    }
 }

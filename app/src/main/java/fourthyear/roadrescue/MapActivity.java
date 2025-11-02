@@ -1,6 +1,7 @@
 package fourthyear.roadrescue;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
@@ -14,10 +15,8 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
-import android.widget.TextView; // Make sure TextView is imported
+import android.widget.TextView;
 import android.widget.Toast;
-// Import ProgressBar
-// import android.widget.ProgressBar; // No longer needed
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
@@ -266,7 +265,7 @@ public class MapActivity extends AppCompatActivity
     private void getAddressFromLatLng(LatLng latLng, boolean isPickup) {
         executor.execute(() -> {
             String addressText = "";
-            String fallbackAddress = String.format("Lat: %.4f, Lng: %.4f", latLng.latitude, latLng.longitude);
+            @SuppressLint("DefaultLocale") String fallbackAddress = String.format("Lat: %.4f, Lng: %.4f", latLng.latitude, latLng.longitude);
 
             try {
                 List<Address> addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1);
@@ -297,6 +296,7 @@ public class MapActivity extends AppCompatActivity
         });
     }
 
+    @SuppressLint("DefaultLocale")
     private void sendServiceRequest() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) {
@@ -324,26 +324,21 @@ public class MapActivity extends AppCompatActivity
 
         requestData.put("requestType", "Towing");
 
-        // --- MERGED CODE ---
-        // Set the text on the card and show it *before* sending
         requestTypeText.setText("Towing");
         showSearchingUI();
-        // --- END MERGED CODE ---
+
 
         db.collection("service_requests")
                 .add(requestData)
                 .addOnSuccessListener(documentReference -> {
-                    // Toast.makeText(this, "Request sent! Searching for a provider...", Toast.LENGTH_LONG).show(); // <-- Removed
                     currentRequestId = documentReference.getId();
 
-                    // showSearchingUI(); // <-- Moved up
                     listenForRequestUpdates(currentRequestId);
                     lockUiForTracking();
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Failed to send request. Please try again.", Toast.LENGTH_SHORT).show();
                     Log.e("ServiceRequest", "Error adding document to Firestore", e);
-                    // If it fails, reset the UI
                     resetUiForNewRequest();
                 });
     }
@@ -451,8 +446,6 @@ public class MapActivity extends AppCompatActivity
         destinationInput.setEnabled(false);
     }
 
-    // --- MERGED CODE ---
-    // This method is completely replaced
     private void showSearchingUI() {
         // 1. Make the card visible
         statusCard.setVisibility(View.VISIBLE);
@@ -465,21 +458,14 @@ public class MapActivity extends AppCompatActivity
         distanceText.setText("...");
         etaText.setText("...");
 
-        // Use the request type from the data if available, otherwise just "Searching"
-        // This text is now set *before* calling this method (in sendServiceRequest or checkUserForActiveRequest)
-        // So we just ensure it's not "Searching..." if it was already set.
         if (requestTypeText.getText().toString().isEmpty()) {
             requestTypeText.setText("Searching...");
         }
 
-        // 4. Hide buttons that aren't useful until a provider is found
         messageButton.setVisibility(View.GONE);
         callButton.setVisibility(View.GONE);
     }
-    // --- END MERGED CODE ---
 
-    // --- MERGED CODE ---
-    // This method is modified
     private void showTrackerCard(DocumentSnapshot doc) {
         statusCard.setVisibility(View.VISIBLE);
 
