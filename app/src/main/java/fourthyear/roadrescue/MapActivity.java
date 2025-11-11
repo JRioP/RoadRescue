@@ -2,6 +2,7 @@ package fourthyear.roadrescue;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
@@ -96,8 +97,7 @@ public class MapActivity extends AppCompatActivity
     private TextView requestTypeText;
     private Button messageButton;
     private Button callButton;
-    // --- End UI Views ---
-
+    private ActivityResultLauncher<Intent> paymentLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -123,13 +123,19 @@ public class MapActivity extends AppCompatActivity
         messageButton = findViewById(R.id.message_button);
         callButton = findViewById(R.id.call_button);
 
+        // --- MODIFIED ---
+        // This now launches the PaymentActivity instead of sending the request directly
         requestServiceButton.setOnClickListener(v -> {
             if (pickupLatLng != null && destinationLatLng != null) {
-                sendServiceRequest();
+                // Launch PaymentActivity and wait for a result
+                // (Make sure you have created PaymentActivity.java)
+                Intent intent = new Intent(MapActivity.this, PaymentActivity.class);
+                paymentLauncher.launch(intent);
             } else {
                 Toast.makeText(this, "Please confirm both your pickup and destination locations.", Toast.LENGTH_LONG).show();
             }
         });
+        // --- END MODIFICATION ---
 
         editPickupButton.setOnClickListener(v -> toggleEditPickupMode());
 
@@ -169,6 +175,38 @@ public class MapActivity extends AppCompatActivity
         if (mapFragment != null) {
             mapFragment.getMapAsync(this);
         }
+
+        ImageView backButton = findViewById(R.id.back_btn);
+        backButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                finish();
+            }
+        });
+
+        // This is the launcher you already added. It waits for PaymentActivity to finish.
+        paymentLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    // Check if the result is OK (user completed payment)
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+
+                        // Get the payment method from the result
+                        String paymentMethod = result.getData().getStringExtra("PAYMENT_METHOD");
+
+                        // Now, finally send the request with the payment method
+                        if (paymentMethod != null) {
+                            sendServiceRequest(paymentMethod); // Pass the payment method here
+                        } else {
+                            // Handle error, though it shouldn't happen
+                            Toast.makeText(this, "Could not get payment method.", Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        // Handle if the user pressed "Back" or cancelled
+                        Toast.makeText(this, "Payment was cancelled.", Toast.LENGTH_SHORT).show();
+                    }
+                }
+        );
     }
 
     @Override
@@ -297,7 +335,10 @@ public class MapActivity extends AppCompatActivity
     }
 
     @SuppressLint("DefaultLocale")
-    private void sendServiceRequest() {
+    // --- MODIFIED ---
+    // Now accepts the paymentMethod string from the launcher
+    private void sendServiceRequest(String paymentMethod) {
+        // --- END MODIFICATION ---
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) {
             Toast.makeText(this, "You must be logged in to make a request.", Toast.LENGTH_SHORT).show();
@@ -323,6 +364,11 @@ public class MapActivity extends AppCompatActivity
         requestData.put("destinationAddress", (destinationAddress != null) ? destinationAddress : String.format("Lat: %.4f, Lng: %.4f", destinationLatLng.latitude, destinationLatLng.longitude));
 
         requestData.put("requestType", "Towing");
+
+        // --- MODIFIED ---
+        // This adds the selected payment method to the Firestore document
+        requestData.put("paymentMethod", paymentMethod);
+        // --- END MODIFICATION ---
 
         requestTypeText.setText("Towing");
         showSearchingUI();
@@ -395,7 +441,8 @@ public class MapActivity extends AppCompatActivity
                 MyMap.animateCamera(CameraUpdateFactory.newLatLngZoom(pickupLatLng, 15f));
             }
         }
-        if (pickupLatLng != null && destinationLatLng != null) {
+        if (pickupLatLng != null && destinationLatLng !=
+                null) {
             if (currentRequestId == null) {
                 requestServiceButton.setVisibility(View.VISIBLE);
             }
@@ -543,7 +590,6 @@ public class MapActivity extends AppCompatActivity
         providerMarker = null;
         pickupMarker = null;
 
-        // Re-enable location and update markers to show current pickup
         enableMyLocation();
     }
 

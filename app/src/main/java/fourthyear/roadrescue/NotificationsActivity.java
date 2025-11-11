@@ -1,6 +1,5 @@
 package fourthyear.roadrescue;
 
-// --- ADD THESE IMPORTS ---
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -25,8 +24,7 @@ public class NotificationsActivity extends AppCompatActivity {
 
     private static final String TAG = "NotificationsActivity";
 
-    // FIX 1: Change the list type to List<Object> to match the adapter's constructor
-    private List<Object> notificationsList;
+    private List<NotificationModel> notificationsList;
     private NotificationsAdapter notificationsAdapter;
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
@@ -41,7 +39,7 @@ public class NotificationsActivity extends AppCompatActivity {
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
 
-        notificationsList = new ArrayList<>();
+        notificationsList = new ArrayList<>(); // This will now create an ArrayList<NotificationModel>
 
         setupClickListeners();
         setupRecyclerView();
@@ -72,15 +70,11 @@ public class NotificationsActivity extends AppCompatActivity {
 
             notificationsList.clear();
 
-            // OPTIONAL: Add a header before adding notifications, e.g., "Recent Activity"
-            // notificationsList.add("Recent Activity");
 
             for (QueryDocumentSnapshot doc : snapshots) {
 
                 NotificationModel notification = doc.toObject(NotificationModel.class);
 
-                // Ensure the status field is not null before checking,
-                // though toObject should initialize it to null if absent
                 String status = notification.getStatus();
                 if (status == null) {
                     status = "unknown";
@@ -106,7 +100,7 @@ public class NotificationsActivity extends AppCompatActivity {
                         break;
                 }
 
-                // Add the NotificationModel object to the List<Object>
+                // Add the NotificationModel object to the List<NotificationModel>
                 notificationsList.add(notification);
             }
 
@@ -118,7 +112,7 @@ public class NotificationsActivity extends AppCompatActivity {
     private void setupRecyclerView() {
         RecyclerView notificationsRecyclerView = findViewById(R.id.notificationsRecyclerView);
 
-        // FIX 3: Pass the now-correctly-typed notificationsList to the adapter
+        // This line will now compile correctly
         notificationsAdapter = new NotificationsAdapter(notificationsList);
 
         notificationsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -151,7 +145,7 @@ public class NotificationsActivity extends AppCompatActivity {
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
         if (profileButton != null) {
             profileButton.setOnClickListener(v -> {
-                Intent intent = new Intent(NotificationsActivity.this, homepage.class);
+                Intent intent = new Intent(NotificationsActivity.this, ProfileActivity.class);
                 startActivity(intent);
             });
         }

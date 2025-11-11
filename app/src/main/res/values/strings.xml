@@ -85,6 +85,7 @@
     <!-- Profile -->
     <string name="profile_text_page">Profile</string>"
     <string name="profile_name">Juan Dela Cruz</string>
-    
+    <string name="profile_account_settings">Account Settings</string>
+
 
 </resources>

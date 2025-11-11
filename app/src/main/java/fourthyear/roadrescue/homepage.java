@@ -184,6 +184,7 @@ public class homepage extends AppCompatActivity {
                     if (task.isSuccessful()) {
                         DocumentSnapshot document = task.getResult();
                         if (document.exists()) {
+
                             String dbSessionId = document.getString("currentSessionId");
 
                             Log.d(TAG, "DB Session ID: " + dbSessionId);
@@ -243,8 +244,8 @@ public class homepage extends AppCompatActivity {
     private void initializeRecentItems() {
         recentItemModels = new ArrayList<>();
 
-        recentItemModels.add(new RecentItemModel("Home of BP", "Tanauan City, Leyte"));
-        recentItemModels.add(new RecentItemModel("Medical Center", "Palo, Leyte"));
+        recentItemModels.add(new RecentItemModel("Towing", "Tanauan City, Leyte"));
+        recentItemModels.add(new RecentItemModel("Fuel", "Palo, Leyte"));
         recentItemModels.add(new RecentItemModel("Fire Station", "Tacloban City"));
         recentItemModels.add(new RecentItemModel("Police Station", "Dulag, Leyte"));
         recentItemModels.add(new RecentItemModel("Emergency Shelter", "Basey, Samar"));
