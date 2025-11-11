@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+    <resources>
+        <string name="app_name">RoadRescue</string>
+        <string name="login_text">Maligayang Pagbabalik</string>
+        <string name="sign_up_text">Magsimula</string>
+        <string name="email">Email</string>
+        <string name="password">Password</string>
+        <string name="remember">Tandaan ako</string>
+        <string name="forget_pass">Nakalimutan ang Password?</string>
+        <string name="sign_in">Mag-login</string>
+        <string name="sign_in_with">Mag-login gamit ang</string>
+        <string name="facebook">Facebook</string>
+        <string name="google">Google</string>
+        <string name="twitter">Twitter</string>
+
+        <string name="splash_text">Ang Iyong Biyahe, Aming Prayoridad</string>
+        <string name="splash_button">Magsimula</string>
+        <string name="splash_button_texttwo">Mag-login</string>
+
+        <string name="sign_up_username">Username</string>
+        <string name="sign_up_button">Mag-rehistro</string>
+        <string name="sign_up_texttwo">Mag-rehistro gamit ang</string>
+        <string name="sign_up_retype_password">I-type muli ang Password</string>
+        <string name="sign_up_phone_number">Numero ng Telepono</string>
+        <string name="sign_up_phone_number_country_code">+63</string>
+        <string name="sign_up_termsandcondition">Mga Tuntunin at Kundisyon</string>
+
+        <string name="verify_text">Ilagay ang 6-digit code na ipinadala sa Telepono sa</string>
+        <string name="verify_btn_text">I-verify</string>
+        <string name="verify_edit_text">___</string>
+        <string name="resend_btn_text">Ipadala muli</string>
+        <string name="hello_blank_fragment">Hello blank fragment</string>
+
+        <string name="viewpager_desc">Mga pahina ng Login at Signup</string>
+
+        <string name="forget_password_text">Nakalimutan ang Password</string>
+        <string name="forget_pass_button">Nakalimutan ang Password</string>
+
+        <string name="current_location">Kasalukuyang Lokasyon</string>
+        <string name="location">Tanauan City</string>
+        <string name="SOS_Text">SOS</string>
+        <string name="services_text">Anong serbisyo ang hinahanap mo?</string>
+        <string name="towing_text">Towing</string>
+        <string name="jump_start_text">Jump-Start</string>
+        <string name="fuel_delivery_text">Gasolina</string>
+        <string name="flat_tire_text">Ayos Gulong</string>
+        <string name="notification_text">Notipikasyon</string>
+        <string name="home_text">Home</string>
+        <string name="message_text">Mensahe</string>
+        <string name="profile_text">Profile</string>
+        <string name="recent_text">Kamakailan</string>
+        <string name="title_notification">Notipikasyon</string>
+
+        <string name="back_button">Button para Bumalik</string>
+
+        <string name="item_recent_text">Pangalan ng SP</string>
+        <string name="item_location">Lokasyon</string>
+
+        <string name="notification_text_two">Mga Notipikasyon</string>
+        <string name="title_text_notification">Ngayon</string>
+        <string name="item_title_text_notification">Pamagat ng Notipikasyon</string>
+        <string name="item_notification_message_text">Dito ilalagay ang nilalaman ng mensahe ng notipikasyon.</string>
+        <string name="item_notification_time_text">10:30 AM</string>
+
+        <string name="towing_icon_description">Icon para sa serbisyo ng towing</string>
+        <string name="jump_start_icon_description">Icon para sa serbisyo ng jump-start</string>
+        <string name="fuel_delivery_icon_description">Icon para sa serbisyo ng paghahatid ng gasolina</string>
+        <string name="flat_tire_repair_icon_description">Icon para sa serbisyo ng pag-aayos ng flat na gulong</string>
+        <string name="service_five_icon_description">Icon para sa iba pang serbisyo sa kalsada</string>
+        <string name="location_icon_description">Icon para sa iba pang serbisyo sa kalsada</string>
+
+        <string name="profile_text_page">Profile</string>
+        <string name="profile_name">Juan Dela Cruz</string>
+        <string name="profile_account_settings">Mga Setting ng Account</string>
+    </resources>

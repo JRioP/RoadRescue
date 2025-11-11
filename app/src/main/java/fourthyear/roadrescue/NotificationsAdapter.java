@@ -9,87 +9,37 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Locale;
-import java.util.Date;
-// FIX: Change the generic type of the Adapter to RecyclerView.ViewHolder
-// since you are returning different specific ViewHolders (HeaderViewHolder and NotificationViewHolder).
-// Also, remove the unused 'NotificationsAdapter.ViewHolder' that was causing the error.
-public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
-    private static final int TYPE_HEADER = 0;
-    private static final int TYPE_NOTIFICATION = 1;
-
-    // List to hold both String headers and NotificationModel objects
-    private final List<Object> items;
-
-    public NotificationsAdapter(List<Object> items) {
-        this.items = items;
-    }
-
-    @Override
-    public int getItemViewType(int position) {
-        Object item = items.get(position);
-        if (item instanceof String) {
-            return TYPE_HEADER;
-        } else if (item instanceof NotificationModel) {
-            return TYPE_NOTIFICATION;
-        }
-        return -1; // Should not happen
+public class NotificationsAdapter extends RecyclerView.Adapter<NotificationsAdapter.NotificationViewHolder> {
+    private List<NotificationModel> notificationsList;
+    public NotificationsAdapter(List<NotificationModel> notificationsList) {
+        this.notificationsList = notificationsList;
     }
 
     @NonNull
     @Override
-    // FIX: Change return type from NotificationsAdapter.ViewHolder to RecyclerView.ViewHolder
-    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+    public NotificationViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        // 4. Inflate the single item layout
         LayoutInflater inflater = LayoutInflater.from(parent.getContext());
-
-        if (viewType == TYPE_HEADER) {
-            // Assumes R.layout.item_notification_header exists
-            View view = inflater.inflate(R.layout.item_notification_header, parent, false);
-            return new HeaderViewHolder(view);
-        } else {
-            // Assumes R.layout.item_notification exists
-            View view = inflater.inflate(R.layout.item_notification, parent, false);
-            return new NotificationViewHolder(view);
-        }
+        View view = inflater.inflate(R.layout.item_notification, parent, false);
+        return new NotificationViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
-        Object item = items.get(position);
-        int viewType = holder.getItemViewType();
-
-        if (viewType == TYPE_HEADER) {
-            // FIX: Ensure casting is done to the specific ViewHolder
-            ((HeaderViewHolder) holder).bind((String) item);
-        } else if (viewType == TYPE_NOTIFICATION) {
-            // FIX: Ensure casting is done to the specific ViewHolder
-            ((NotificationViewHolder) holder).bind((NotificationModel) item);
-        }
+    public void onBindViewHolder(@NonNull NotificationViewHolder holder, int position) {
+        // 5. Get the correct object from the list
+        NotificationModel notification = notificationsList.get(position);
+        holder.bind(notification);
     }
 
     @Override
     public int getItemCount() {
-        return items.size();
+        // 6. Return the size of the correct list
+        return notificationsList.size();
     }
 
     /**
-     * ViewHolder for the header (String) items.
-     */
-    static class HeaderViewHolder extends RecyclerView.ViewHolder {
-        private final TextView headerTitle;
-
-        HeaderViewHolder(@NonNull View itemView) {
-            super(itemView);
-            headerTitle = itemView.findViewById(R.id.headerTitle);
-        }
-
-        void bind(String header) {
-            headerTitle.setText(header);
-        }
-    }
-
-    /**
-     * ViewHolder for the main NotificationModel items.
+     * ViewHolder for the NotificationModel items.
      */
     static class NotificationViewHolder extends RecyclerView.ViewHolder {
         private final TextView notificationTitle;
@@ -102,30 +52,20 @@ public class NotificationsAdapter extends RecyclerView.Adapter<RecyclerView.View
             notificationMessage = itemView.findViewById(R.id.notificationMessage);
             notificationTime = itemView.findViewById(R.id.notificationTime);
         }
-
         void bind(NotificationModel notification) {
             notificationTitle.setText(notification.getTitle());
             notificationMessage.setText(notification.getMessage());
 
-            Object rawTimestamp = notification.getTimestamp();
-            Date dateToFormat = null;
+            Long timestamp = notification.getTimestamp().getSeconds();
 
-            if (rawTimestamp == null) {
-                notificationTime.setText("");
-                return;
-            } else if (rawTimestamp instanceof Date) {
-                dateToFormat = (Date) rawTimestamp;
-            } else if (rawTimestamp instanceof Long) {
-                dateToFormat = new Date((Long) rawTimestamp);
+            if (timestamp == null) {
+                notificationTime.setText(""); // Or "Just now"
             } else {
-                notificationTime.setText("Time Unknown");
-                return;
+                // Format time using SimpleDateFormat
+                SimpleDateFormat timeFormat = new SimpleDateFormat("hh:mm a", Locale.getDefault());
+                String time = timeFormat.format(timestamp);
+                notificationTime.setText(time);
             }
-
-            // Format time using SimpleDateFormat
-            SimpleDateFormat timeFormat = new SimpleDateFormat("hh:mm a", Locale.getDefault());
-            String time = timeFormat.format(dateToFormat);
-            notificationTime.setText(time);
         }
     }
 }

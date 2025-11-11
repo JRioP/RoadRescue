@@ -52,6 +52,8 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-storage")
+    implementation("com.github.bumptech.glide:glide:4.16.0")
 
     // This version is from 2022 and works with the BOM above.
     implementation("com.firebaseui:firebase-ui-firestore:8.0.2")
@@ -69,6 +71,8 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.11.0") // Updated from 2.9.0
     implementation("com.squareup.retrofit2:converter-gson:2.11.0") // Updated from 2.9.0
     implementation("com.google.code.gson:gson:2.11.0") // Updated from 2.10.1
+
+
 
 
 }
