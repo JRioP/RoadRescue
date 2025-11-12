@@ -43,7 +43,6 @@ public class Login extends Fragment {
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
 
-    // Add these for the loading overlay
     private View loadingOverlay;
     private Handler handler = new Handler(Looper.getMainLooper());
 
@@ -56,7 +55,6 @@ public class Login extends Fragment {
 
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser != null) {
-            // User is already logged in, redirect them
             redirectToHomepage(currentUser, false);
         }
     }
@@ -94,7 +92,6 @@ public class Login extends Fragment {
         return view;
     }
 
-    // Helper method to show/hide the loading screen
     private void showLoading(boolean isLoading) {
         if (isLoading) {
             if (loadingOverlay != null) loadingOverlay.setVisibility(View.VISIBLE);
@@ -126,11 +123,10 @@ public class Login extends Fragment {
                     @Override
                     public void onComplete(@NonNull Task<AuthResult> task) {
 
-                        // Start the 3-second delay *after* Firebase responds
+
                         handler.postDelayed(new Runnable() {
                             @Override
                             public void run() {
-                                // Hide the loader
                                 showLoading(false);
 
                                 if (task.isSuccessful()) {
@@ -146,7 +142,7 @@ public class Login extends Fragment {
                                     handleLoginError(task.getException());
                                 }
                             }
-                        }, 3000); // Changed to 3000 milliseconds (3 seconds)
+                        }, 3000);
                     }
                 });
     }

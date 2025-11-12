@@ -1,7 +1,4 @@
 package fourthyear.roadrescue;
-
-// ... (existing imports) ...
-
 import static android.content.ContentValues.TAG;
 import android.content.Intent;
 import android.os.Bundle;
@@ -111,7 +108,6 @@ public class Signup extends Fragment {
         phoneCountryCode.addTextChangedListener(new SimpleTextWatcher(phoneCountryCode));
     }
 
-    // Helper class to quickly clear standard EditText errors
     private static class SimpleTextWatcher implements TextWatcher {
         private final EditText editText;
         SimpleTextWatcher(EditText editText) {
@@ -146,12 +142,10 @@ public class Signup extends Fragment {
             signupBtn.setEnabled(false);
             signupBtn.setText("Checking Email...");
 
-            // Start the check for existing email
             checkIfEmailExists(email, password, phone);
         }
     }
 
-    // MODIFIED: Method to check if the email is already registered and show red box/error
     private void checkIfEmailExists(String email, String password, String phone) {
         fAuth.fetchSignInMethodsForEmail(email)
                 .addOnCompleteListener(task -> {
@@ -160,18 +154,16 @@ public class Signup extends Fragment {
                         boolean isNewUser = task.getResult().getSignInMethods().isEmpty();
 
                         if (!isNewUser) {
-                            // FIX: Set error on the personEmail EditText, making the box glow red
                             personEmail.setError("An account with this email already exists.");
 
                             showToast("An account with this email already exists.");
                             signupBtn.setEnabled(true);
                             signupBtn.setText("Sign Up");
                         } else {
-                            // Email is new, proceed with user creation
                             createFirebaseUser(email, password, phone);
                         }
                     } else {
-                        // Error during the check (e.g., network error, invalid email format passed)
+
                         Log.e(TAG, "Error checking email existence: " + task.getException());
                         showToast("Error checking email. Please try again.");
                         signupBtn.setEnabled(true);
@@ -315,8 +307,6 @@ public class Signup extends Fragment {
                     public void onSuccess(Void unused) {
                         Log.i(TAG, "Verification email sent to: " + email);
                         showToast("Verification email sent. Please verify your email before logging in.");
-
-                        // Sign out until email is verified
                         fAuth.signOut();
                         redirectToPhoneVerification(phone, email);
                     }

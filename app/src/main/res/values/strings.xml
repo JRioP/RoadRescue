@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">RoadRescue</string>
     <string name="login_text">Welcome Back</string>
-    <string name="sign_up_text">Get Started</string>
+    <string name="sign_up_text">Create Account</string>
     <string name="email">Email</string>
     <string name="password">Password</string>
     <string name="remember">Remember me</string>
@@ -27,7 +27,6 @@
     <string name="sign_up_phone_number_country_code">+63</string>
     <string name="sign_up_termsandcondition">Terms And Conditions</string>
 
-    <!-- TODO: Remove or change this placeholder text -->
     <!-- Verify -->
     <string name="verify_text">Enter the 6-digit code sent via Phone at</string>
     <string name="verify_btn_text">Verify</string>

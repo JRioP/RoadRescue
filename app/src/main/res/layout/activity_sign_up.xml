@@ -199,7 +199,7 @@
         android:id="@+id/btn_signup"
         android:layout_width="250dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="15dp"
         android:backgroundTint="@color/blue"
         android:fontFamily="@font/poppins"
         android:text="@string/sign_up_button"
