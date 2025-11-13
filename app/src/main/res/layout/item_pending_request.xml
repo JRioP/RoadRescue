@@ -31,6 +31,15 @@
             android:textSize="12sp" />
 
         <TextView
+            android:id="@+id/request_payment_mode_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Payment: Cash"
+            android:textColor="@android:color/holo_green_dark"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
             android:id="@+id/request_distance_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

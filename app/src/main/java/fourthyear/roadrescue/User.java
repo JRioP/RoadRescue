@@ -2,7 +2,6 @@ package fourthyear.roadrescue;
 
 import com.google.firebase.Timestamp;
 
-// User.java
 public class User {
     private String userId;
     private String name;
@@ -12,10 +11,15 @@ public class User {
     private boolean isOnline;
     private Timestamp lastSeen;
 
-    // Default constructor (required for Firestore)
+    private String currentSessionId;
+    private String carBrand;
+    private String carType;
+    private String gender;
+    private String carYear;
+    private String carModel;
+
     public User() {}
 
-    // Full constructor
     public User(String userId, String name, String email, String phone, String userType, boolean isOnline) {
         this.userId = userId;
         this.name = name;
@@ -26,7 +30,6 @@ public class User {
         this.lastSeen = Timestamp.now();
     }
 
-    // Getters and setters...
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
 
@@ -47,4 +50,24 @@ public class User {
 
     public Timestamp getLastSeen() { return lastSeen; }
     public void setLastSeen(Timestamp lastSeen) { this.lastSeen = lastSeen; }
+
+    // --- GETTERS AND SETTERS FOR NEW FIELDS ---
+
+    public String getCurrentSessionId() { return currentSessionId; }
+    public void setCurrentSessionId(String currentSessionId) { this.currentSessionId = currentSessionId; }
+
+    public String getCarBrand() { return carBrand; }
+    public void setCarBrand(String carBrand) { this.carBrand = carBrand; }
+
+    public String getCarType() { return carType; }
+    public void setCarType(String carType) { this.carType = carType; }
+
+    public String getGender() { return gender; }
+    public void setGender(String gender) { this.gender = gender; }
+
+    public String getCarYear() { return carYear; }
+    public void setCarYear(String carYear) { this.carYear = carYear; }
+
+    public String getCarModel() { return carModel; }
+    public void setCarModel(String carModel) { this.carModel = carModel; }
 }

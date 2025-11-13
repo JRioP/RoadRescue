@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.SetOptions; // <-- Import this
 
 import java.util.HashMap;
 import java.util.Map;
@@ -65,11 +66,12 @@ public class ProfileSetupActivity extends AppCompatActivity {
         userData.put("firstName", firstName);
         userData.put("lastName", lastName);
         userData.put("fullName", firstName + " " + lastName);
+        userData.put("name", firstName + " " + lastName);
 
         String userId = firebaseUser.getUid();
 
         db.collection("users").document(userId)
-                .update(userData)
+                .set(userData, SetOptions.merge())
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(ProfileSetupActivity.this, "Profile Saved!", Toast.LENGTH_SHORT).show();
 

@@ -1,16 +1,32 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     id("com.google.gms.google-services")
 }
 
+fun getLocalProperty(key: String): String {
+    val properties = Properties()
+    val localPropertiesFile = project.rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        properties.load(FileInputStream(localPropertiesFile))
+    }
+    return properties.getProperty(key, "")
+}
+
 android {
     namespace = "fourthyear.roadrescue"
-    compileSdk = 34
+    compileSdk = 36
+
+    buildFeatures {
+        buildConfig = true
+    }
 
     defaultConfig {
         applicationId = "fourthyear.roadrescue"
         minSdk = 23
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -18,17 +34,25 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "MAPS_API_KEY", "\"${getLocalProperty("MAPS_API_KEY")}\"")
+        }
+
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            buildConfigField("String", "MAPS_API_KEY", "\"${getLocalProperty("MAPS_API_KEY")}\"")
         }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+    packagingOptions {
+        resources.excludes.add("META-INF/DEPENDENCIES")
     }
 }
 
@@ -62,8 +86,18 @@ dependencies {
     implementation("com.google.maps:google-maps-services:2.2.0")
     implementation("com.google.maps.android:android-maps-utils:3.8.0")
 
+    // --- 4. ADDED REQUIRED DEPENDENCY FOR MAPS SERVICES ---
+    implementation("org.slf4j:slf4j-simple:1.7.25")
+
     // Networking
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.google.code.gson:gson:2.11.0")
+
+    // Add this line for App Check debug testing
+    implementation("com.google.firebase:firebase-appcheck-debug:17.1.2")
+    debugImplementation("com.google.firebase:firebase-appcheck-debug:17.1.2")
+
+    //payment
+    implementation("com.squareup.okhttp3:okhttp:4.10.0")
 }

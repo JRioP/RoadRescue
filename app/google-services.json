@@ -12,7 +12,20 @@
           "package_name": "fourthyear.roadrescue"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "918948992882-dk8s8fbsk4ot734mg9ldp928618lehah.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "fourthyear.roadrescue",
+            "certificate_hash": "85ae8d22d5e69018c56ffd1097f6017d2fd780d8"
+          }
+        },
+        {
+          "client_id": "918948992882-74974ae6l90bidgfupr8fvt7p1d4t8be.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCcGrhKEwhmwIp1M3k2of4P9VnCeLq9aOY"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "918948992882-74974ae6l90bidgfupr8fvt7p1d4t8be.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

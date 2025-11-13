@@ -5,7 +5,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.widget.AdapterView; // --- NEW ---
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -17,7 +17,6 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia;
-
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.bumptech.glide.Glide;
@@ -25,7 +24,9 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.SetOptions;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 
@@ -50,7 +51,8 @@ public class ProfileActivity extends AppCompatActivity {
 
     private TextView profileName;
     private ImageView editButton;
-    private EditText editUsername, editEmail, editPhone;
+    // --- Renamed variable for clarity ---
+    private EditText editFullName, editEmail, editPhone;
     private Spinner spinnerGender, spinnerCarType, spinnerCarBrand, spinnerCarModel, spinnerCarYear;
 
     private TextView accountSettingsButton;
@@ -61,7 +63,6 @@ public class ProfileActivity extends AppCompatActivity {
     private ArrayAdapter<String> carBrandAdapter;
     private ArrayAdapter<String> carYearAdapter;
 
-    private ArrayAdapter<String> carModelAdapter;
     private ArrayAdapter<String> toyotaAdapter;
     private ArrayAdapter<String> hondaAdapter;
     private ArrayAdapter<String> mitsubishiAdapter;
@@ -96,7 +97,6 @@ public class ProfileActivity extends AppCompatActivity {
         userDocRef = db.collection("users").document(currentUser.getUid());
 
         findViews();
-
         setupClickListeners();
         setupSpinners();
         setupImagePicker();
@@ -110,15 +110,15 @@ public class ProfileActivity extends AppCompatActivity {
         profileName = findViewById(R.id.profile_name);
         editButton = findViewById(R.id.edit_button);
 
-        editUsername = findViewById(R.id.edit_username);
+        // --- Use new variable name, but find the same ID ---
+        editFullName = findViewById(R.id.edit_username);
         editEmail = findViewById(R.id.edit_email);
         editPhone = findViewById(R.id.edit_phone);
 
-        // Find Spinners
         spinnerGender = findViewById(R.id.edit_gender);
         spinnerCarType = findViewById(R.id.edit_car_type);
         spinnerCarBrand = findViewById(R.id.edit_car_brand);
-        spinnerCarModel = findViewById(R.id.edit_car_model); // This is now a Spinner
+        spinnerCarModel = findViewById(R.id.edit_car_model);
         spinnerCarYear = findViewById(R.id.edit_car_year);
 
         accountSettingsButton = findViewById(R.id.btn_account_settings);
@@ -160,24 +160,20 @@ public class ProfileActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-        // --- NEW: Listener for Car Brand ---
         spinnerCarBrand.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                // Get selected brand
                 String selectedBrand = parent.getItemAtPosition(position).toString();
-                // Update the car model spinner based on the brand
                 updateCarModelSpinner(selectedBrand);
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {
-                // Do nothing
+                updateCarModelSpinner(null);
             }
         });
     }
 
     private void setupSpinners() {
-
         String[] genders = {"Prefer not to say", "Male", "Female", "Other"};
         genderAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, genders);
         genderAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -199,11 +195,9 @@ public class ProfileActivity extends AppCompatActivity {
         for (int i = currentYear; i >= 1980; i--) {
             years.add(Integer.toString(i));
         }
-
         carYearAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, years);
         carYearAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCarYear.setAdapter(carYearAdapter);
-
 
         String[] toyotaModels = {"Vios", "Corolla", "Camry", "Fortuner", "Hilux", "Other"};
         toyotaAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, toyotaModels);
@@ -249,6 +243,11 @@ public class ProfileActivity extends AppCompatActivity {
     }
 
     private void updateCarModelSpinner(String brand) {
+        if (brand == null) {
+            spinnerCarModel.setAdapter(otherAdapter);
+            return;
+        }
+
         switch (brand) {
             case "Toyota":
                 spinnerCarModel.setAdapter(toyotaAdapter);
@@ -314,7 +313,10 @@ public class ProfileActivity extends AppCompatActivity {
     }
 
     private void saveImageUrlToFirestore(String imageUrl) {
-        userDocRef.update("profileImageUrl", imageUrl)
+        Map<String, Object> data = new HashMap<>();
+        data.put("profileImageUrl", imageUrl);
+
+        userDocRef.set(data, SetOptions.merge())
                 .addOnSuccessListener(aVoid -> Toast.makeText(this, "Profile picture updated!", Toast.LENGTH_SHORT).show())
                 .addOnFailureListener(e -> Toast.makeText(this, "Failed to save profile picture", Toast.LENGTH_SHORT).show());
     }
@@ -325,7 +327,7 @@ public class ProfileActivity extends AppCompatActivity {
             setFieldsEditable(true);
             editButton.setImageResource(R.drawable.save_icon);
             Toast.makeText(this, "Edit mode enabled", Toast.LENGTH_SHORT).show();
-            editUsername.requestFocus();
+            editFullName.requestFocus();
         } else {
             setFieldsEditable(false);
             editButton.setImageResource(R.drawable.edit_icon);
@@ -335,14 +337,13 @@ public class ProfileActivity extends AppCompatActivity {
 
     private void setFieldsEditable(boolean editable) {
         editEmail.setEnabled(false);
-        editUsername.setEnabled(editable);
+        editFullName.setEnabled(editable);
         editPhone.setEnabled(editable);
 
-        // Enable/disable spinners
         spinnerGender.setEnabled(editable);
         spinnerCarType.setEnabled(editable);
         spinnerCarBrand.setEnabled(editable);
-        spinnerCarModel.setEnabled(editable); // Now a spinner
+        spinnerCarModel.setEnabled(editable);
         spinnerCarYear.setEnabled(editable);
     }
 
@@ -357,6 +358,10 @@ public class ProfileActivity extends AppCompatActivity {
                     Log.d(TAG, "User data loaded: " + document.getData());
 
                     String name = document.getString("name");
+                    String fullName = document.getString("fullName");
+                    String firstName = document.getString("firstName");
+                    String lastName = document.getString("lastName");
+
                     String dbPhone = document.getString("phone");
                     String gender = document.getString("gender");
                     String carType = document.getString("carType");
@@ -365,13 +370,23 @@ public class ProfileActivity extends AppCompatActivity {
                     String carYear = document.getString("carYear");
                     String imageUrl = document.getString("profileImageUrl");
 
+                    String displayedName = "User"; // Default
+                    if (name != null && !name.isEmpty()) {
+                        displayedName = name;
+                    } else if (fullName != null && !fullName.isEmpty()) {
+                        displayedName = fullName;
+                    } else if (firstName != null && !firstName.isEmpty()) {
+                        displayedName = firstName + " " + (lastName != null ? lastName : "");
+                    }
+
                     if (imageUrl != null && !imageUrl.isEmpty()) {
                         Glide.with(ProfileActivity.this).load(imageUrl).circleCrop().into(profileImageView);
                     }
 
-                    profileName.setText(name != null ? name : "User");
-                    editUsername.setText(name);
+                    profileName.setText(displayedName);
+                    editFullName.setText(displayedName);
                     editEmail.setText(authEmail);
+
                     if (dbPhone != null && !dbPhone.isEmpty()) {
                         editPhone.setText(dbPhone);
                     } else {
@@ -381,17 +396,17 @@ public class ProfileActivity extends AppCompatActivity {
                     setSpinnerToValue(spinnerGender, gender, genderAdapter);
                     setSpinnerToValue(spinnerCarType, carType, carTypeAdapter);
                     setSpinnerToValue(spinnerCarBrand, carBrand, carBrandAdapter);
-                    setSpinnerToValue(spinnerCarBrand, carBrand, carBrandAdapter);
-                    updateCarModelSpinner(carBrand);
-                    setSpinnerToValue(spinnerCarModel, carModel, (ArrayAdapter<String>) spinnerCarModel.getAdapter());
 
+                    updateCarModelSpinner(carBrand);
+
+                    setSpinnerToValue(spinnerCarModel, carModel, (ArrayAdapter<String>) spinnerCarModel.getAdapter());
                     setSpinnerToValue(spinnerCarYear, carYear, carYearAdapter);
 
                 } else {
-                    Log.d(TAG, "No such user document");
+                    Log.d(TAG, "No such user document. Setting defaults.");
                     editEmail.setText(authEmail);
                     editPhone.setText(authPhone);
-                    Toast.makeText(this, "Error: User profile not found.", Toast.LENGTH_SHORT).show();
+                    profileName.setText("User");
                 }
             } else {
                 Log.e(TAG, "Error loading user data", task.getException());
@@ -402,7 +417,7 @@ public class ProfileActivity extends AppCompatActivity {
 
     private void setSpinnerToValue(Spinner spinner, String value, ArrayAdapter<String> adapter) {
         if (value == null || adapter == null) {
-            spinner.setSelection(0); // Default to first item
+            spinner.setSelection(0);
             return;
         }
 
@@ -410,12 +425,17 @@ public class ProfileActivity extends AppCompatActivity {
         if (position >= 0) {
             spinner.setSelection(position);
         } else {
-            spinner.setSelection(adapter.getPosition("Other"));
+            int otherPosition = adapter.getPosition("Other");
+            if (otherPosition >= 0) {
+                spinner.setSelection(otherPosition);
+            } else {
+                spinner.setSelection(0);
+            }
         }
     }
 
     private void saveUserProfile() {
-        String newUsername = editUsername.getText().toString().trim();
+        String newFullName = editFullName.getText().toString().trim();
         String newPhone = editPhone.getText().toString().trim();
 
         String newGender = spinnerGender.getSelectedItem().toString();
@@ -425,7 +445,13 @@ public class ProfileActivity extends AppCompatActivity {
         String newCarYear = spinnerCarYear.getSelectedItem().toString();
 
         Map<String, Object> updates = new HashMap<>();
-        updates.put("name", newUsername);
+
+        // --- START OF FIX ---
+        // Save the edited name to BOTH 'name' and 'fullName' fields
+        updates.put("name", newFullName);
+        updates.put("fullName", newFullName);
+        // --- END OF FIX ---
+
         updates.put("phone", newPhone);
         updates.put("gender", newGender);
         updates.put("carType", newCarType);
@@ -433,11 +459,11 @@ public class ProfileActivity extends AppCompatActivity {
         updates.put("carModel", newCarModel);
         updates.put("carYear", newCarYear);
 
-        userDocRef.update(updates)
+        userDocRef.set(updates, SetOptions.merge())
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "User profile updated successfully!");
                     Toast.makeText(this, "Profile Saved!", Toast.LENGTH_SHORT).show();
-                    profileName.setText(newUsername);
+                    profileName.setText(newFullName);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Error updating user profile", e);
