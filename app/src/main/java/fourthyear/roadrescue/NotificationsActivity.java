@@ -7,14 +7,11 @@ import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
-// Other imports...
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
 import android.widget.ImageView;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
@@ -34,16 +31,15 @@ public class NotificationsActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_notification);
-        setupUIComponents();
-
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
 
-        notificationsList = new ArrayList<>(); // This will now create an ArrayList<NotificationModel>
+        setupNavbar();
+
+        notificationsList = new ArrayList<>();
 
         setupClickListeners();
         setupRecyclerView();
-
 
         listenForNotifications();
     }
@@ -70,9 +66,13 @@ public class NotificationsActivity extends AppCompatActivity {
 
             notificationsList.clear();
 
+            if (snapshots == null) {
+                Log.w(TAG, "Snapshots value is null.");
+                notificationsAdapter.notifyDataSetChanged();
+                return;
+            }
 
             for (QueryDocumentSnapshot doc : snapshots) {
-
                 NotificationModel notification = doc.toObject(NotificationModel.class);
 
                 String status = notification.getStatus();
@@ -94,13 +94,10 @@ public class NotificationsActivity extends AppCompatActivity {
                         notification.setMessage("Your vehicle service is complete. Please rate us!");
                         break;
                     default:
-                        // Handle other statuses or unknown status
                         notification.setTitle("Status Update");
                         notification.setMessage("The status of your service request is: " + status);
                         break;
                 }
-
-                // Add the NotificationModel object to the List<NotificationModel>
                 notificationsList.add(notification);
             }
 
@@ -111,10 +108,7 @@ public class NotificationsActivity extends AppCompatActivity {
 
     private void setupRecyclerView() {
         RecyclerView notificationsRecyclerView = findViewById(R.id.notificationsRecyclerView);
-
-        // This line will now compile correctly
         notificationsAdapter = new NotificationsAdapter(notificationsList);
-
         notificationsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         notificationsRecyclerView.setAdapter(notificationsAdapter);
     }
@@ -133,37 +127,62 @@ public class NotificationsActivity extends AppCompatActivity {
         }
     }
 
-    private void setupUIComponents() {
+    private void setupNavbar() {
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        if (notificationButton != null) {
-            notificationButton.setOnClickListener(v -> {
-                Intent intent = new Intent(NotificationsActivity.this, NotificationsActivity.class);
-                startActivity(intent);
-            });
-        }
+        notificationButton.setOnClickListener(v -> {
+        });
 
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
-        if (profileButton != null) {
-            profileButton.setOnClickListener(v -> {
-                Intent intent = new Intent(NotificationsActivity.this, ProfileActivity.class);
-                startActivity(intent);
-            });
-        }
+        profileButton.setOnClickListener(v -> {
+            Intent intent = new Intent(NotificationsActivity.this, ProfileActivity.class);
+            startActivity(intent);
+        });
 
         ImageView homeButton = findViewById(R.id.home_icon_btn);
-        if (homeButton != null) {
-            homeButton.setOnClickListener(v -> {
-                Intent intent = new Intent(NotificationsActivity.this, homepage.class);
+        homeButton.setOnClickListener(v -> {
+            FirebaseUser user = mAuth.getCurrentUser();
+            if (user == null) {
+                Intent intent = new Intent(NotificationsActivity.this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(intent);
-            });
-        }
+                finish();
+                return;
+            }
+
+            db.collection("users").document(user.getUid()).get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        String userType = "Customer";
+                        if (documentSnapshot.exists()) {
+                            String type = documentSnapshot.getString("userType");
+                            if (type != null && type.equals("Service Provider")) {
+                                userType = type;
+                            }
+                        }
+
+                        if (userType.equals("Service Provider")) {
+                            Intent intent = new Intent(NotificationsActivity.this, ServiceProviderHomepage.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        } else {
+                            Intent intent = new Intent(NotificationsActivity.this, homepage.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        }
+                        finish();
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Failed to get userType, defaulting to customer homepage", e);
+                        Intent intent = new Intent(NotificationsActivity.this, homepage.class);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        finish();
+                    });
+        });
 
         ImageView messageButton = findViewById(R.id.message_icon_btn);
-        if (messageButton != null) {
-            messageButton.setOnClickListener(v -> {
-                Intent intent = new Intent(NotificationsActivity.this, ChatInboxActivity.class);
-                startActivity(intent);
-            });
-        }
+        messageButton.setOnClickListener(v -> {
+            Intent intent = new Intent(NotificationsActivity.this, ChatInboxActivity.class);
+            startActivity(intent);
+        });
     }
 }

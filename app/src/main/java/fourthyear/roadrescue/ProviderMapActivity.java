@@ -833,7 +833,7 @@ public class ProviderMapActivity extends AppCompatActivity implements
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         if (homeButton != null) {
             homeButton.setOnClickListener(v -> {
-                Intent intent = new Intent(ProviderMapActivity.this, homepage.class);
+                Intent intent = new Intent(ProviderMapActivity.this, ServiceProviderHomepage.class);
                 startActivity(intent);
             });
         }

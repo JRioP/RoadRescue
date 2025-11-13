@@ -1,6 +1,5 @@
 package fourthyear.roadrescue;
 
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -8,13 +7,10 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
 import com.google.android.material.button.MaterialButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException;
@@ -55,10 +51,7 @@ public class ProfileAccountDeleteSettingsActivity extends AppCompatActivity {
 
         buttonDelete.setOnClickListener(v -> showDeleteConfirmationDialog());
 
-        navNotification.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, NotificationsActivity.class)));
-        navHome.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, homepage.class)));
-        navMessage.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, ChatInboxActivity.class)));
-        navProfile.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, ProfileActivity.class)));
+        setupNavbar();
     }
 
     private void showDeleteConfirmationDialog() {
@@ -121,5 +114,55 @@ public class ProfileAccountDeleteSettingsActivity extends AppCompatActivity {
                         }
                     }
                 });
+    }
+
+    private void setupNavbar() {
+        navNotification.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, NotificationsActivity.class)));
+        navMessage.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, ChatInboxActivity.class)));
+        navProfile.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, ProfileActivity.class)));
+
+        navHome.setOnClickListener(v -> {
+            FirebaseUser user = mAuth.getCurrentUser();
+            if (user == null) {
+
+                Intent intent = new Intent(ProfileAccountDeleteSettingsActivity.this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+                finish();
+                return;
+            }
+
+            db.collection("users").document(user.getUid()).get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        String userType = "Customer"; // Default to customer
+                        if (documentSnapshot.exists()) {
+                            String type = documentSnapshot.getString("userType");
+                            if (type != null && type.equals("Service Provider")) {
+                                userType = type;
+                            }
+                        }
+
+                        if (userType.equals("Service Provider")) {
+
+                            Intent intent = new Intent(ProfileAccountDeleteSettingsActivity.this, ServiceProviderHomepage.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        } else {
+
+                            Intent intent = new Intent(ProfileAccountDeleteSettingsActivity.this, homepage.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        }
+                        finish();
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Failed to get userType, defaulting to customer homepage", e);
+                        Intent intent = new Intent(ProfileAccountDeleteSettingsActivity.this, homepage.class);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        finish();
+                    });
+        });
+        // --- END OF FIX ---
     }
 }

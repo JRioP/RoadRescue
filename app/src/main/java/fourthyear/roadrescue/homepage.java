@@ -61,7 +61,7 @@ public class homepage extends AppCompatActivity {
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
     private FirebaseUser currentUser;
-    private DocumentReference userDocRef; // Added for SOS contacts
+    private DocumentReference userDocRef;
     private String localSessionId;
 
     private FusedLocationProviderClient fusedLocationClient;
@@ -481,9 +481,9 @@ public class homepage extends AppCompatActivity {
         recentItemModels = new ArrayList<>();
         recentItemModels.add(new RecentItemModel("Towing", "Tanauan City, Leyte"));
         recentItemModels.add(new RecentItemModel("Fuel", "Palo, Leyte"));
-        recentItemModels.add(new RecentItemModel("Fire Station", "Tacban City"));
-        recentItemModels.add(new RecentItemModel("Police Station", "Dulag, Leyte"));
-        recentItemModels.add(new RecentItemModel("Emergency Shelter", "Basey, Samar"));
+        recentItemModels.add(new RecentItemModel("Jump-Start", "Tacban City"));
+        recentItemModels.add(new RecentItemModel("Flat Tire Repair", "Tacban City"));
+        recentItemModels.add(new RecentItemModel("Replace Battery", "Dulag, Leyte"));
     }
 
     private void setupRecyclerView() {

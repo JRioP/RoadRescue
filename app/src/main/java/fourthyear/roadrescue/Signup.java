@@ -306,6 +306,7 @@ public class Signup extends Fragment {
             user.put("email", email);
             user.put("name", username);
             user.put("userType", "user");
+            user.put("phone", phone);
             user.put("isOnline", false);
             user.put("lastSeen", FieldValue.serverTimestamp());
 

@@ -38,7 +38,7 @@ public class ChatInboxActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_chat_inbox); // Your layout file
+        setContentView(R.layout.activity_chat_inbox);
 
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
@@ -46,24 +46,24 @@ public class ChatInboxActivity extends AppCompatActivity {
         FirebaseUser currentUser = auth.getCurrentUser();
         if (currentUser == null) {
             Toast.makeText(this, "You must be logged in.", Toast.LENGTH_SHORT).show();
-            finish(); // Close if no user is logged in
+            finish();
             return;
         }
         currentUserId = currentUser.getUid();
 
         setupViews();
         initializeRecyclerView();
-        setupFirestoreListener(); // This is the new query
+        setupFirestoreListener();
         setupNavbar();
     }
 
     private void setupViews() {
-        ImageView backButton = findViewById(R.id.backButton); // Assumes you have a back button
+        ImageView backButton = findViewById(R.id.backButton);
         if (backButton != null) {
             backButton.setOnClickListener(v -> finish());
         }
 
-        TextView titleText = findViewById(R.id.title); // Assumes you have this
+        TextView titleText = findViewById(R.id.title);
         if (titleText != null) {
             titleText.setText("Messages");
         }
@@ -71,23 +71,19 @@ public class ChatInboxActivity extends AppCompatActivity {
 
     private void initializeRecyclerView() {
         chatList = new ArrayList<>();
-        chatsRecyclerView = findViewById(R.id.usersRecyclerView); // The ID from your XML
+        chatsRecyclerView = findViewById(R.id.usersRecyclerView);
 
         chatInboxAdapter = new ChatInboxAdapter(this, chatList, chat -> {
-            // Click listener for a chat item
 
-            // --- FIX FOR BUG 2 ---
             if (chat.getChatId() == null) {
                 Log.e(TAG, "Chat ID is null on click, cannot open chat.");
                 Toast.makeText(this, "Error opening chat.", Toast.LENGTH_SHORT).show();
                 return;
             }
-            // ---------------------
 
             Intent intent = new Intent(this, ChatConversationActivity.class);
             intent.putExtra("chatId", chat.getChatId());
 
-            // Pass the other user's name
             String otherUserName = "Chat";
             if (chat.getParticipantNames() != null) {
                 for (Map.Entry<String, String> entry : chat.getParticipantNames().entrySet()) {
@@ -122,11 +118,7 @@ public class ChatInboxActivity extends AppCompatActivity {
                         for (QueryDocumentSnapshot doc : value) {
                             ChatInboxItem chat = doc.toObject(ChatInboxItem.class);
 
-                            // --- FIX FOR BUG 2 ---
-                            // Manually set the document ID onto the chat object
-                            // This guarantees chat.getChatId() is NOT null.
                             chat.setChatId(doc.getId());
-                            // ---------------------
 
                             chatList.add(chat);
                         }
@@ -140,15 +132,69 @@ public class ChatInboxActivity extends AppCompatActivity {
 
     private void setupNavbar() {
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        notificationButton.setOnClickListener(v -> startActivity(new Intent(ChatInboxActivity.this, NotificationsActivity.class)));
+        notificationButton.setOnClickListener(v -> {
+            Intent intent = new Intent(ChatInboxActivity.this, NotificationsActivity.class);
+            startActivity(intent);
+        });
 
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
-        profileButton.setOnClickListener(v -> startActivity(new Intent(ChatInboxActivity.this, ProfileActivity.class)));
+        profileButton.setOnClickListener(v -> {
+            Intent intent = new Intent(ChatInboxActivity.this, ProfileActivity.class);
+            startActivity(intent);
+        });
 
+        // --- THIS IS THE FIX ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
-        homeButton.setOnClickListener(v -> startActivity(new Intent(ChatInboxActivity.this, homepage.class)));
+        homeButton.setOnClickListener(v -> {
+            FirebaseUser user = auth.getCurrentUser();
+            if (user == null) {
+                // Failsafe, go to login
+                Intent intent = new Intent(ChatInboxActivity.this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+                finish();
+                return;
+            }
 
-        // No listener for message button, we are already here
+            // Check the user's type from Firestore
+            db.collection("users").document(user.getUid()).get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        String userType = "Customer"; // Default to customer
+                        if (documentSnapshot.exists()) {
+                            String type = documentSnapshot.getString("userType");
+                            if (type != null && type.equals("Service Provider")) {
+                                userType = type;
+                            }
+                        }
+
+                        if (userType.equals("Service Provider")) {
+                            // Go to provider homepage
+                            Intent intent = new Intent(ChatInboxActivity.this, ServiceProviderHomepage.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        } else {
+                            // Go to customer homepage
+                            Intent intent = new Intent(ChatInboxActivity.this, homepage.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        }
+                        finish(); // Finish chat activity after navigating home
+                    })
+                    .addOnFailureListener(e -> {
+                        // On failure, just default to the customer homepage
+                        Log.e(TAG, "Failed to get userType, defaulting to customer homepage", e);
+                        Intent intent = new Intent(ChatInboxActivity.this, homepage.class);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        finish();
+                    });
+        });
+
+        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        messageButton.setOnClickListener(v -> {
+            Intent intent = new Intent(ChatInboxActivity.this, ChatInboxActivity.class);
+            startActivity(intent);
+        });
     }
 
     @Override

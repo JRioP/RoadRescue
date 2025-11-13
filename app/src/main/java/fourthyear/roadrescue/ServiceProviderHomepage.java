@@ -262,7 +262,7 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
 
     private void updateTitle(int count) {
         if (titleText != null) {
-            titleText.setText(String.format("Service Provider (%d New)", count));
+            titleText.setText(String.format("Service Request (%d New)", count));
         }
     }
 

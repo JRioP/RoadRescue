@@ -54,8 +54,6 @@ public class ChatConversationActivity extends AppCompatActivity {
         chatId = getIntent().getStringExtra("chatId");
         otherUserName = getIntent().getStringExtra("receiverName");
 
-
-
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
 
@@ -65,7 +63,6 @@ public class ChatConversationActivity extends AppCompatActivity {
             finish();
             return;
         }
-        // -----------------------------
 
         setupToolbar();
         initializeRecyclerView();
@@ -81,17 +78,57 @@ public class ChatConversationActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
         profileButton.setOnClickListener(v -> {
-        Intent intent = new Intent(ChatConversationActivity.this, ProfileActivity.class);
-        startActivity(intent);
+            Intent intent = new Intent(ChatConversationActivity.this, ProfileActivity.class);
+            startActivity(intent);
         });
 
+        // --- THIS IS THE FIX ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         homeButton.setOnClickListener(v -> {
-            Intent intent = new Intent(ChatConversationActivity.this, homepage.class);
-            startActivity(intent);
+            FirebaseUser user = auth.getCurrentUser();
+            if (user == null) {
+                // Failsafe, go to login
+                Intent intent = new Intent(ChatConversationActivity.this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+                finish();
+                return;
+            }
+
+            // Check the user's type from Firestore
+            db.collection("users").document(user.getUid()).get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        String userType = "Customer"; // Default to customer
+                        if (documentSnapshot.exists()) {
+                            String type = documentSnapshot.getString("userType");
+                            if (type != null && type.equals("Service Provider")) {
+                                userType = type;
+                            }
+                        }
+
+                        if (userType.equals("Service Provider")) {
+                            // Go to provider homepage
+                            Intent intent = new Intent(ChatConversationActivity.this, ServiceProviderHomepage.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        } else {
+                            // Go to customer homepage
+                            Intent intent = new Intent(ChatConversationActivity.this, homepage.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        }
+                        finish(); // Finish chat activity after navigating home
+                    })
+                    .addOnFailureListener(e -> {
+                        // On failure, just default to the customer homepage
+                        Log.e(TAG, "Failed to get userType, defaulting to customer homepage", e);
+                        Intent intent = new Intent(ChatConversationActivity.this, homepage.class);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        finish();
+                    });
         });
 
         ImageView messageButton = findViewById(R.id.message_icon_btn);
