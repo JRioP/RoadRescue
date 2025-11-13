@@ -17,7 +17,6 @@ public class NonVerifiedHomepage extends AppCompatActivity {
     private Button startVerificationButton, logoutButton;
 
     private static final String TAG = "NonVerifiedHome";
-    // --- ADDED: Placeholder for testing ---
     private static final String PLACEHOLDER_PHONE = "+639369049879";
 
     @Override
