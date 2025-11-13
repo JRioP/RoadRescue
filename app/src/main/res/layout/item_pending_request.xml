@@ -1,59 +1,92 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:padding="8dp"
-    android:background="@color/GhostWhite"
-    android:layout_marginBottom="8dp">
+    android:layout_marginStart="8dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginEnd="8dp"
+    android:layout_marginBottom="4dp"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="2dp">
 
-    <LinearLayout
-        android:layout_width="0dp"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:padding="5dp"
-        android:orientation="vertical">
+        android:paddingBottom="16dp">
 
         <TextView
-            android:id="@+id/request_info_text"
-            android:layout_width="wrap_content"
+            android:id="@+id/request_type_text"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="New Request at [Location]"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginEnd="8dp"
             android:textColor="@android:color/black"
-            android:textStyle="bold" />
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toStartOf="@+id/accept_button"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="Jump-Start Request" />
+
+        <TextView
+            android:id="@+id/request_address_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="@android:color/darker_gray"
+            android:textSize="14sp"
+            app:layout_constraintEnd_toStartOf="@+id/accept_button"
+            app:layout_constraintStart_toStartOf="@+id/request_type_text"
+            app:layout_constraintTop_toBottomOf="@+id/request_type_text"
+            tools:text="at 1600 Amphitheatre Pkwy, Mountain View, CA 94043, USA" />
 
         <TextView
             android:id="@+id/request_id_text"
-            android:layout_width="166dp"
-            android:layout_height="wrap_content"
-            android:text="ID: [Request ID]"
-            android:textColor="@android:color/darker_gray"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/request_payment_mode_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Payment: Cash"
-            android:textColor="@android:color/holo_green_dark"
+            android:layout_marginTop="12dp"
             android:textSize="12sp"
-            android:textStyle="bold" />
+            app:layout_constraintStart_toStartOf="@+id/request_address_text"
+            app:layout_constraintTop_toBottomOf="@+id/request_address_text"
+            tools:text="ID: hGBMJlHS" />
+
+        <TextView
+            android:id="@+id/request_payment_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="#006400"
+            android:textStyle="bold"
+            app:layout_constraintStart_toStartOf="@+id/request_id_text"
+            app:layout_constraintTop_toBottomOf="@+id/request_id_text"
+            tools:text="Payment: Cash (PHP 150.00)" />
 
         <TextView
             android:id="@+id/request_distance_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Distance: 5.2 km"
-            android:textSize="12sp"
+            android:layout_marginTop="4dp"
+            android:textColor="#00008B"
             android:textStyle="bold"
-            android:textColor="@color/lightBlue"/>
-    </LinearLayout>
+            app:layout_constraintStart_toStartOf="@+id/request_payment_text"
+            app:layout_constraintTop_toBottomOf="@+id/request_payment_text"
+            tools:text="4.3 km away" />
 
-    <Button
-        android:id="@+id/accept_request_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Accept"
-        android:layout_gravity="center_vertical"/>
+        <Button
+            android:id="@+id/accept_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:text="Accept"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-</LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.cardview.widget.CardView>

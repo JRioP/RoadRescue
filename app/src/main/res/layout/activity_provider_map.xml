@@ -170,7 +170,7 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/pending_requests_recycler_view"
         android:layout_width="0dp"
-        android:layout_height="150dp"
+        android:layout_height="wrap_content"
         android:background="#80FFFFFF"
         android:padding="8dp"
         android:visibility="gone"

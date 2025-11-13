@@ -1,4 +1,3 @@
-// ChatConversationActivity.java
 package fourthyear.roadrescue;
 
 import android.content.Intent;
@@ -10,6 +9,7 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -17,13 +17,13 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +44,6 @@ public class ChatConversationActivity extends AppCompatActivity {
     private ListenerRegistration messagesListener;
 
     private String chatId;
-    private String otherUserId;
     private String otherUserName;
 
     @Override
@@ -52,17 +51,42 @@ public class ChatConversationActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat_conversation);
 
+        chatId = getIntent().getStringExtra("chatId");
+        otherUserName = getIntent().getStringExtra("receiverName");
+
+
+
+        db = FirebaseFirestore.getInstance();
+        auth = FirebaseAuth.getInstance();
+
+        if (chatId == null || chatId.isEmpty()) {
+            Log.e(TAG, "Chat ID is null or empty. Finishing activity.");
+            Toast.makeText(this, "Error: Could not open chat.", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        // -----------------------------
+
+        setupToolbar();
+        initializeRecyclerView();
+        setupViews();
+        setupFirestoreListener();
+        setupNavbar();
+    }
+
+    private void setupNavbar() {
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         notificationButton.setOnClickListener(v -> {
             Intent intent = new Intent(ChatConversationActivity.this, NotificationsActivity.class);
             startActivity(intent);
         });
 
+
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
-        //profileButton.setOnClickListener(v -> {
-        //    Intent intent = new Intent(homepage.this, ProfileActivity.class);
-        //    startActivity(intent);
-        //});
+        profileButton.setOnClickListener(v -> {
+        Intent intent = new Intent(ChatConversationActivity.this, ProfileActivity.class);
+        startActivity(intent);
+        });
 
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         homeButton.setOnClickListener(v -> {
@@ -70,27 +94,11 @@ public class ChatConversationActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-
         ImageView messageButton = findViewById(R.id.message_icon_btn);
         messageButton.setOnClickListener(v -> {
             Intent intent = new Intent(ChatConversationActivity.this, ChatInboxActivity.class);
             startActivity(intent);
         });
-
-
-        // Get intent data
-        chatId = getIntent().getStringExtra("chatId");
-        otherUserId = getIntent().getStringExtra("userId");
-        otherUserName = getIntent().getStringExtra("userName");
-
-        // Initialize Firebase
-        db = FirebaseFirestore.getInstance();
-        auth = FirebaseAuth.getInstance();
-
-        setupToolbar();
-        initializeRecyclerView();
-        setupViews();
-        setupFirestoreListener();
     }
 
     private void setupToolbar() {
@@ -98,7 +106,7 @@ public class ChatConversationActivity extends AppCompatActivity {
         backButton.setOnClickListener(v -> finish());
 
         TextView userNameText = findViewById(R.id.userNameText);
-        userNameText.setText(otherUserName);
+        userNameText.setText(otherUserName != null ? otherUserName : "Chat");
     }
 
     private void initializeRecyclerView() {
@@ -129,19 +137,15 @@ public class ChatConversationActivity extends AppCompatActivity {
         String currentUserId = getCurrentUserId();
         String currentUserName = getCurrentUserName();
 
-        // Create message object
         MessageModel message = new MessageModel(messageId, currentUserId, currentUserName, messageText);
         message.setTimestamp(Timestamp.now());
 
-        // Add message to Firestore
         db.collection("chats").document(chatId)
                 .collection("messages")
                 .document(messageId)
                 .set(message)
                 .addOnSuccessListener(aVoid -> {
                     messageInput.setText("");
-
-                    // Update last message in chat document
                     updateLastMessage(messageText);
                 })
                 .addOnFailureListener(e -> {
@@ -171,6 +175,10 @@ public class ChatConversationActivity extends AppCompatActivity {
                         return;
                     }
 
+                    if (value == null) {
+                        return;
+                    }
+
                     messageList.clear();
                     for (com.google.firebase.firestore.QueryDocumentSnapshot doc : value) {
                         MessageModel message = doc.toObject(MessageModel.class);
@@ -178,21 +186,24 @@ public class ChatConversationActivity extends AppCompatActivity {
                     }
                     messageAdapter.notifyDataSetChanged();
 
-                    // Scroll to bottom
-                    messagesRecyclerView.scrollToPosition(messageList.size() - 1);
+                    if (messageList.size() > 0) {
+                        messagesRecyclerView.scrollToPosition(messageList.size() - 1);
+                    }
                 });
     }
 
     private String getCurrentUserId() {
-        if (auth.getCurrentUser() != null) {
-            return auth.getCurrentUser().getUid();
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null) {
+            return user.getUid();
         }
         return "default_user_id";
     }
 
     private String getCurrentUserName() {
-        if (auth.getCurrentUser() != null && auth.getCurrentUser().getDisplayName() != null) {
-            return auth.getCurrentUser().getDisplayName();
+        FirebaseUser user = auth.getCurrentUser();
+        if (user != null && user.getDisplayName() != null) {
+            return user.getDisplayName();
         }
         return "You";
     }

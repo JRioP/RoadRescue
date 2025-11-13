@@ -19,6 +19,7 @@ import android.util.Log;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
@@ -151,6 +152,7 @@ public class ProviderMapActivity extends AppCompatActivity implements
             mapFragment.getMapAsync(this);
         }
 
+        setupUIComponents();
         setupViews();
         setupRecyclerView();
         setupListeners();
@@ -807,5 +809,41 @@ public class ProviderMapActivity extends AppCompatActivity implements
                 Log.e(TAG, "Customer Directions API failed", e);
             }
         });
+    }
+
+    private void setupUIComponents() {
+
+        //Navigation buttons
+        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
+        if (notificationButton != null) {
+            notificationButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ProviderMapActivity.this, NotificationsActivity.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView profileButton = findViewById(R.id.profile_icon_btn);
+        if (profileButton != null) {
+            profileButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ProviderMapActivity.this, ProfileActivity.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView homeButton = findViewById(R.id.home_icon_btn);
+        if (homeButton != null) {
+            homeButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ProviderMapActivity.this, homepage.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        if (messageButton != null) {
+            messageButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ProviderMapActivity.this, ChatInboxActivity.class);
+                startActivity(intent);
+            });
+        }
     }
 }

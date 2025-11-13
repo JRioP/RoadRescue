@@ -10,7 +10,7 @@
     <View
         android:id="@+id/statusBar8"
         android:layout_width="0dp"
-        android:layout_height="24dp"
+        android:layout_height="30dp"
         android:background="?attr/colorPrimaryDark"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
