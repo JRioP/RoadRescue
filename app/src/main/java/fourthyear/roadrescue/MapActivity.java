@@ -5,6 +5,9 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
@@ -26,6 +29,20 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -33,7 +50,12 @@ import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.GeoPoint;
 import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.Query;
+
+import com.google.maps.DirectionsApi;
+import com.google.maps.GeoApiContext;
+import com.google.maps.android.PolyUtil;
+import com.google.maps.model.DirectionsResult;
+import com.google.maps.model.TravelMode;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,19 +65,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.maps.CameraUpdateFactory;
-import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.OnMapReadyCallback;
-import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
-import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.LatLngBounds;
-import com.google.android.gms.maps.model.Marker;
-import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.tasks.OnSuccessListener;
+import java.util.concurrent.TimeUnit;
 
 public class MapActivity extends AppCompatActivity
         implements OnMapReadyCallback, GoogleMap.OnMapClickListener {
@@ -87,8 +97,11 @@ public class MapActivity extends AppCompatActivity
 
     private Marker providerMarker;
     private Marker pickupMarker;
+    private Polyline mProviderToPickupLine;
+    private Polyline mPickupToDestinationLine; // <-- ADDED FOR PREVIEW ROUTE
 
-    // --- UI Views for the Tracker Card ---
+    private GeoApiContext mGeoApiContext = null;
+
     private View statusCard;
     private TextView providerNameText;
     private TextView providerSubtitleText;
@@ -99,15 +112,32 @@ public class MapActivity extends AppCompatActivity
     private Button callButton;
     private ActivityResultLauncher<Intent> paymentLauncher;
 
+    private String selectedRequestType;
+    private double calculatedAmount;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
 
+        selectedRequestType = getIntent().getStringExtra("REQUEST_TYPE");
+        if (selectedRequestType == null || selectedRequestType.isEmpty()) {
+            selectedRequestType = "Towing";
+        }
+
         geocoder = new Geocoder(this, Locale.getDefault());
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
+
+        if (mGeoApiContext == null) {
+            mGeoApiContext = new GeoApiContext.Builder()
+                    .apiKey(BuildConfig.MAPS_API_KEY)
+                    .connectTimeout(10, TimeUnit.SECONDS)
+                    .readTimeout(10, TimeUnit.SECONDS)
+                    .writeTimeout(10, TimeUnit.SECONDS)
+                    .build();
+        }
 
         destinationInput = findViewById(R.id.destination_input);
         destinationInput.setHint("Tap on the map to set your destination.");
@@ -123,50 +153,29 @@ public class MapActivity extends AppCompatActivity
         messageButton = findViewById(R.id.message_button);
         callButton = findViewById(R.id.call_button);
 
-        // --- MODIFIED ---
-        // This now launches the PaymentActivity instead of sending the request directly
         requestServiceButton.setOnClickListener(v -> {
             if (pickupLatLng != null && destinationLatLng != null) {
-                // Launch PaymentActivity and wait for a result
-                // (Make sure you have created PaymentActivity.java)
+                calculatedAmount = calculateServiceAmount();
                 Intent intent = new Intent(MapActivity.this, PaymentActivity.class);
+                intent.putExtra("AMOUNT_TO_BE_PAID", calculatedAmount);
                 paymentLauncher.launch(intent);
             } else {
                 Toast.makeText(this, "Please confirm both your pickup and destination locations.", Toast.LENGTH_LONG).show();
             }
         });
-        // --- END MODIFICATION ---
 
         editPickupButton.setOnClickListener(v -> toggleEditPickupMode());
+        messageButton.setOnClickListener(v -> Toast.makeText(this, "Message feature not implemented.", Toast.LENGTH_SHORT).show());
+        callButton.setOnClickListener(v -> Toast.makeText(this, "Call feature not implemented.", Toast.LENGTH_SHORT).show());
 
-        messageButton.setOnClickListener(v -> {
-            // TODO: Start ChatInboxActivity with the provider's ID
-            Toast.makeText(this, "Message feature not implemented.", Toast.LENGTH_SHORT).show();
-        });
-
-        callButton.setOnClickListener(v -> {
-            // TODO: Start a phone call intent with the provider's phone number
-            Toast.makeText(this, "Call feature not implemented.", Toast.LENGTH_SHORT).show();
-        });
-
-        // Navigation Listeners
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        notificationButton.setOnClickListener(v -> {
-            Intent intent = new Intent(MapActivity.this, NotificationsActivity.class);
-            startActivity(intent);
-        });
+        notificationButton.setOnClickListener(v -> startActivity(new Intent(MapActivity.this, NotificationsActivity.class)));
 
         ImageView homeButton = findViewById(R.id.home_icon_btn);
-        homeButton.setOnClickListener(v -> {
-            Intent intent = new Intent(MapActivity.this, homepage.class);
-            startActivity(intent);
-        });
+        homeButton.setOnClickListener(v -> startActivity(new Intent(MapActivity.this, homepage.class)));
 
         ImageView messageButtonNav = findViewById(R.id.message_icon_btn);
-        messageButtonNav.setOnClickListener(v -> {
-            Intent intent = new Intent(MapActivity.this, ChatInboxActivity.class);
-            startActivity(intent);
-        });
+        messageButtonNav.setOnClickListener(v -> startActivity(new Intent(MapActivity.this, ChatInboxActivity.class)));
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         initializePermissionLauncher();
@@ -177,32 +186,19 @@ public class MapActivity extends AppCompatActivity
         }
 
         ImageView backButton = findViewById(R.id.back_btn);
-        backButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                finish();
-            }
-        });
+        backButton.setOnClickListener(v -> finish());
 
-        // This is the launcher you already added. It waits for PaymentActivity to finish.
         paymentLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
-                    // Check if the result is OK (user completed payment)
                     if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-
-                        // Get the payment method from the result
                         String paymentMethod = result.getData().getStringExtra("PAYMENT_METHOD");
-
-                        // Now, finally send the request with the payment method
                         if (paymentMethod != null) {
-                            sendServiceRequest(paymentMethod); // Pass the payment method here
+                            sendServiceRequest(paymentMethod);
                         } else {
-                            // Handle error, though it shouldn't happen
                             Toast.makeText(this, "Could not get payment method.", Toast.LENGTH_SHORT).show();
                         }
                     } else {
-                        // Handle if the user pressed "Back" or cancelled
                         Toast.makeText(this, "Payment was cancelled.", Toast.LENGTH_SHORT).show();
                     }
                 }
@@ -218,9 +214,7 @@ public class MapActivity extends AppCompatActivity
 
     private void checkUserForActiveRequest() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
-        if (currentUser == null) {
-            return;
-        }
+        if (currentUser == null) return;
         String customerId = currentUser.getUid();
 
         db.collection("service_requests")
@@ -239,6 +233,7 @@ public class MapActivity extends AppCompatActivity
                         destinationLatLng = new LatLng(doc.getDouble("destinationLat"), doc.getDouble("destinationLng"));
                         pickupAddress = doc.getString("pickupAddress");
                         destinationAddress = doc.getString("destinationAddress");
+                        selectedRequestType = doc.getString("requestType");
 
                         lockUiForTracking();
 
@@ -250,15 +245,11 @@ public class MapActivity extends AppCompatActivity
                                 listenForProviderLocation(providerId);
                             }
                         } else {
-                            // This is 'pending'
                             updateMapWithMarkers();
-                            // Set the request type text from the existing request
-                            requestTypeText.setText(doc.getString("requestType"));
+                            requestTypeText.setText(selectedRequestType);
                             showSearchingUI();
                         }
-
                         listenForRequestUpdates(currentRequestId);
-
                     } else if (task.isSuccessful()) {
                         Log.d(TAG, "No active requests found. Starting new request flow.");
                         enableMyLocation();
@@ -270,9 +261,13 @@ public class MapActivity extends AppCompatActivity
                 });
     }
 
-
     @Override
     public void onMapClick(@NonNull LatLng point) {
+        if (currentRequestId != null) {
+            Toast.makeText(this, "A service request is already in progress.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         if (isSettingPickup) {
             pickupLatLng = point;
             pickupAddress = "Loading address...";
@@ -335,10 +330,7 @@ public class MapActivity extends AppCompatActivity
     }
 
     @SuppressLint("DefaultLocale")
-    // --- MODIFIED ---
-    // Now accepts the paymentMethod string from the launcher
     private void sendServiceRequest(String paymentMethod) {
-        // --- END MODIFICATION ---
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) {
             Toast.makeText(this, "You must be logged in to make a request.", Toast.LENGTH_SHORT).show();
@@ -359,26 +351,19 @@ public class MapActivity extends AppCompatActivity
         requestData.put("destinationLng", destinationLatLng.longitude);
         requestData.put("status", "pending");
         requestData.put("timestamp", FieldValue.serverTimestamp());
-
         requestData.put("pickupAddress", (pickupAddress != null) ? pickupAddress : String.format("Lat: %.4f, Lng: %.4f", pickupLatLng.latitude, pickupLatLng.longitude));
         requestData.put("destinationAddress", (destinationAddress != null) ? destinationAddress : String.format("Lat: %.4f, Lng: %.4f", destinationLatLng.latitude, destinationLatLng.longitude));
-
-        requestData.put("requestType", "Towing");
-
-        // --- MODIFIED ---
-        // This adds the selected payment method to the Firestore document
+        requestData.put("requestType", selectedRequestType);
         requestData.put("paymentMethod", paymentMethod);
-        // --- END MODIFICATION ---
+        requestData.put("amount", calculatedAmount);
 
-        requestTypeText.setText("Towing");
+        requestTypeText.setText(selectedRequestType);
         showSearchingUI();
-
 
         db.collection("service_requests")
                 .add(requestData)
                 .addOnSuccessListener(documentReference -> {
                     currentRequestId = documentReference.getId();
-
                     listenForRequestUpdates(currentRequestId);
                     lockUiForTracking();
                 })
@@ -389,6 +374,51 @@ public class MapActivity extends AppCompatActivity
                 });
     }
 
+    private double calculateServiceAmount() {
+        if (pickupLatLng == null || destinationLatLng == null) {
+            return 0.0;
+        }
+
+        float[] results = new float[1];
+        Location.distanceBetween(
+                pickupLatLng.latitude, pickupLatLng.longitude,
+                destinationLatLng.latitude, destinationLatLng.longitude,
+                results);
+
+        float distanceInMeters = results[0];
+        float distanceInKm = distanceInMeters / 1000;
+
+        double baseFee = 0.0;
+        double perKmCharge = 0.0;
+
+        switch (selectedRequestType) {
+            case "Towing":
+                baseFee = 500.0;
+                perKmCharge = 50.0;
+                break;
+            case "Fuel Delivery":
+                baseFee = 250.0;
+                perKmCharge = 0.0;
+                break;
+            case "Flat Tire Repair":
+                baseFee = 300.0;
+                perKmCharge = 10.0;
+                break;
+            case "Replace Battery":
+                baseFee = 350.0;
+                perKmCharge = 10.0;
+                break;
+            default:
+                baseFee = 150.0;
+                perKmCharge = 5.0;
+                break;
+        }
+
+        double totalAmount = baseFee + (distanceInKm * perKmCharge);
+        return Math.round(totalAmount * 100.0) / 100.0;
+    }
+
+    @SuppressLint("MissingPermission")
     private void getDeviceLocation() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
@@ -410,6 +440,13 @@ public class MapActivity extends AppCompatActivity
     private void updateMapWithMarkers() {
         if (MyMap == null) return;
         MyMap.clear();
+
+        if (mProviderToPickupLine != null) {
+            mProviderToPickupLine.remove();
+        }
+        if (mPickupToDestinationLine != null) {
+            mPickupToDestinationLine.remove();
+        }
 
         LatLngBounds.Builder builder = new LatLngBounds.Builder();
         boolean hasPoints = false;
@@ -436,13 +473,15 @@ public class MapActivity extends AppCompatActivity
 
         if (hasPoints && providerMarker == null) {
             if (pickupLatLng != null && destinationLatLng != null) {
+                // --- FIX: CALL METHOD TO DRAW PREVIEW ROUTE ---
+                drawPickupToDestinationRoute(pickupLatLng, destinationLatLng);
                 MyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 100));
             } else if (pickupLatLng != null) {
                 MyMap.animateCamera(CameraUpdateFactory.newLatLngZoom(pickupLatLng, 15f));
             }
         }
-        if (pickupLatLng != null && destinationLatLng !=
-                null) {
+
+        if (pickupLatLng != null && destinationLatLng != null) {
             if (currentRequestId == null) {
                 requestServiceButton.setVisibility(View.VISIBLE);
             }
@@ -471,6 +510,7 @@ public class MapActivity extends AppCompatActivity
                 });
     }
 
+    @SuppressLint("MissingPermission")
     private void enableMyLocation() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             try {
@@ -485,8 +525,6 @@ public class MapActivity extends AppCompatActivity
         }
     }
 
-    // --- UI AND LISTENER METHODS ---
-
     private void lockUiForTracking() {
         requestServiceButton.setVisibility(View.GONE);
         editPickupButton.setVisibility(View.GONE);
@@ -494,43 +532,31 @@ public class MapActivity extends AppCompatActivity
     }
 
     private void showSearchingUI() {
-        // 1. Make the card visible
         statusCard.setVisibility(View.VISIBLE);
-
-        // 2. Set text to "Searching"
         providerNameText.setText("Searching for a provider...");
         providerSubtitleText.setText("Please wait.");
-
-        // 3. Hide or reset fields that aren't relevant yet
         distanceText.setText("...");
         etaText.setText("...");
-
-        if (requestTypeText.getText().toString().isEmpty()) {
+        if (requestTypeText.getText().toString().isEmpty() && selectedRequestType != null) {
+            requestTypeText.setText(selectedRequestType);
+        } else if (requestTypeText.getText().toString().isEmpty()) {
             requestTypeText.setText("Searching...");
         }
-
         messageButton.setVisibility(View.GONE);
         callButton.setVisibility(View.GONE);
     }
 
     private void showTrackerCard(DocumentSnapshot doc) {
         statusCard.setVisibility(View.VISIBLE);
-
-        // --- ADDED CODE ---
-        // Re-show buttons now that we have a provider
         messageButton.setVisibility(View.VISIBLE);
         callButton.setVisibility(View.VISIBLE);
-        // --- END OF ADDED CODE ---
-
         String requestType = doc.getString("requestType");
         requestTypeText.setText(requestType != null ? requestType : "Service");
-
         providerNameText.setText("Provider Found");
         providerSubtitleText.setText("Fetching details...");
         distanceText.setText("...");
         etaText.setText("...");
     }
-    // --- END MERGED CODE ---
 
     private void listenForRequestUpdates(String requestId) {
         if (requestId == null) return;
@@ -545,10 +571,16 @@ public class MapActivity extends AppCompatActivity
 
                     if (snapshot != null && snapshot.exists()) {
                         String status = snapshot.getString("status");
-                        if ("accepted".equals(status)) {
+
+                        if ("accepted".equals(status) && providerListener == null) {
                             String providerId = snapshot.getString("providerId");
                             if (providerId != null) {
                                 MyMap.clear();
+                                // --- FIX: Clear the preview line ---
+                                if (mPickupToDestinationLine != null) {
+                                    mPickupToDestinationLine.remove();
+                                    mPickupToDestinationLine = null;
+                                }
                                 showTrackerCard(snapshot);
                                 listenForProviderLocation(providerId);
                             }
@@ -558,10 +590,12 @@ public class MapActivity extends AppCompatActivity
                             if (requestListener != null) requestListener.remove();
                             if (providerMarker != null) providerMarker.remove();
                             if (pickupMarker != null) pickupMarker.remove();
+                            if (mProviderToPickupLine != null) {
+                                mProviderToPickupLine.remove();
+                            }
+                            mProviderToPickupLine = null;
                             resetUiForNewRequest();
                         } else if ("pending".equals(status)) {
-                            // This ensures the "Searching" UI stays if we are already in pending state
-                            // (e.g., on app resume)
                             requestTypeText.setText(snapshot.getString("requestType"));
                             showSearchingUI();
                         }
@@ -582,13 +616,29 @@ public class MapActivity extends AppCompatActivity
         destinationLatLng = null;
         currentRequestId = null;
 
-        if (providerListener != null) providerListener.remove();
-        if (requestListener != null) requestListener.remove();
+        if (providerListener != null) {
+            providerListener.remove();
+            providerListener = null;
+        }
+        if (requestListener != null) {
+            requestListener.remove();
+            requestListener = null;
+        }
 
         if (providerMarker != null) providerMarker.remove();
         if (pickupMarker != null) pickupMarker.remove();
+        if (mProviderToPickupLine != null) {
+            mProviderToPickupLine.remove();
+        }
+        // --- FIX: Clear the preview line ---
+        if (mPickupToDestinationLine != null) {
+            mPickupToDestinationLine.remove();
+        }
+
         providerMarker = null;
         pickupMarker = null;
+        mProviderToPickupLine = null;
+        mPickupToDestinationLine = null;
 
         enableMyLocation();
     }
@@ -604,33 +654,47 @@ public class MapActivity extends AppCompatActivity
                     }
                     if (snapshot != null && snapshot.exists()) {
                         String name = snapshot.getString("name");
+                        String providerLocText = snapshot.getString("currentLocationAddress");
+                        GeoPoint geoPoint = snapshot.getGeoPoint("liveLocation");
+
                         if (name != null) {
                             providerNameText.setText(name);
                         }
 
-                        String providerLocText = snapshot.getString("currentLocationAddress");
-                        if(providerLocText != null) {
+                        if (providerLocText != null && !providerLocText.isEmpty()) {
                             providerSubtitleText.setText("En route from " + providerLocText);
+                        } else if (name != null) {
+                            providerSubtitleText.setText("Provider accepted, awaiting location...");
+                        } else {
+                            providerSubtitleText.setText("Fetching details...");
                         }
 
-                        GeoPoint geoPoint = snapshot.getGeoPoint("liveLocation");
                         if (geoPoint != null) {
                             LatLng providerLocation = new LatLng(geoPoint.getLatitude(), geoPoint.getLongitude());
-                            updateProviderMarker(providerLocation);
-                            calculateStraightLineEta(providerLocation);
+                            updateProviderMarkerAndRoute(providerLocation);
                         }
                     }
                 });
     }
 
-    private void updateProviderMarker(LatLng location) {
+    private BitmapDescriptor getScaledProviderIcon() {
+        int height = 100;
+        int width = 100;
+        Bitmap b = BitmapFactory.decodeResource(getResources(), R.drawable.car_top_icon);
+        Bitmap smallMarker = Bitmap.createScaledBitmap(b, width, height, false);
+        return BitmapDescriptorFactory.fromBitmap(smallMarker);
+    }
+
+    private void updateProviderMarkerAndRoute(LatLng location) {
         if (MyMap == null) return;
 
         if (providerMarker == null) {
             providerMarker = MyMap.addMarker(new MarkerOptions()
                     .position(location)
                     .title("Your Provider")
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)));
+                    .icon(getScaledProviderIcon())
+                    .anchor(0.5f, 0.5f)
+                    .flat(true));
         } else {
             providerMarker.setPosition(location);
         }
@@ -640,17 +704,113 @@ public class MapActivity extends AppCompatActivity
                     .position(pickupLatLng)
                     .title(pickupAddress != null ? pickupAddress : "Your Location")
                     .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
-        } else if (pickupMarker != null && pickupLatLng != null) {
-            pickupMarker.setPosition(pickupLatLng);
         }
 
         if (pickupLatLng != null) {
-            LatLngBounds.Builder builder = new LatLngBounds.Builder();
-            builder.include(pickupLatLng);
-            builder.include(location);
-            MyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 150));
+            drawProviderRoute(location, pickupLatLng);
         }
     }
+
+    private void drawProviderRoute(LatLng providerLocation, LatLng pickupLocation) {
+        Log.d(TAG, "Attempting to draw provider route...");
+
+        executor.execute(() -> {
+            try {
+                com.google.maps.model.LatLng origin = new com.google.maps.model.LatLng(providerLocation.latitude, providerLocation.longitude);
+                com.google.maps.model.LatLng destination = new com.google.maps.model.LatLng(pickupLocation.latitude, pickupLocation.longitude);
+
+                DirectionsResult result = DirectionsApi.newRequest(mGeoApiContext)
+                        .origin(origin)
+                        .destination(destination)
+                        .mode(TravelMode.DRIVING)
+                        .await();
+
+                if (result.routes != null && result.routes.length > 0) {
+                    com.google.maps.model.DirectionsRoute route = result.routes[0];
+                    com.google.maps.model.DirectionsLeg leg = route.legs[0];
+
+                    String encodedPolyline = route.overviewPolyline.getEncodedPath();
+                    final List<LatLng> decodedPath = PolyUtil.decode(encodedPolyline);
+
+                    final String distance = leg.distance.humanReadable;
+                    final String duration = leg.duration.humanReadable;
+
+                    handler.post(() -> {
+                        if (mProviderToPickupLine != null) {
+                            mProviderToPickupLine.remove();
+                        }
+
+                        mProviderToPickupLine = MyMap.addPolyline(new PolylineOptions()
+                                .addAll(decodedPath)
+                                .width(12)
+                                .color(Color.BLUE));
+
+                        distanceText.setText(distance);
+                        etaText.setText(String.format("~ %s", duration));
+
+                        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+                        builder.include(pickupLocation);
+                        builder.include(providerLocation);
+                        MyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 150));
+                    });
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Directions API failed", e);
+                handler.post(() -> drawStraightProviderLine(providerLocation, pickupLocation));
+            }
+        });
+    }
+
+    private void drawStraightProviderLine(LatLng providerLocation, LatLng pickupLocation) {
+        if (mProviderToPickupLine != null) {
+            mProviderToPickupLine.remove();
+        }
+        mProviderToPickupLine = MyMap.addPolyline(new PolylineOptions()
+                .add(providerLocation, pickupLocation)
+                .width(12)
+                .color(Color.BLUE)
+                .geodesic(true));
+
+        calculateStraightLineEta(providerLocation);
+    }
+
+    // --- NEW METHOD TO DRAW PREVIEW ROUTE ---
+    private void drawPickupToDestinationRoute(LatLng pickupLocation, LatLng destinationLocation) {
+        Log.d(TAG, "Attempting to draw preview route...");
+
+        executor.execute(() -> {
+            try {
+                com.google.maps.model.LatLng origin = new com.google.maps.model.LatLng(pickupLocation.latitude, pickupLocation.longitude);
+                com.google.maps.model.LatLng destination = new com.google.maps.model.LatLng(destinationLocation.latitude, destinationLocation.longitude);
+
+                DirectionsResult result = DirectionsApi.newRequest(mGeoApiContext)
+                        .origin(origin)
+                        .destination(destination)
+                        .mode(TravelMode.DRIVING)
+                        .await();
+
+                if (result.routes != null && result.routes.length > 0) {
+                    com.google.maps.model.DirectionsRoute route = result.routes[0];
+                    String encodedPolyline = route.overviewPolyline.getEncodedPath();
+                    final List<LatLng> decodedPath = PolyUtil.decode(encodedPolyline);
+
+                    handler.post(() -> {
+                        if (mPickupToDestinationLine != null) {
+                            mPickupToDestinationLine.remove();
+                        }
+                        mPickupToDestinationLine = MyMap.addPolyline(new PolylineOptions()
+                                .addAll(decodedPath)
+                                .width(12)
+                                .color(Color.RED)); // Changed color to red for distinction
+                    });
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Preview Directions API failed", e);
+                // No fallback straight line for this one, just don't draw it.
+            }
+        });
+    }
+
 
     private void calculateStraightLineEta(LatLng providerLocation) {
         if (pickupLatLng == null) return;
@@ -664,9 +824,7 @@ public class MapActivity extends AppCompatActivity
         float distanceInMeters = results[0];
         float distanceInKm = distanceInMeters / 1000;
 
-        // Simple ETA calculation: average speed of 30km/h (2 mins per km)
         int timeInMinutes = (int) (distanceInKm * 2);
-
         if (timeInMinutes < 1) {
             timeInMinutes = 1;
         }
@@ -685,5 +843,9 @@ public class MapActivity extends AppCompatActivity
             providerListener.remove();
         }
         executor.shutdown();
+
+        if (mGeoApiContext != null) {
+            mGeoApiContext.shutdown();
+        }
     }
 }

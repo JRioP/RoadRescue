@@ -64,22 +64,18 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         void bind(MessageModel message) {
             messageText.setText(message.getText());
 
-            // Format and set timestamp
             if (message.getTimestamp() != null) {
                 String time = timeFormat.format(message.getTimestamp().toDate());
                 messageTime.setText(time);
             }
 
-            // Check if message is from current user
             boolean isCurrentUser = message.getSenderId().equals(currentUserId);
 
             if (isCurrentUser) {
-                // Current user's message - align to right
                 messageContainer.setGravity(android.view.Gravity.END);
                 messageBubble.setBackgroundResource(R.drawable.bubble_outgoing);
                 senderName.setVisibility(View.GONE); // Hide sender name for own messages
             } else {
-                // Other user's message - align to left
                 messageContainer.setGravity(android.view.Gravity.START);
                 messageBubble.setBackgroundResource(R.drawable.bubble_incoming);
                 senderName.setVisibility(View.VISIBLE);

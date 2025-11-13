@@ -2,10 +2,14 @@ package fourthyear.roadrescue;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.Editable;  // Import this
+import android.text.TextWatcher; // Import this
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView; // Import this
+import android.widget.TextView; // Import this
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -18,14 +22,19 @@ import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.PhoneAuthCredential;
 import com.google.firebase.auth.PhoneAuthProvider;
-import com.google.firebase.auth.FirebaseUser; // Import FirebaseUser
+import com.google.firebase.auth.FirebaseUser;
 
 import java.util.concurrent.TimeUnit;
 
 public class VerifyPhone extends AppCompatActivity {
 
     EditText digitNumberOne, digitNumberTwo, digitNumberThree, digitNumberFour, digitNumberFive, digitNumberSix;
-    Button verifyBtn, resendBtn;
+
+    Button verifyBtn;
+    TextView resendBtn;
+    TextView didNotReceiveText;
+    TextView phoneNumberText;
+    ImageView backButton;
 
     FirebaseAuth fAuth;
     PhoneAuthProvider.ForceResendingToken token;
@@ -39,11 +48,11 @@ public class VerifyPhone extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_verify_phone);
-
         Intent data = getIntent();
         phone = data.getStringExtra("phone");
 
         fAuth = FirebaseAuth.getInstance();
+
 
         digitNumberOne = findViewById(R.id.digit_number_one);
         digitNumberTwo = findViewById(R.id.digit_number_two);
@@ -52,31 +61,31 @@ public class VerifyPhone extends AppCompatActivity {
         digitNumberFive = findViewById(R.id.digit_number_five);
         digitNumberSix = findViewById(R.id.digit_number_six);
 
-        verifyBtn = findViewById(R.id.verify_btn);
-        resendBtn = findViewById(R.id.resend_button);
+        verifyBtn = findViewById(R.id.button_next); // Was verify_btn
+        resendBtn = findViewById(R.id.button_get_new_code); // Was resend_button
+
+        didNotReceiveText = findViewById(R.id.text_did_not_receive);
+        phoneNumberText = findViewById(R.id.text_phone_number);
+        backButton = findViewById(R.id.back_button);
+
+        phoneNumberText.setText(phone);
+        backButton.setOnClickListener(v -> finish());
+        setupTextWatchers();
 
         verifyBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                boolean allDigitsValid = true;
-                if (!validateDigitField(digitNumberOne)) allDigitsValid = false;
-                if (!validateDigitField(digitNumberTwo)) allDigitsValid = false;
-                if (!validateDigitField(digitNumberThree)) allDigitsValid = false;
-                if (!validateDigitField(digitNumberFour)) allDigitsValid = false;
-                if (!validateDigitField(digitNumberFive)) allDigitsValid = false;
-                if (!validateDigitField(digitNumberSix)) allDigitsValid = false;
+                String otp = digitNumberOne.getText().toString() +
+                        digitNumberTwo.getText().toString() + digitNumberThree.getText().toString() +
+                        digitNumberFour.getText().toString() + digitNumberFive.getText().toString() +
+                        digitNumberSix.getText().toString();
 
-                if (allDigitsValid) {
-                    String otp = digitNumberOne.getText().toString() +
-                            digitNumberTwo.getText().toString() + digitNumberThree.getText().toString() +
-                            digitNumberFour.getText().toString() + digitNumberFive.getText().toString() +
-                            digitNumberSix.getText().toString();
-
-                    if (verificationId != null && !otp.isEmpty()) {
+                if (otp.length() == 6) {
+                    if (verificationId != null) {
                         PhoneAuthCredential credential = PhoneAuthProvider.getCredential(verificationId, otp);
                         verifyAuthentication(credential);
                     } else {
-                        Toast.makeText(VerifyPhone.this, "Verification ID or OTP is missing.", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(VerifyPhone.this, "Verification ID is missing.", Toast.LENGTH_SHORT).show();
                     }
                 } else {
                     Toast.makeText(VerifyPhone.this, "Please enter all 6 digits of the OTP.", Toast.LENGTH_SHORT).show();
@@ -91,22 +100,27 @@ public class VerifyPhone extends AppCompatActivity {
                 super.onCodeSent(s, forceResendingToken);
                 verificationId = s;
                 token = forceResendingToken;
-                resendBtn.setVisibility(View.GONE); // Hide resend button initially
+
+                resendBtn.setVisibility(View.GONE);
+                didNotReceiveText.setVisibility(View.GONE);
                 Toast.makeText(VerifyPhone.this, "OTP Sent to " + phone, Toast.LENGTH_SHORT).show();
             }
 
             @Override
             public void onCodeAutoRetrievalTimeOut(@NonNull String s) {
                 super.onCodeAutoRetrievalTimeOut(s);
-                resendBtn.setVisibility(View.VISIBLE); // Show resend button if auto-retrieval times out
-                Toast.makeText(VerifyPhone.this, "OTP Auto-retrieval timed out. Please enter manually or resend.", Toast.LENGTH_LONG).show();
+
+                resendBtn.setVisibility(View.VISIBLE);
+                didNotReceiveText.setVisibility(View.VISIBLE);
+                Toast.makeText(VerifyPhone.this, "OTP Auto-retrieval timed out.", Toast.LENGTH_LONG).show();
             }
 
             @Override
             public void onVerificationCompleted(@NonNull PhoneAuthCredential credential) {
-                // This method is called when auto-retrieval of the OTP is successful
                 verifyAuthentication(credential);
+
                 resendBtn.setVisibility(View.GONE);
+                didNotReceiveText.setVisibility(View.GONE);
             }
 
             @Override
@@ -146,17 +160,58 @@ public class VerifyPhone extends AppCompatActivity {
                 mCallbacks,
                 token); // Use the forceResendingToken for resending
         Toast.makeText(VerifyPhone.this, "Resending OTP to " + phoneNumber, Toast.LENGTH_SHORT).show();
-        resendBtn.setVisibility(View.GONE); // Hide resend button again after resending
+
+        // --- MODIFIED: Hide both TextViews again ---
+        resendBtn.setVisibility(View.GONE);
+        didNotReceiveText.setVisibility(View.GONE);
     }
 
-    // Modified validateDigitField to return boolean for individual field validity
-    private boolean validateDigitField(EditText field) {
-        if (field.getText().toString().isEmpty()) {
-            field.setError("Required");
-            return false;
-        }
-        return true;
+    private void setupTextWatchers() {
+        TextWatcher textWatcher = new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                boolean allFieldsFilled = !digitNumberOne.getText().toString().isEmpty() &&
+                        !digitNumberTwo.getText().toString().isEmpty() &&
+                        !digitNumberThree.getText().toString().isEmpty() &&
+                        !digitNumberFour.getText().toString().isEmpty() &&
+                        !digitNumberFive.getText().toString().isEmpty() &&
+                        !digitNumberSix.getText().toString().isEmpty();
+
+                verifyBtn.setEnabled(allFieldsFilled);
+
+                if (allFieldsFilled) {
+                    verifyBtn.setBackgroundColor(getResources().getColor(R.color.blue)); // Use your app's color
+                } else {
+                    verifyBtn.setBackgroundColor(getResources().getColor(android.R.color.darker_gray));
+                }
+
+                if (s.length() == 1) {
+                    if (digitNumberOne.isFocused()) {
+                        digitNumberTwo.requestFocus();
+                    } else if (digitNumberTwo.isFocused()) {
+                        digitNumberThree.requestFocus();
+                    } else if (digitNumberThree.isFocused()) {
+                        digitNumberFour.requestFocus();
+                    } else if (digitNumberFour.isFocused()) {
+                        digitNumberFive.requestFocus();
+                    } else if (digitNumberFive.isFocused()) {
+                        digitNumberSix.requestFocus();
+                    }
+                }
+            }
+        };
+
+        digitNumberOne.addTextChangedListener(textWatcher);
+        digitNumberTwo.addTextChangedListener(textWatcher);
+        digitNumberThree.addTextChangedListener(textWatcher);
+        digitNumberFour.addTextChangedListener(textWatcher);
+        digitNumberFive.addTextChangedListener(textWatcher);
+        digitNumberSix.addTextChangedListener(textWatcher);
     }
+
 
     public void verifyAuthentication(PhoneAuthCredential credential) {
         FirebaseUser currentUser = fAuth.getCurrentUser();
@@ -164,10 +219,13 @@ public class VerifyPhone extends AppCompatActivity {
             currentUser.linkWithCredential(credential).addOnSuccessListener(new OnSuccessListener<AuthResult>() {
                 @Override
                 public void onSuccess(AuthResult authResult) {
-                    Toast.makeText(VerifyPhone.this, "Account Created and Phone Linked", Toast.LENGTH_SHORT).show();
-                    // TODO: Send to Dashboard or next activity
-                    // For example: startActivity(new Intent(VerifyPhone.this, DashboardActivity.class));
-                    finish(); // Close VerifyPhone activity
+                    Toast.makeText(VerifyPhone.this, "Phone Verified!", Toast.LENGTH_SHORT).show();
+
+
+                    Intent intent = new Intent(VerifyPhone.this, ProfileSetupActivity.class);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(intent);
+                    finish();
                 }
             }).addOnFailureListener(new OnFailureListener() {
                 @Override
@@ -177,9 +235,6 @@ public class VerifyPhone extends AppCompatActivity {
                 }
             });
         } else {
-            // This case might happen if the user session is lost or not properly established
-            // after email/password signup.
-            // You might need to re-authenticate the user or handle this scenario.
             Toast.makeText(VerifyPhone.this, "No user currently signed in to link phone to.", Toast.LENGTH_LONG).show();
             Log.e("VerifyPhone", "No current user to link phone credential.");
         }

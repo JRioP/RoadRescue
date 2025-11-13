@@ -17,6 +17,8 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url = uri("https://jitpack.io") }
+
+        maven { url = uri("https://api.paymongo.com/v1/payment_intents") }
     }
 }
 

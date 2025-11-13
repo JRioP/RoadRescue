@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">RoadRescue</string>
     <string name="login_text">Welcome Back</string>
-    <string name="sign_up_text">Get Started</string>
+    <string name="sign_up_text">Create Account</string>
     <string name="email">Email</string>
     <string name="password">Password</string>
     <string name="remember">Remember me</string>
@@ -27,7 +27,6 @@
     <string name="sign_up_phone_number_country_code">+63</string>
     <string name="sign_up_termsandcondition">Terms And Conditions</string>
 
-    <!-- TODO: Remove or change this placeholder text -->
     <!-- Verify -->
     <string name="verify_text">Enter the 6-digit code sent via Phone at</string>
     <string name="verify_btn_text">Verify</string>
@@ -50,12 +49,15 @@
     <string name="jump_start_text">Jump-Start</string>
     <string name="fuel_delivery_text">Fuel Delivery</string>
     <string name="flat_tire_text">Flat Tire \n Repair</string>
+    <string name="gas_station_text">Gas Station</string>
+    <string name="battery_text">Replace \n Battery</string>
     <string name="notification_text">notification</string>
     <string name="home_text">home</string>
     <string name="message_text">Message</string>
     <string name="profile_text">profile</string>
     <string name="recent_text">Recent</string>
     <string name="title_notification">Notification</string>
+
 
     <!-- Back Button -->
     <string name="back_button">Back Button</string>
@@ -86,6 +88,5 @@
     <string name="profile_text_page">Profile</string>"
     <string name="profile_name">Juan Dela Cruz</string>
     <string name="profile_account_settings">Account Settings</string>
-
 
 </resources>

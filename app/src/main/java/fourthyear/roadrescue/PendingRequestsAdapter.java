@@ -1,6 +1,7 @@
 package fourthyear.roadrescue;
 
-import android.location.Location; // Import Location
+import android.location.Location;
+import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -8,18 +9,18 @@ import android.widget.Button;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-import com.google.android.gms.maps.model.LatLng; // ADDED
+import com.google.android.gms.maps.model.LatLng;
 import java.util.List;
-import java.util.Locale; // Import Locale
+import java.util.Locale;
 import java.util.Map;
-import javax.annotation.Nullable; // ADDED
+import javax.annotation.Nullable;
 
 public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequestsAdapter.ViewHolder> {
 
     private final List<Map<String, Object>> pendingRequests;
     private final OnAcceptClickListener acceptClickListener;
     private final OnItemClickListener itemClickListener;
-    private LatLng providerCurrentLocation; // Store provider's location
+    private LatLng providerCurrentLocation;
 
     public interface OnAcceptClickListener {
         void onAcceptClick(String requestId, Map<String, Object> requestData);
@@ -37,13 +38,10 @@ public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequests
         this.itemClickListener = itemListener;
     }
 
-    // --- NEW METHOD ---
-    // Call this from the activity when the provider's location changes
     public void updateProviderLocation(LatLng location) {
         this.providerCurrentLocation = location;
-        notifyDataSetChanged(); // Update all visible items with new distances
+        notifyDataSetChanged();
     }
-    // --- END NEW ---
 
     @NonNull
     @Override
@@ -56,7 +54,6 @@ public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequests
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Map<String, Object> requestData = pendingRequests.get(position);
-        // Pass the provider's location to the binder
         holder.bind(requestData, providerCurrentLocation, acceptClickListener, itemClickListener);
     }
 
@@ -69,19 +66,20 @@ public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequests
         TextView requestInfoText;
         TextView requestIdText;
         Button acceptButton;
-        TextView requestDistanceText; // Assuming this ID exists from previous step
+        TextView requestDistanceText;
+        TextView requestPaymentModeText;
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);
             requestInfoText = itemView.findViewById(R.id.request_info_text);
             requestIdText = itemView.findViewById(R.id.request_id_text);
             acceptButton = itemView.findViewById(R.id.accept_request_button);
-            requestDistanceText = itemView.findViewById(R.id.request_distance_text); // Find the distance TextView
+            requestDistanceText = itemView.findViewById(R.id.request_distance_text);
+            requestPaymentModeText = itemView.findViewById(R.id.request_payment_mode_text);
         }
 
-        // --- MODIFIED bind METHOD ---
         void bind(final Map<String, Object> requestData,
-                  @Nullable LatLng providerLocation, // Receive provider's location
+                  @Nullable LatLng providerLocation,
                   final OnAcceptClickListener acceptListener,
                   final OnItemClickListener itemListener) {
 
@@ -90,19 +88,36 @@ public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequests
             Double pickupLng = (Double) requestData.get("pickupLng");
             String pickupAddress = (String) requestData.get("pickupAddress");
 
-            String locationInfo;
-            if (pickupAddress != null && !pickupAddress.isEmpty()) {
-                locationInfo = pickupAddress;
-            } else if (pickupLat != null && pickupLng != null) {
-                locationInfo = String.format("Request at (%.4f, %.4f)", pickupLat, pickupLng);
-            } else {
-                locationInfo = "Unknown Location";
+            String requestType = (String) requestData.get("requestType");
+            String paymentMethod = (String) requestData.get("paymentMethod");
+
+            Double amount = null;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                amount = (Double) requestData.getOrDefault("amount", 0.0);
             }
 
-            requestInfoText.setText(locationInfo);
-            requestIdText.setText("ID: " + (requestId != null ? requestId.substring(0, Math.min(requestId.length(), 8)) + "..." : "N/A"));
+            String locationAddress;
+            if (pickupAddress != null && !pickupAddress.isEmpty()) {
+                locationAddress = pickupAddress;
+            } else if (pickupLat != null && pickupLng != null) {
+                locationAddress = String.format(Locale.getDefault(), "Lat: %.4f, Lng: %.4f", pickupLat, pickupLng);
+            } else {
+                locationAddress = "Unknown Location";
+            }
 
-            // --- NEW: Calculate "Distance From You" ---
+            requestInfoText.setText(String.format("%s Request at %s",
+                    requestType != null ? requestType : "Service",
+                    locationAddress));
+
+            requestIdText.setText("ID: " + (requestId != null ? requestId.substring(0, Math.min(requestId.length(), 8)) : "N/A"));
+
+            if (paymentMethod != null) {
+                String amountDisplay = String.format(Locale.getDefault(), " (PHP %.2f)", amount);
+                requestPaymentModeText.setText("Payment: " + paymentMethod + amountDisplay);
+            } else {
+                requestPaymentModeText.setText("Payment: N/A");
+            }
+
             String distanceText = "Calculating distance...";
             if (providerLocation != null && pickupLat != null && pickupLng != null) {
                 float[] results = new float[1];
@@ -121,8 +136,7 @@ public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequests
             } else if (providerLocation == null) {
                 distanceText = "Getting your location...";
             }
-            requestDistanceText.setText(distanceText); // Set the text
-            // --- END NEW ---
+            requestDistanceText.setText(distanceText);
 
             acceptButton.setOnClickListener(v -> {
                 if (acceptListener != null && requestId != null) {

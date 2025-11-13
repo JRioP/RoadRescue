@@ -118,13 +118,7 @@ public class homepage extends AppCompatActivity {
     private void setupUIComponents() {
         locationTextView = findViewById(R.id.textView7);
 
-        ConstraintLayout temporaryLogoutButton = findViewById(R.id.constraintLayout10);
-        if (temporaryLogoutButton != null) {
-            temporaryLogoutButton.setOnClickListener(v -> {
-                forceSignOut("You have been successfully logged out.");
-            });
-        }
-
+        //Navigation buttons
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         if (notificationButton != null) {
             notificationButton.setOnClickListener(v -> {
@@ -157,10 +151,13 @@ public class homepage extends AppCompatActivity {
             });
         }
 
+
+        //Request Buttons
         ConstraintLayout towingButton = findViewById(R.id.towing_btn);
         if (towingButton != null) {
             towingButton.setOnClickListener(v -> {
                 Intent intent = new Intent(homepage.this, MapActivity.class);
+                intent.putExtra("REQUEST_TYPE", "Towing");
                 startActivity(intent);
             });
         }
@@ -172,6 +169,43 @@ public class homepage extends AppCompatActivity {
                 startActivity(intent);
             });
         }
+
+        ConstraintLayout fuelDeliveryButton = findViewById(R.id.fuel_delivery_btn);
+        if (fuelDeliveryButton != null) {
+            fuelDeliveryButton.setOnClickListener(v -> {
+                Intent intent = new Intent(homepage.this, MapActivity.class);
+                intent.putExtra("REQUEST_TYPE", "Fuel Delivery");
+                startActivity(intent);
+            });
+        }
+        ConstraintLayout flatTireRepairButton = findViewById(R.id.flat_tire_repair_btn);
+        if (flatTireRepairButton != null) {
+            flatTireRepairButton.setOnClickListener(v -> {
+                Intent intent = new Intent(homepage.this, MapActivity.class);
+                intent.putExtra("REQUEST_TYPE", "Flat Tire Repair");
+                startActivity(intent);
+            });
+        }
+
+        ConstraintLayout replaceBatteryButton = findViewById(R.id.replace_battery_btn);
+        if (replaceBatteryButton != null) {
+            replaceBatteryButton.setOnClickListener(v -> {
+                Intent intent = new Intent(homepage.this, MapActivity.class);
+                intent.putExtra("REQUEST_TYPE", "Replace Battery");
+                startActivity(intent);
+            });
+        }
+
+        ConstraintLayout gasStationButton = findViewById(R.id.gas_station_btn);
+        if (gasStationButton != null) {
+            gasStationButton.setOnClickListener(v -> {
+                Intent intent = new Intent(homepage.this, MapActivity.class);
+                intent.putExtra("REQUEST_TYPE", "Gas Station");
+                startActivity(intent);
+            });
+        }
+
+
     }
 
     private void checkSingleSessionConstraint() {

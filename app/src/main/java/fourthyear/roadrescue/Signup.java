@@ -1,7 +1,5 @@
 package fourthyear.roadrescue;
 
-// ... (existing imports) ...
-
 import static android.content.ContentValues.TAG;
 import android.content.Intent;
 import android.os.Bundle;
@@ -20,7 +18,6 @@ import android.text.TextWatcher;
 import android.text.Editable;
 
 import com.google.android.material.textfield.TextInputLayout;
-
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.auth.AuthResult;
@@ -29,7 +26,10 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException;
 import com.google.firebase.auth.FirebaseUser;
-
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 public class Signup extends Fragment {
@@ -41,9 +41,10 @@ public class Signup extends Fragment {
     private EditText personUsername, personEmail, personPassword, personRPassword, phoneCountryCode, phoneNumber;
     private Button signupBtn;
     private FirebaseAuth fAuth;
+    private FirebaseFirestore db;
 
     private long lastSignupAttempt = 0;
-    private static final long MIN_TIME_BETWEEN_SIGNUPS = 5000; // 5 seconds
+    private static final long MIN_TIME_BETWEEN_SIGNUPS = 5000;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -58,6 +59,7 @@ public class Signup extends Fragment {
         });
 
         fAuth = FirebaseAuth.getInstance();
+        db = FirebaseFirestore.getInstance();
 
         signupBtn.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -85,24 +87,24 @@ public class Signup extends Fragment {
 
         personPassword.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) { /* Not used */ }
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 passwordInputLayout.setError(null);
             }
             @Override
-            public void afterTextChanged(Editable s) { /* Not used */ }
+            public void afterTextChanged(Editable s) { }
         });
 
         personRPassword.addTextChangedListener(new TextWatcher() {
             @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) { /* Not used */ }
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 retypePasswordInputLayout.setError(null);
             }
             @Override
-            public void afterTextChanged(Editable s) { /* Not used */ }
+            public void afterTextChanged(Editable s) { }
         });
 
         personUsername.addTextChangedListener(new SimpleTextWatcher(personUsername));
@@ -111,20 +113,19 @@ public class Signup extends Fragment {
         phoneCountryCode.addTextChangedListener(new SimpleTextWatcher(phoneCountryCode));
     }
 
-    // Helper class to quickly clear standard EditText errors
     private static class SimpleTextWatcher implements TextWatcher {
         private final EditText editText;
         SimpleTextWatcher(EditText editText) {
             this.editText = editText;
         }
         @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) { /* Not used */ }
+        public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
         @Override
         public void onTextChanged(CharSequence s, int start, int before, int count) {
             editText.setError(null);
         }
         @Override
-        public void afterTextChanged(Editable s) { /* Not used */ }
+        public void afterTextChanged(Editable s) { }
     }
 
     private void attemptSignup() {
@@ -142,17 +143,16 @@ public class Signup extends Fragment {
             String email = personEmail.getText().toString().trim();
             String password = personPassword.getText().toString().trim();
             String phone = "+" + phoneCountryCode.getText().toString() + phoneNumber.getText().toString();
+            String username = personUsername.getText().toString().trim();
 
             signupBtn.setEnabled(false);
             signupBtn.setText("Checking Email...");
 
-            // Start the check for existing email
-            checkIfEmailExists(email, password, phone);
+            checkIfEmailExists(email, password, phone, username);
         }
     }
 
-    // MODIFIED: Method to check if the email is already registered and show red box/error
-    private void checkIfEmailExists(String email, String password, String phone) {
+    private void checkIfEmailExists(String email, String password, String phone, String username) {
         fAuth.fetchSignInMethodsForEmail(email)
                 .addOnCompleteListener(task -> {
                     signupBtn.setText("Creating Account...");
@@ -160,18 +160,16 @@ public class Signup extends Fragment {
                         boolean isNewUser = task.getResult().getSignInMethods().isEmpty();
 
                         if (!isNewUser) {
-                            // FIX: Set error on the personEmail EditText, making the box glow red
                             personEmail.setError("An account with this email already exists.");
 
                             showToast("An account with this email already exists.");
                             signupBtn.setEnabled(true);
                             signupBtn.setText("Sign Up");
                         } else {
-                            // Email is new, proceed with user creation
-                            createFirebaseUser(email, password, phone);
+                            createFirebaseUser(email, password, phone, username);
                         }
                     } else {
-                        // Error during the check (e.g., network error, invalid email format passed)
+
                         Log.e(TAG, "Error checking email existence: " + task.getException());
                         showToast("Error checking email. Please try again.");
                         signupBtn.setEnabled(true);
@@ -282,12 +280,12 @@ public class Signup extends Fragment {
         return true;
     }
 
-    private void createFirebaseUser(String email, String password, String phone) {
+    private void createFirebaseUser(String email, String password, String phone, String username) {
         fAuth.createUserWithEmailAndPassword(email, password)
                 .addOnSuccessListener(new OnSuccessListener<AuthResult>() {
                     @Override
                     public void onSuccess(AuthResult authResult) {
-                        handleSignupSuccess(email, phone);
+                        handleSignupSuccess(email, phone, username);
                     }
                 })
                 .addOnFailureListener(new OnFailureListener() {
@@ -298,10 +296,28 @@ public class Signup extends Fragment {
                 });
     }
 
-    private void handleSignupSuccess(String email, String phone) {
+    private void handleSignupSuccess(String email, String phone, String username) {
         FirebaseUser newUser = fAuth.getCurrentUser();
         if (newUser != null) {
-            sendEmailVerification(newUser, email, phone);
+            String userId = newUser.getUid();
+
+            Map<String, Object> user = new HashMap<>();
+            user.put("userId", userId);
+            user.put("email", email);
+            user.put("name", username);
+            user.put("userType", "user");
+            user.put("isOnline", false);
+            user.put("lastSeen", FieldValue.serverTimestamp());
+
+            db.collection("users").document(userId).set(user)
+                    .addOnSuccessListener(aVoid -> {
+                        Log.d(TAG, "User document created in Firestore.");
+                        sendEmailVerification(newUser, email, phone);
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Error creating user document", e);
+                        sendEmailVerification(newUser, email, phone);
+                    });
         } else {
             showToast("Account created but user not logged in");
             redirectToLogin();
@@ -315,9 +331,6 @@ public class Signup extends Fragment {
                     public void onSuccess(Void unused) {
                         Log.i(TAG, "Verification email sent to: " + email);
                         showToast("Verification email sent. Please verify your email before logging in.");
-
-                        // Sign out until email is verified
-                        fAuth.signOut();
                         redirectToPhoneVerification(phone, email);
                     }
                 })
@@ -326,7 +339,6 @@ public class Signup extends Fragment {
                     public void onFailure(@NonNull Exception e) {
                         Log.e(TAG, "Email verification send failed", e);
                         showToast("Account created but verification email failed. Please verify later.");
-                        fAuth.signOut();
                         redirectToLogin();
                     }
                 });
@@ -355,18 +367,12 @@ public class Signup extends Fragment {
         phoneVerificationIntent.putExtra("phone", phone);
         phoneVerificationIntent.putExtra("email", email);
         startActivity(phoneVerificationIntent);
-
-        if (getActivity() != null) {
-            getActivity().finish();
-        }
     }
 
     private void redirectToLogin() {
-        Intent loginIntent = new Intent(getActivity(), Login.class);
+        Intent loginIntent = new Intent(getActivity(), MainActivity.class);
+        loginIntent.putExtra("LOAD_FRAGMENT_INDEX", 0);
         startActivity(loginIntent);
-        if (getActivity() != null) {
-            getActivity().finish();
-        }
     }
 
     private void showToast(String message) {
