@@ -51,7 +51,6 @@ public class SplashScreen extends AppCompatActivity {
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Token request failed: " + e.getMessage());
-                    Toast.makeText(this, "Network error", Toast.LENGTH_SHORT).show();
                 });
     }
 

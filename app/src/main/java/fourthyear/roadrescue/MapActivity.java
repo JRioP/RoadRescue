@@ -11,6 +11,7 @@ import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -18,7 +19,6 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -45,6 +45,7 @@ import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -57,7 +58,7 @@ import com.google.maps.android.PolyUtil;
 import com.google.maps.model.DirectionsResult;
 import com.google.maps.model.TravelMode;
 
-import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -77,41 +78,48 @@ public class MapActivity extends AppCompatActivity
     private GoogleMap MyMap;
     private FusedLocationProviderClient fusedLocationClient;
     private ActivityResultLauncher<String> requestPermissionLauncher;
+    private ActivityResultLauncher<Intent> paymentLauncher;
 
     private Button requestServiceButton;
     private Button editPickupButton;
+    private Button messageButton;
+    private Button callButton;
 
     private boolean isSettingPickup = false;
-
     private String pickupAddress;
     private String destinationAddress;
     private Geocoder geocoder;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler handler = new Handler(Looper.getMainLooper());
 
+    // Firebase
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
     private String currentRequestId;
     private ListenerRegistration requestListener;
     private ListenerRegistration providerListener;
 
+    // Provider Details
+    private String mProviderId;
+    private String mProviderName;
+    private String mProviderPhone;
+
+    // Map Objects
     private Marker providerMarker;
     private Marker pickupMarker;
     private Polyline mProviderToPickupLine;
-    private Polyline mPickupToDestinationLine; // <-- ADDED FOR PREVIEW ROUTE
-
+    private Polyline mPickupToDestinationLine;
     private GeoApiContext mGeoApiContext = null;
 
+    // UI
     private View statusCard;
     private TextView providerNameText;
     private TextView providerSubtitleText;
     private TextView distanceText;
     private TextView etaText;
     private TextView requestTypeText;
-    private Button messageButton;
-    private Button callButton;
-    private ActivityResultLauncher<Intent> paymentLauncher;
 
+    // Request Data
     private String selectedRequestType;
     private double calculatedAmount;
 
@@ -139,11 +147,22 @@ public class MapActivity extends AppCompatActivity
                     .build();
         }
 
+        initializeViews();
+        setupClickListeners();
+        setupPermissionLauncher();
+        setupPaymentLauncher();
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map_fragment);
+        if (mapFragment != null) {
+            mapFragment.getMapAsync(this);
+        }
+    }
+
+    private void initializeViews() {
         destinationInput = findViewById(R.id.destination_input);
-        destinationInput.setHint("Tap on the map to set your destination.");
         requestServiceButton = findViewById(R.id.request_service_btn);
         editPickupButton = findViewById(R.id.edit_pickup_btn);
-
         statusCard = findViewById(R.id.status_card);
         providerNameText = findViewById(R.id.provider_name);
         providerSubtitleText = findViewById(R.id.provider_subtitle);
@@ -153,7 +172,30 @@ public class MapActivity extends AppCompatActivity
         messageButton = findViewById(R.id.message_button);
         callButton = findViewById(R.id.call_button);
 
+        if (!"Towing".equals(selectedRequestType)) {
+            destinationInput.setHint("Service will be at your pickup location.");
+            destinationInput.setText("Service will be at your pickup location.");
+            destinationInput.setEnabled(false);
+        } else {
+            destinationInput.setHint("Tap on the map to set your destination.");
+        }
+
+        if (selectedRequestType != null && !selectedRequestType.isEmpty()) {
+            requestServiceButton.setText("Request " + selectedRequestType + " Service");
+        }
+    }
+
+    private void setupClickListeners() {
         requestServiceButton.setOnClickListener(v -> {
+            if (!"Towing".equals(selectedRequestType)) {
+                if (pickupLatLng != null) {
+                    destinationLatLng = pickupLatLng;
+                    destinationAddress = pickupAddress;
+                } else {
+                    Toast.makeText(this, "Please confirm your pickup location.", Toast.LENGTH_LONG).show();
+                    return;
+                }
+            }
             if (pickupLatLng != null && destinationLatLng != null) {
                 calculatedAmount = calculateServiceAmount();
                 Intent intent = new Intent(MapActivity.this, PaymentActivity.class);
@@ -165,29 +207,115 @@ public class MapActivity extends AppCompatActivity
         });
 
         editPickupButton.setOnClickListener(v -> toggleEditPickupMode());
-        messageButton.setOnClickListener(v -> Toast.makeText(this, "Message feature not implemented.", Toast.LENGTH_SHORT).show());
-        callButton.setOnClickListener(v -> Toast.makeText(this, "Call feature not implemented.", Toast.LENGTH_SHORT).show());
 
-        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        notificationButton.setOnClickListener(v -> startActivity(new Intent(MapActivity.this, NotificationsActivity.class)));
+        messageButton.setOnClickListener(v -> findOrCreateChatRoom());
 
-        ImageView homeButton = findViewById(R.id.home_icon_btn);
-        homeButton.setOnClickListener(v -> startActivity(new Intent(MapActivity.this, homepage.class)));
+        callButton.setOnClickListener(v -> {
+            if (mProviderPhone == null || mProviderPhone.isEmpty()) {
+                Toast.makeText(this, "Provider phone number is not available.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Intent dialIntent = new Intent(Intent.ACTION_DIAL);
+            dialIntent.setData(Uri.parse("tel:" + mProviderPhone));
+            startActivity(dialIntent);
+        });
 
-        ImageView messageButtonNav = findViewById(R.id.message_icon_btn);
-        messageButtonNav.setOnClickListener(v -> startActivity(new Intent(MapActivity.this, ChatInboxActivity.class)));
+        findViewById(R.id.notification_icon_btn).setOnClickListener(v -> startActivity(new Intent(MapActivity.this, NotificationsActivity.class)));
+        findViewById(R.id.home_icon_btn).setOnClickListener(v -> startActivity(new Intent(MapActivity.this, homepage.class)));
+        findViewById(R.id.message_icon_btn).setOnClickListener(v -> startActivity(new Intent(MapActivity.this, ChatInboxActivity.class)));
+        findViewById(R.id.back_btn).setOnClickListener(v -> finish());
+    }
 
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-        initializePermissionLauncher();
 
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map_fragment);
-        if (mapFragment != null) {
-            mapFragment.getMapAsync(this);
+    private void findOrCreateChatRoom() {
+        if (mProviderId == null || mProviderName == null) {
+            Toast.makeText(this, "Provider details not available yet.", Toast.LENGTH_SHORT).show();
+            return;
         }
 
-        ImageView backButton = findViewById(R.id.back_btn);
-        backButton.setOnClickListener(v -> finish());
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+        if (currentUser == null) {
+            Toast.makeText(this, "You must be logged in to chat.", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
+        String currentUserId = currentUser.getUid();
+
+        db.collection("users").document(currentUserId).get().addOnSuccessListener(userDoc -> {
+            String currentUserName = userDoc.getString("name");
+            if (currentUserName == null || currentUserName.isEmpty()) {
+                currentUserName = "Customer"; // Fallback name
+            }
+
+
+            String chatRoomId;
+            if (currentUserId.compareTo(mProviderId) > 0) {
+                chatRoomId = currentUserId + "_" + mProviderId;
+            } else {
+                chatRoomId = mProviderId + "_" + currentUserId;
+            }
+
+            DocumentReference chatRef = db.collection("chats").document(chatRoomId);
+            String finalCurrentUserName = currentUserName;
+            String finalCurrentUserName1 = currentUserName;
+            chatRef.get().addOnCompleteListener(task -> {
+                if (task.isSuccessful()) {
+                    DocumentSnapshot document = task.getResult();
+                    if (!document.exists()) {
+
+                        Map<String, Object> chatData = new HashMap<>();
+                        chatData.put("chatId", chatRoomId);
+                        chatData.put("participantIds", Arrays.asList(currentUserId, mProviderId));
+                        chatData.put("lastMessage", "Chat started");
+                        chatData.put("lastMessageTimestamp", FieldValue.serverTimestamp());
+
+                        Map<String, String> names = new HashMap<>();
+                        names.put(currentUserId, finalCurrentUserName1);
+                        names.put(mProviderId, mProviderName);
+                        chatData.put("participantNames", names);
+
+
+                        chatData.put("requestRef", currentRequestId);
+
+                        chatRef.set(chatData).addOnSuccessListener(aVoid -> {
+                            Log.d(TAG, "New chat room created: " + chatRoomId);
+                            startChatActivity(chatRoomId);
+                        });
+                    } else {
+                        Log.d(TAG, "Joining existing chat room: " + chatRoomId);
+                        startChatActivity(chatRoomId);
+                    }
+                } else {
+                    Log.e(TAG, "Error finding chat room", task.getException());
+                }
+            });
+
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Failed to get your user details to start chat.", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void startChatActivity(String chatRoomId) {
+        Intent intent = new Intent(this, ChatConversationActivity.class);
+        intent.putExtra("chatId", chatRoomId);
+        intent.putExtra("receiverName", mProviderName);
+        startActivity(intent);
+    }
+
+    private void setupPermissionLauncher() {
+        requestPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                isGranted -> {
+                    if (isGranted) {
+                        enableMyLocation();
+                    } else {
+                        Toast.makeText(this, "Location permission is required to find your position.", Toast.LENGTH_LONG).show();
+                        editPickupButton.setVisibility(View.VISIBLE);
+                    }
+                });
+    }
+
+    private void setupPaymentLauncher() {
         paymentLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -195,8 +323,6 @@ public class MapActivity extends AppCompatActivity
                         String paymentMethod = result.getData().getStringExtra("PAYMENT_METHOD");
                         if (paymentMethod != null) {
                             sendServiceRequest(paymentMethod);
-                        } else {
-                            Toast.makeText(this, "Could not get payment method.", Toast.LENGTH_SHORT).show();
                         }
                     } else {
                         Toast.makeText(this, "Payment was cancelled.", Toast.LENGTH_SHORT).show();
@@ -215,10 +341,9 @@ public class MapActivity extends AppCompatActivity
     private void checkUserForActiveRequest() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) return;
-        String customerId = currentUser.getUid();
 
         db.collection("service_requests")
-                .whereEqualTo("customerId", customerId)
+                .whereEqualTo("customerId", currentUser.getUid())
                 .whereIn("status", Arrays.asList("pending", "accepted"))
                 .limit(1)
                 .get()
@@ -227,8 +352,6 @@ public class MapActivity extends AppCompatActivity
                         DocumentSnapshot doc = task.getResult().getDocuments().get(0);
                         currentRequestId = doc.getId();
                         String status = doc.getString("status");
-                        Log.d(TAG, "Active request found: " + currentRequestId + " with status: " + status);
-
                         pickupLatLng = new LatLng(doc.getDouble("pickupLat"), doc.getDouble("pickupLng"));
                         destinationLatLng = new LatLng(doc.getDouble("destinationLat"), doc.getDouble("destinationLng"));
                         pickupAddress = doc.getString("pickupAddress");
@@ -240,9 +363,9 @@ public class MapActivity extends AppCompatActivity
                         if ("accepted".equals(status)) {
                             MyMap.clear();
                             showTrackerCard(doc);
-                            String providerId = doc.getString("providerId");
-                            if (providerId != null) {
-                                listenForProviderLocation(providerId);
+                            mProviderId = doc.getString("providerId"); // FIX: Store provider ID
+                            if (mProviderId != null) {
+                                listenForProviderLocation(mProviderId);
                             }
                         } else {
                             updateMapWithMarkers();
@@ -250,12 +373,7 @@ public class MapActivity extends AppCompatActivity
                             showSearchingUI();
                         }
                         listenForRequestUpdates(currentRequestId);
-                    } else if (task.isSuccessful()) {
-                        Log.d(TAG, "No active requests found. Starting new request flow.");
-                        enableMyLocation();
                     } else {
-                        Log.e(TAG, "Error checking for active requests", task.getException());
-                        Toast.makeText(this, "Error checking status. Please restart.", Toast.LENGTH_SHORT).show();
                         enableMyLocation();
                     }
                 });
@@ -270,16 +388,20 @@ public class MapActivity extends AppCompatActivity
 
         if (isSettingPickup) {
             pickupLatLng = point;
-            pickupAddress = "Loading address...";
             getAddressFromLatLng(point, true);
             toggleEditPickupMode();
         } else {
-            destinationLatLng = point;
-            destinationAddress = "Loading address...";
-            destinationInput.setText(destinationAddress);
-            getAddressFromLatLng(point, false);
+            if ("Towing".equals(selectedRequestType)) {
+                destinationLatLng = point;
+                getAddressFromLatLng(point, false);
+            } else {
+                Toast.makeText(this, "This service only requires a pickup location.", Toast.LENGTH_SHORT).show();
+                if (pickupLatLng != null) {
+                    destinationLatLng = pickupLatLng;
+                    updateMapWithMarkers();
+                }
+            }
         }
-        updateMapWithMarkers();
     }
 
     private void toggleEditPickupMode() {
@@ -290,9 +412,10 @@ public class MapActivity extends AppCompatActivity
             destinationInput.setVisibility(View.GONE);
         } else {
             editPickupButton.setText("Edit Pickup Location");
-            destinationInput.setVisibility(View.VISIBLE);
+            if ("Towing".equals(selectedRequestType)) {
+                destinationInput.setVisibility(View.VISIBLE);
+            }
         }
-        updateMapWithMarkers();
     }
 
     private void getAddressFromLatLng(LatLng latLng, boolean isPickup) {
@@ -303,8 +426,7 @@ public class MapActivity extends AppCompatActivity
             try {
                 List<Address> addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1);
                 if (addresses != null && !addresses.isEmpty()) {
-                    Address address = addresses.get(0);
-                    addressText = address.getAddressLine(0);
+                    addressText = addresses.get(0).getAddressLine(0);
                     if (addressText == null || addressText.isEmpty()) {
                         addressText = fallbackAddress;
                     }
@@ -332,19 +454,10 @@ public class MapActivity extends AppCompatActivity
     @SuppressLint("DefaultLocale")
     private void sendServiceRequest(String paymentMethod) {
         FirebaseUser currentUser = mAuth.getCurrentUser();
-        if (currentUser == null) {
-            Toast.makeText(this, "You must be logged in to make a request.", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (currentUser == null || pickupLatLng == null || destinationLatLng == null) return;
 
-        if (pickupLatLng == null || destinationLatLng == null) {
-            Toast.makeText(this, "Pickup and destination must be set.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        String customerId = currentUser.getUid();
         Map<String, Object> requestData = new HashMap<>();
-        requestData.put("customerId", customerId);
+        requestData.put("customerId", currentUser.getUid());
         requestData.put("pickupLat", pickupLatLng.latitude);
         requestData.put("pickupLng", pickupLatLng.longitude);
         requestData.put("destinationLat", destinationLatLng.latitude);
@@ -360,120 +473,81 @@ public class MapActivity extends AppCompatActivity
         requestTypeText.setText(selectedRequestType);
         showSearchingUI();
 
-        db.collection("service_requests")
-                .add(requestData)
+        db.collection("service_requests").add(requestData)
                 .addOnSuccessListener(documentReference -> {
                     currentRequestId = documentReference.getId();
                     listenForRequestUpdates(currentRequestId);
                     lockUiForTracking();
                 })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Failed to send request. Please try again.", Toast.LENGTH_SHORT).show();
-                    Log.e("ServiceRequest", "Error adding document to Firestore", e);
-                    resetUiForNewRequest();
-                });
+                .addOnFailureListener(e -> resetUiForNewRequest());
     }
 
     private double calculateServiceAmount() {
-        if (pickupLatLng == null || destinationLatLng == null) {
-            return 0.0;
-        }
-
+        if (pickupLatLng == null || destinationLatLng == null) return 0.0;
         float[] results = new float[1];
-        Location.distanceBetween(
-                pickupLatLng.latitude, pickupLatLng.longitude,
-                destinationLatLng.latitude, destinationLatLng.longitude,
-                results);
-
-        float distanceInMeters = results[0];
-        float distanceInKm = distanceInMeters / 1000;
-
-        double baseFee = 0.0;
-        double perKmCharge = 0.0;
+        Location.distanceBetween(pickupLatLng.latitude, pickupLatLng.longitude, destinationLatLng.latitude, destinationLatLng.longitude, results);
+        float distanceInKm = results[0] / 1000;
+        double baseFee, perKmCharge;
 
         switch (selectedRequestType) {
             case "Towing":
-                baseFee = 500.0;
-                perKmCharge = 50.0;
-                break;
+                baseFee = 500.0; perKmCharge = 50.0; break;
             case "Fuel Delivery":
-                baseFee = 250.0;
-                perKmCharge = 0.0;
-                break;
+                baseFee = 250.0; perKmCharge = 0.0; break;
             case "Flat Tire Repair":
-                baseFee = 300.0;
-                perKmCharge = 10.0;
-                break;
+                baseFee = 300.0; perKmCharge = 10.0; break;
             case "Replace Battery":
-                baseFee = 350.0;
-                perKmCharge = 10.0;
-                break;
+                baseFee = 350.0; perKmCharge = 10.0; break;
             default:
-                baseFee = 150.0;
-                perKmCharge = 5.0;
-                break;
+                baseFee = 150.0; perKmCharge = 5.0; break;
         }
-
-        double totalAmount = baseFee + (distanceInKm * perKmCharge);
-        return Math.round(totalAmount * 100.0) / 100.0;
+        return Math.round((baseFee + (distanceInKm * perKmCharge)) * 100.0) / 100.0;
     }
 
     @SuppressLint("MissingPermission")
     private void getDeviceLocation() {
+        if (pickupLatLng != null) return; // Only get location if we don't have one
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
-        if (pickupLatLng == null) {
-            fusedLocationClient.getLastLocation().addOnSuccessListener(this, location -> {
-                if (location != null) {
-                    pickupLatLng = new LatLng(location.getLatitude(), location.getLongitude());
-                    pickupAddress = "Loading address...";
-                    getAddressFromLatLng(pickupLatLng, true);
-                    updateMapWithMarkers();
-                } else {
-                    Toast.makeText(MapActivity.this, "Could not get current location. Please use 'Edit Pickup Location' to set it manually.", Toast.LENGTH_LONG).show();
-                }
-            });
-        }
+        fusedLocationClient.getLastLocation().addOnSuccessListener(this, location -> {
+            if (location != null) {
+                pickupLatLng = new LatLng(location.getLatitude(), location.getLongitude());
+                getAddressFromLatLng(pickupLatLng, true); // This will call updateMapWithMarkers
+            } else {
+                Toast.makeText(MapActivity.this, "Could not get current location. Please use 'Edit Pickup Location' to set it manually.", Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void updateMapWithMarkers() {
         if (MyMap == null) return;
         MyMap.clear();
 
-        if (mProviderToPickupLine != null) {
-            mProviderToPickupLine.remove();
-        }
-        if (mPickupToDestinationLine != null) {
-            mPickupToDestinationLine.remove();
-        }
+        if (mProviderToPickupLine != null) mProviderToPickupLine.remove();
+        if (mPickupToDestinationLine != null) mPickupToDestinationLine.remove();
 
         LatLngBounds.Builder builder = new LatLngBounds.Builder();
         boolean hasPoints = false;
 
         if (pickupLatLng != null) {
-            String pickupTitle = (pickupAddress != null && !pickupAddress.isEmpty()) ? pickupAddress : "Your Location (Pickup)";
-            pickupMarker = MyMap.addMarker(new MarkerOptions()
-                    .position(pickupLatLng)
-                    .title(pickupTitle)
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
+            pickupMarker = MyMap.addMarker(new MarkerOptions().position(pickupLatLng).title(pickupAddress != null ? pickupAddress : "Pickup").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
             builder.include(pickupLatLng);
             hasPoints = true;
         }
 
-        if (destinationLatLng != null) {
-            String destTitle = (destinationAddress != null && !destinationAddress.isEmpty()) ? destinationAddress : "Towed To (Destination Pin)";
-            MyMap.addMarker(new MarkerOptions()
-                    .position(destinationLatLng)
-                    .title(destTitle)
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
-            builder.include(destinationLatLng);
-            hasPoints = true;
+        if ("Towing".equals(selectedRequestType)) {
+            if (destinationLatLng != null) {
+                MyMap.addMarker(new MarkerOptions().position(destinationLatLng).title(destinationAddress != null ? destinationAddress : "Destination").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
+                builder.include(destinationLatLng);
+                hasPoints = true;
+            }
+        } else {
+            if (pickupLatLng != null) destinationLatLng = pickupLatLng; // Ensure destination is set for logic
         }
 
         if (hasPoints && providerMarker == null) {
-            if (pickupLatLng != null && destinationLatLng != null) {
-                // --- FIX: CALL METHOD TO DRAW PREVIEW ROUTE ---
+            if (pickupLatLng != null && destinationLatLng != null && "Towing".equals(selectedRequestType) && pickupLatLng != destinationLatLng) {
                 drawPickupToDestinationRoute(pickupLatLng, destinationLatLng);
                 MyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 100));
             } else if (pickupLatLng != null) {
@@ -481,43 +555,15 @@ public class MapActivity extends AppCompatActivity
             }
         }
 
-        if (pickupLatLng != null && destinationLatLng != null) {
-            if (currentRequestId == null) {
-                requestServiceButton.setVisibility(View.VISIBLE);
-            }
-        } else {
-            requestServiceButton.setVisibility(View.GONE);
-        }
-    }
-
-    private void initializePermissionLauncher() {
-        requestPermissionLauncher = registerForActivityResult(
-                new ActivityResultContracts.RequestPermission(),
-                isGranted -> {
-                    if (isGranted) {
-                        if (MyMap != null) {
-                            try {
-                                MyMap.setMyLocationEnabled(true);
-                            } catch (SecurityException e) {
-                                Log.e("MapActivity", "Location permission missing after grant check.");
-                            }
-                        }
-                        getDeviceLocation();
-                    } else {
-                        Toast.makeText(this, "Location permission is required to find your position.", Toast.LENGTH_LONG).show();
-                        editPickupButton.setVisibility(View.VISIBLE);
-                    }
-                });
+        boolean canRequest = ("Towing".equals(selectedRequestType) && pickupLatLng != null && destinationLatLng != null) ||
+                (!"Towing".equals(selectedRequestType) && pickupLatLng != null);
+        requestServiceButton.setVisibility(currentRequestId == null && canRequest ? View.VISIBLE : View.GONE);
     }
 
     @SuppressLint("MissingPermission")
     private void enableMyLocation() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            try {
-                MyMap.setMyLocationEnabled(true);
-            } catch (SecurityException e) {
-                Log.e("MapActivity", "SecurityException on setMyLocationEnabled: " + e.getMessage());
-            }
+            MyMap.setMyLocationEnabled(true);
             getDeviceLocation();
             editPickupButton.setVisibility(View.VISIBLE);
         } else {
@@ -537,11 +583,7 @@ public class MapActivity extends AppCompatActivity
         providerSubtitleText.setText("Please wait.");
         distanceText.setText("...");
         etaText.setText("...");
-        if (requestTypeText.getText().toString().isEmpty() && selectedRequestType != null) {
-            requestTypeText.setText(selectedRequestType);
-        } else if (requestTypeText.getText().toString().isEmpty()) {
-            requestTypeText.setText("Searching...");
-        }
+        requestTypeText.setText(selectedRequestType != null ? selectedRequestType : "Searching...");
         messageButton.setVisibility(View.GONE);
         callButton.setVisibility(View.GONE);
     }
@@ -550,59 +592,57 @@ public class MapActivity extends AppCompatActivity
         statusCard.setVisibility(View.VISIBLE);
         messageButton.setVisibility(View.VISIBLE);
         callButton.setVisibility(View.VISIBLE);
-        String requestType = doc.getString("requestType");
-        requestTypeText.setText(requestType != null ? requestType : "Service");
+        requestTypeText.setText(doc.getString("requestType"));
         providerNameText.setText("Provider Found");
         providerSubtitleText.setText("Fetching details...");
         distanceText.setText("...");
         etaText.setText("...");
+
+        // Also add the pickup marker back to the map
+        if (pickupLatLng != null && MyMap != null) {
+            pickupMarker = MyMap.addMarker(new MarkerOptions()
+                    .position(pickupLatLng)
+                    .title(pickupAddress != null ? pickupAddress : "Your Location")
+                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)));
+        }
     }
 
     private void listenForRequestUpdates(String requestId) {
         if (requestId == null) return;
         if (requestListener != null) requestListener.remove();
-
         requestListener = db.collection("service_requests").document(requestId)
                 .addSnapshotListener((snapshot, e) -> {
-                    if (e != null) {
-                        Log.w(TAG, "Listen failed.", e);
+                    if (e != null || snapshot == null || !snapshot.exists()) {
+                        Toast.makeText(this, "Request was cancelled or completed.", Toast.LENGTH_SHORT).show();
+                        resetUiForNewRequest();
                         return;
                     }
 
-                    if (snapshot != null && snapshot.exists()) {
-                        String status = snapshot.getString("status");
-
-                        if ("accepted".equals(status) && providerListener == null) {
-                            String providerId = snapshot.getString("providerId");
-                            if (providerId != null) {
-                                MyMap.clear();
-                                // --- FIX: Clear the preview line ---
-                                if (mPickupToDestinationLine != null) {
-                                    mPickupToDestinationLine.remove();
-                                    mPickupToDestinationLine = null;
-                                }
-                                showTrackerCard(snapshot);
-                                listenForProviderLocation(providerId);
-                            }
-                        } else if ("completed".equals(status)) {
-                            Toast.makeText(this, "Service Completed!", Toast.LENGTH_LONG).show();
-                            if (providerListener != null) providerListener.remove();
-                            if (requestListener != null) requestListener.remove();
-                            if (providerMarker != null) providerMarker.remove();
-                            if (pickupMarker != null) pickupMarker.remove();
-                            if (mProviderToPickupLine != null) {
-                                mProviderToPickupLine.remove();
-                            }
-                            mProviderToPickupLine = null;
-                            resetUiForNewRequest();
-                        } else if ("pending".equals(status)) {
-                            requestTypeText.setText(snapshot.getString("requestType"));
-                            showSearchingUI();
+                    String status = snapshot.getString("status");
+                    if ("accepted".equals(status) && providerListener == null) {
+                        mProviderId = snapshot.getString("providerId");
+                        if (mProviderId != null) {
+                            MyMap.clear();
+                            showTrackerCard(snapshot);
+                            listenForProviderLocation(mProviderId);
                         }
-                    } else {
-                        Log.d(TAG, "Current data: null or request cancelled");
-                        Toast.makeText(this, "Request was cancelled or completed.", Toast.LENGTH_SHORT).show();
-                        resetUiForNewRequest();
+                    } else if ("completed".equals(status)) {
+                        Intent intent = new Intent(MapActivity.this, PaymentReceiptActivity.class);
+                        intent.putExtra("REFERENCE_ID", snapshot.getId());
+                        intent.putExtra("AMOUNT_PAID", String.format(Locale.getDefault(), "PHP %.2f", snapshot.getDouble("amount")));
+                        com.google.firebase.Timestamp ts = snapshot.getTimestamp("timestamp");
+                        if (ts != null) intent.putExtra("PAYMENT_DATE", new SimpleDateFormat("MMM dd, yyyy - hh:mm a", Locale.getDefault()).format(ts.toDate()));
+                        intent.putExtra("PAYMENT_METHOD", snapshot.getString("paymentMethod"));
+                        intent.putExtra("REQUEST_TYPE", snapshot.getString("requestType"));
+                        intent.putExtra("PICKUP_ADDRESS", snapshot.getString("pickupAddress"));
+                        intent.putExtra("DESTINATION_ADDRESS", snapshot.getString("destinationAddress"));
+                        startActivity(intent);
+
+                        resetUiForNewRequest(); // This will also remove the listeners
+
+                    } else if ("pending".equals(status)) {
+                        requestTypeText.setText(snapshot.getString("requestType"));
+                        showSearchingUI();
                     }
                 });
     }
@@ -610,31 +650,23 @@ public class MapActivity extends AppCompatActivity
     private void resetUiForNewRequest() {
         statusCard.setVisibility(View.GONE);
         editPickupButton.setVisibility(View.VISIBLE);
-        destinationInput.setEnabled(true);
-        destinationInput.setText("");
-        destinationInput.setHint("Tap on the map to set your destination.");
+        if ("Towing".equals(selectedRequestType)) {
+            destinationInput.setEnabled(true);
+            destinationInput.setText("");
+            destinationInput.setHint("Tap on the map to set your destination.");
+        }
         destinationLatLng = null;
         currentRequestId = null;
+        mProviderId = null;
+        mProviderName = null;
+        mProviderPhone = null;
 
-        if (providerListener != null) {
-            providerListener.remove();
-            providerListener = null;
-        }
-        if (requestListener != null) {
-            requestListener.remove();
-            requestListener = null;
-        }
+        if (providerListener != null) providerListener.remove();
+        if (requestListener != null) requestListener.remove();
+        if (MyMap != null) MyMap.clear();
 
-        if (providerMarker != null) providerMarker.remove();
-        if (pickupMarker != null) pickupMarker.remove();
-        if (mProviderToPickupLine != null) {
-            mProviderToPickupLine.remove();
-        }
-        // --- FIX: Clear the preview line ---
-        if (mPickupToDestinationLine != null) {
-            mPickupToDestinationLine.remove();
-        }
-
+        providerListener = null;
+        requestListener = null;
         providerMarker = null;
         pickupMarker = null;
         mProviderToPickupLine = null;
@@ -645,43 +677,34 @@ public class MapActivity extends AppCompatActivity
 
     private void listenForProviderLocation(String providerId) {
         if (providerListener != null) providerListener.remove();
-
         providerListener = db.collection("users").document(providerId)
                 .addSnapshotListener((snapshot, e) -> {
-                    if (e != null) {
-                        Log.w(TAG, "Provider listen failed.", e);
+                    if (e != null || snapshot == null || !snapshot.exists()) {
+                        Log.w(TAG, "Provider listener failed or provider doc missing.", e);
                         return;
                     }
-                    if (snapshot != null && snapshot.exists()) {
-                        String name = snapshot.getString("name");
-                        String providerLocText = snapshot.getString("currentLocationAddress");
-                        GeoPoint geoPoint = snapshot.getGeoPoint("liveLocation");
 
-                        if (name != null) {
-                            providerNameText.setText(name);
-                        }
+                    // Store details for Call/Message buttons
+                    mProviderName = snapshot.getString("name");
+                    mProviderPhone = snapshot.getString("phone");
+                    String providerLocText = snapshot.getString("currentLocationAddress");
+                    GeoPoint geoPoint = snapshot.getGeoPoint("liveLocation");
 
-                        if (providerLocText != null && !providerLocText.isEmpty()) {
-                            providerSubtitleText.setText("En route from " + providerLocText);
-                        } else if (name != null) {
-                            providerSubtitleText.setText("Provider accepted, awaiting location...");
-                        } else {
-                            providerSubtitleText.setText("Fetching details...");
-                        }
+                    handler.post(() -> {
+                        providerNameText.setText(mProviderName != null ? mProviderName : "Provider");
+                        providerSubtitleText.setText(providerLocText != null ? "En route from " + providerLocText : "Awaiting location...");
 
                         if (geoPoint != null) {
                             LatLng providerLocation = new LatLng(geoPoint.getLatitude(), geoPoint.getLongitude());
                             updateProviderMarkerAndRoute(providerLocation);
                         }
-                    }
+                    });
                 });
     }
 
     private BitmapDescriptor getScaledProviderIcon() {
-        int height = 100;
-        int width = 100;
         Bitmap b = BitmapFactory.decodeResource(getResources(), R.drawable.car_top_icon);
-        Bitmap smallMarker = Bitmap.createScaledBitmap(b, width, height, false);
+        Bitmap smallMarker = Bitmap.createScaledBitmap(b, 100, 100, false);
         return BitmapDescriptorFactory.fromBitmap(smallMarker);
     }
 
@@ -689,12 +712,7 @@ public class MapActivity extends AppCompatActivity
         if (MyMap == null) return;
 
         if (providerMarker == null) {
-            providerMarker = MyMap.addMarker(new MarkerOptions()
-                    .position(location)
-                    .title("Your Provider")
-                    .icon(getScaledProviderIcon())
-                    .anchor(0.5f, 0.5f)
-                    .flat(true));
+            providerMarker = MyMap.addMarker(new MarkerOptions().position(location).title("Your Provider").icon(getScaledProviderIcon()).anchor(0.5f, 0.5f).flat(true));
         } else {
             providerMarker.setPosition(location);
         }
@@ -712,123 +730,68 @@ public class MapActivity extends AppCompatActivity
     }
 
     private void drawProviderRoute(LatLng providerLocation, LatLng pickupLocation) {
-        Log.d(TAG, "Attempting to draw provider route...");
-
         executor.execute(() -> {
             try {
                 com.google.maps.model.LatLng origin = new com.google.maps.model.LatLng(providerLocation.latitude, providerLocation.longitude);
                 com.google.maps.model.LatLng destination = new com.google.maps.model.LatLng(pickupLocation.latitude, pickupLocation.longitude);
 
-                DirectionsResult result = DirectionsApi.newRequest(mGeoApiContext)
-                        .origin(origin)
-                        .destination(destination)
-                        .mode(TravelMode.DRIVING)
-                        .await();
-
+                DirectionsResult result = DirectionsApi.newRequest(mGeoApiContext).origin(origin).destination(destination).mode(TravelMode.DRIVING).await();
                 if (result.routes != null && result.routes.length > 0) {
-                    com.google.maps.model.DirectionsRoute route = result.routes[0];
-                    com.google.maps.model.DirectionsLeg leg = route.legs[0];
-
-                    String encodedPolyline = route.overviewPolyline.getEncodedPath();
-                    final List<LatLng> decodedPath = PolyUtil.decode(encodedPolyline);
-
-                    final String distance = leg.distance.humanReadable;
-                    final String duration = leg.duration.humanReadable;
+                    final List<LatLng> decodedPath = PolyUtil.decode(result.routes[0].overviewPolyline.getEncodedPath());
+                    final String distance = result.routes[0].legs[0].distance.humanReadable;
+                    final String duration = result.routes[0].legs[0].duration.humanReadable;
 
                     handler.post(() -> {
-                        if (mProviderToPickupLine != null) {
-                            mProviderToPickupLine.remove();
-                        }
-
-                        mProviderToPickupLine = MyMap.addPolyline(new PolylineOptions()
-                                .addAll(decodedPath)
-                                .width(12)
-                                .color(Color.BLUE));
-
+                        if (mProviderToPickupLine != null) mProviderToPickupLine.remove();
+                        mProviderToPickupLine = MyMap.addPolyline(new PolylineOptions().addAll(decodedPath).width(12).color(Color.BLUE));
                         distanceText.setText(distance);
                         etaText.setText(String.format("~ %s", duration));
-
                         LatLngBounds.Builder builder = new LatLngBounds.Builder();
-                        builder.include(pickupLocation);
-                        builder.include(providerLocation);
+                        builder.include(pickupLocation).include(providerLocation);
                         MyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 150));
                     });
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Directions API failed", e);
                 handler.post(() -> drawStraightProviderLine(providerLocation, pickupLocation));
             }
         });
     }
 
     private void drawStraightProviderLine(LatLng providerLocation, LatLng pickupLocation) {
-        if (mProviderToPickupLine != null) {
-            mProviderToPickupLine.remove();
-        }
-        mProviderToPickupLine = MyMap.addPolyline(new PolylineOptions()
-                .add(providerLocation, pickupLocation)
-                .width(12)
-                .color(Color.BLUE)
-                .geodesic(true));
-
+        if (mProviderToPickupLine != null) mProviderToPickupLine.remove();
+        mProviderToPickupLine = MyMap.addPolyline(new PolylineOptions().add(providerLocation, pickupLocation).width(12).color(Color.BLUE).geodesic(true));
         calculateStraightLineEta(providerLocation);
     }
 
-    // --- NEW METHOD TO DRAW PREVIEW ROUTE ---
     private void drawPickupToDestinationRoute(LatLng pickupLocation, LatLng destinationLocation) {
-        Log.d(TAG, "Attempting to draw preview route...");
-
+        if (!"Towing".equals(selectedRequestType) || pickupLocation.equals(destinationLocation)) {
+            if (mPickupToDestinationLine != null) mPickupToDestinationLine.remove();
+            return;
+        }
         executor.execute(() -> {
             try {
                 com.google.maps.model.LatLng origin = new com.google.maps.model.LatLng(pickupLocation.latitude, pickupLocation.longitude);
                 com.google.maps.model.LatLng destination = new com.google.maps.model.LatLng(destinationLocation.latitude, destinationLocation.longitude);
-
-                DirectionsResult result = DirectionsApi.newRequest(mGeoApiContext)
-                        .origin(origin)
-                        .destination(destination)
-                        .mode(TravelMode.DRIVING)
-                        .await();
-
+                DirectionsResult result = DirectionsApi.newRequest(mGeoApiContext).origin(origin).destination(destination).mode(TravelMode.DRIVING).await();
                 if (result.routes != null && result.routes.length > 0) {
-                    com.google.maps.model.DirectionsRoute route = result.routes[0];
-                    String encodedPolyline = route.overviewPolyline.getEncodedPath();
-                    final List<LatLng> decodedPath = PolyUtil.decode(encodedPolyline);
-
+                    final List<LatLng> decodedPath = PolyUtil.decode(result.routes[0].overviewPolyline.getEncodedPath());
                     handler.post(() -> {
-                        if (mPickupToDestinationLine != null) {
-                            mPickupToDestinationLine.remove();
-                        }
-                        mPickupToDestinationLine = MyMap.addPolyline(new PolylineOptions()
-                                .addAll(decodedPath)
-                                .width(12)
-                                .color(Color.RED)); // Changed color to red for distinction
+                        if (mPickupToDestinationLine != null) mPickupToDestinationLine.remove();
+                        mPickupToDestinationLine = MyMap.addPolyline(new PolylineOptions().addAll(decodedPath).width(12).color(Color.RED));
                     });
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Preview Directions API failed", e);
-                // No fallback straight line for this one, just don't draw it.
             }
         });
     }
 
-
     private void calculateStraightLineEta(LatLng providerLocation) {
         if (pickupLatLng == null) return;
-
         float[] results = new float[1];
-        Location.distanceBetween(
-                providerLocation.latitude, providerLocation.longitude,
-                pickupLatLng.latitude, pickupLatLng.longitude,
-                results);
-
-        float distanceInMeters = results[0];
-        float distanceInKm = distanceInMeters / 1000;
-
-        int timeInMinutes = (int) (distanceInKm * 2);
-        if (timeInMinutes < 1) {
-            timeInMinutes = 1;
-        }
-
+        Location.distanceBetween(providerLocation.latitude, providerLocation.longitude, pickupLatLng.latitude, pickupLatLng.longitude, results);
+        float distanceInKm = results[0] / 1000;
+        int timeInMinutes = Math.max(1, (int) (distanceInKm * 2));
         distanceText.setText(String.format(Locale.getDefault(), "%.1f km", distanceInKm));
         etaText.setText(String.format(Locale.getDefault(), "~ %d min", timeInMinutes));
     }
@@ -836,16 +799,13 @@ public class MapActivity extends AppCompatActivity
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (requestListener != null) {
-            requestListener.remove();
-        }
-        if (providerListener != null) {
-            providerListener.remove();
-        }
+        if (requestListener != null) requestListener.remove();
+        if (providerListener != null) providerListener.remove();
+        executor.execute(() -> {
+            if (mGeoApiContext != null) {
+                mGeoApiContext.shutdown();
+            }
+        });
         executor.shutdown();
-
-        if (mGeoApiContext != null) {
-            mGeoApiContext.shutdown();
-        }
     }
 }

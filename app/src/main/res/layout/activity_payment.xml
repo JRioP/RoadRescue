@@ -9,7 +9,7 @@
     <View
         android:id="@+id/statusBar16"
         android:layout_width="0dp"
-        android:layout_height="24dp"
+        android:layout_height="30dp"
         android:background="?attr/colorPrimaryDark"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.0"
@@ -61,7 +61,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="20dp"
                 android:layout_marginTop="15dp"
                 android:fontFamily="@font/poppins"
                 android:text="Amount"
@@ -148,7 +148,7 @@
                     app:cardElevation="0dp">
 
                     <RelativeLayout
-                        android:layout_width="match_parent"
+                        android:layout_width="385dp"
                         android:layout_height="wrap_content"
                         android:padding="16dp">
 

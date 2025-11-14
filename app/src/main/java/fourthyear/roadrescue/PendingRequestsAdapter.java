@@ -1,26 +1,28 @@
 package fourthyear.roadrescue;
 
+import android.annotation.SuppressLint;
 import android.location.Location;
-import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
+
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.google.android.gms.maps.model.LatLng;
+
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import javax.annotation.Nullable;
 
-public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequestsAdapter.ViewHolder> {
+public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequestsAdapter.RequestViewHolder> {
 
-    private final List<Map<String, Object>> pendingRequests;
+    private final List<Map<String, Object>> requests;
     private final OnAcceptClickListener acceptClickListener;
     private final OnItemClickListener itemClickListener;
-    private LatLng providerCurrentLocation;
+    private LatLng providerLocation;
 
     public interface OnAcceptClickListener {
         void onAcceptClick(String requestId, Map<String, Object> requestData);
@@ -30,125 +32,90 @@ public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequests
         void onItemClick(Map<String, Object> requestData);
     }
 
-    public PendingRequestsAdapter(List<Map<String, Object>> pendingRequests,
-                                  OnAcceptClickListener acceptListener,
-                                  OnItemClickListener itemListener) {
-        this.pendingRequests = pendingRequests;
-        this.acceptClickListener = acceptListener;
-        this.itemClickListener = itemListener;
-    }
-
-    public void updateProviderLocation(LatLng location) {
-        this.providerCurrentLocation = location;
-        notifyDataSetChanged();
+    public PendingRequestsAdapter(List<Map<String, Object>> requests,
+                                  OnAcceptClickListener acceptClickListener,
+                                  OnItemClickListener itemClickListener) {
+        this.requests = requests;
+        this.acceptClickListener = acceptClickListener;
+        this.itemClickListener = itemClickListener;
     }
 
     @NonNull
     @Override
-    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_pending_request, parent, false);
-        return new ViewHolder(view);
+    public RequestViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_pending_request, parent, false);
+        return new RequestViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        Map<String, Object> requestData = pendingRequests.get(position);
-        holder.bind(requestData, providerCurrentLocation, acceptClickListener, itemClickListener);
+    public void onBindViewHolder(@NonNull RequestViewHolder holder, int position) {
+        Map<String, Object> request = requests.get(position);
+        String requestId = (String) request.get("requestId");
+
+        String requestType = (String) request.get("requestType");
+        String pickupAddress = (String) request.get("pickupAddress");
+
+        holder.requestTypeTextView.setText(requestType != null ? requestType + " Request" : "Service Request");
+        holder.pickupAddressTextView.setText(pickupAddress != null ? "at " + pickupAddress : "at unknown location");
+
+        holder.requestIdTextView.setText("ID: " + (requestId != null ? requestId.substring(0, Math.min(requestId.length(), 8)) : "N/A"));
+
+        Double amount = (Double) request.get("amount");
+        String paymentMethod = (String) request.get("paymentMethod");
+        String amountStr = (amount != null) ? String.format(Locale.getDefault(), " (PHP %.2f)", amount) : "";
+        String paymentStr = (paymentMethod != null) ? paymentMethod : "N/A";
+        holder.paymentTextView.setText("Payment: " + paymentStr + amountStr);
+
+        if (providerLocation != null) {
+            Double lat = (Double) request.get("pickupLat");
+            Double lng = (Double) request.get("pickupLng");
+            if (lat != null && lng != null) {
+                float[] results = new float[1];
+                Location.distanceBetween(
+                        providerLocation.latitude, providerLocation.longitude,
+                        lat, lng,
+                        results
+                );
+                float distanceInKm = results[0] / 1000;
+                holder.distanceTextView.setText(String.format(Locale.getDefault(), "%.1f km away", distanceInKm));
+            } else {
+                holder.distanceTextView.setText("Distance unknown");
+            }
+        } else {
+            holder.distanceTextView.setText("Calculating distance...");
+        }
+
+        holder.acceptButton.setOnClickListener(v -> acceptClickListener.onAcceptClick(requestId, request));
+        holder.itemView.setOnClickListener(v -> itemClickListener.onItemClick(request));
     }
 
     @Override
     public int getItemCount() {
-        return pendingRequests.size();
+        return requests.size();
     }
 
-    static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView requestInfoText;
-        TextView requestIdText;
+    @SuppressLint("NotifyDataSetChanged")
+    public void updateProviderLocation(LatLng location) {
+        this.providerLocation = location;
+        notifyDataSetChanged();
+    }
+
+    public static class RequestViewHolder extends RecyclerView.ViewHolder {
+        TextView requestTypeTextView;
+        TextView pickupAddressTextView;
+        TextView requestIdTextView;
+        TextView paymentTextView;
+        TextView distanceTextView;
         Button acceptButton;
-        TextView requestDistanceText;
-        TextView requestPaymentModeText;
 
-        ViewHolder(@NonNull View itemView) {
+        public RequestViewHolder(@NonNull View itemView) {
             super(itemView);
-            requestInfoText = itemView.findViewById(R.id.request_info_text);
-            requestIdText = itemView.findViewById(R.id.request_id_text);
-            acceptButton = itemView.findViewById(R.id.accept_request_button);
-            requestDistanceText = itemView.findViewById(R.id.request_distance_text);
-            requestPaymentModeText = itemView.findViewById(R.id.request_payment_mode_text);
-        }
-
-        void bind(final Map<String, Object> requestData,
-                  @Nullable LatLng providerLocation,
-                  final OnAcceptClickListener acceptListener,
-                  final OnItemClickListener itemListener) {
-
-            String requestId = (String) requestData.get("requestId");
-            Double pickupLat = (Double) requestData.get("pickupLat");
-            Double pickupLng = (Double) requestData.get("pickupLng");
-            String pickupAddress = (String) requestData.get("pickupAddress");
-
-            String requestType = (String) requestData.get("requestType");
-            String paymentMethod = (String) requestData.get("paymentMethod");
-
-            Double amount = null;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                amount = (Double) requestData.getOrDefault("amount", 0.0);
-            }
-
-            String locationAddress;
-            if (pickupAddress != null && !pickupAddress.isEmpty()) {
-                locationAddress = pickupAddress;
-            } else if (pickupLat != null && pickupLng != null) {
-                locationAddress = String.format(Locale.getDefault(), "Lat: %.4f, Lng: %.4f", pickupLat, pickupLng);
-            } else {
-                locationAddress = "Unknown Location";
-            }
-
-            requestInfoText.setText(String.format("%s Request at %s",
-                    requestType != null ? requestType : "Service",
-                    locationAddress));
-
-            requestIdText.setText("ID: " + (requestId != null ? requestId.substring(0, Math.min(requestId.length(), 8)) : "N/A"));
-
-            if (paymentMethod != null) {
-                String amountDisplay = String.format(Locale.getDefault(), " (PHP %.2f)", amount);
-                requestPaymentModeText.setText("Payment: " + paymentMethod + amountDisplay);
-            } else {
-                requestPaymentModeText.setText("Payment: N/A");
-            }
-
-            String distanceText = "Calculating distance...";
-            if (providerLocation != null && pickupLat != null && pickupLng != null) {
-                float[] results = new float[1];
-                Location.distanceBetween(
-                        providerLocation.latitude, providerLocation.longitude,
-                        pickupLat, pickupLng,
-                        results);
-
-                float distanceInMeters = results[0];
-                if (distanceInMeters > 1000) {
-                    float distanceInKm = distanceInMeters / 1000;
-                    distanceText = String.format(Locale.getDefault(), "%.1f km away", distanceInKm);
-                } else {
-                    distanceText = String.format(Locale.getDefault(), "%.0f m away", distanceInMeters);
-                }
-            } else if (providerLocation == null) {
-                distanceText = "Getting your location...";
-            }
-            requestDistanceText.setText(distanceText);
-
-            acceptButton.setOnClickListener(v -> {
-                if (acceptListener != null && requestId != null) {
-                    acceptListener.onAcceptClick(requestId, requestData);
-                }
-            });
-
-            itemView.setOnClickListener(v -> {
-                if (itemListener != null) {
-                    itemListener.onItemClick(requestData);
-                }
-            });
+            requestTypeTextView = itemView.findViewById(R.id.request_type_text);
+            pickupAddressTextView = itemView.findViewById(R.id.request_address_text);
+            requestIdTextView = itemView.findViewById(R.id.request_id_text);
+            paymentTextView = itemView.findViewById(R.id.request_payment_text);
+            distanceTextView = itemView.findViewById(R.id.request_distance_text);
+            acceptButton = itemView.findViewById(R.id.accept_button);
         }
     }
 }

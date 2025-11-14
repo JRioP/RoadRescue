@@ -66,6 +66,7 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
             return;
         }
 
+        setupUIComponents();
         setupViews();
         setupNavigationListeners();
         setupRecyclerView();
@@ -261,7 +262,7 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
 
     private void updateTitle(int count) {
         if (titleText != null) {
-            titleText.setText(String.format("Service Provider (%d New)", count));
+            titleText.setText(String.format("Service Request (%d New)", count));
         }
     }
 
@@ -270,6 +271,42 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         super.onDestroy();
         if (requestsListener != null) {
             requestsListener.remove();
+        }
+    }
+
+    private void setupUIComponents() {
+
+        //Navigation buttons
+        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
+        if (notificationButton != null) {
+            notificationButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ServiceProviderHomepage.this, NotificationsActivity.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView profileButton = findViewById(R.id.profile_icon_btn);
+        if (profileButton != null) {
+            profileButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ServiceProviderHomepage.this, ProfileActivity.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView homeButton = findViewById(R.id.home_icon_btn);
+        if (homeButton != null) {
+            homeButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ServiceProviderHomepage.this, homepage.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        if (messageButton != null) {
+            messageButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ServiceProviderHomepage.this, ChatInboxActivity.class);
+                startActivity(intent);
+            });
         }
     }
 }

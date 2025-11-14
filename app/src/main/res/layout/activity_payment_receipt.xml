@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F0F2F5"
+    tools:context=".PaymentReceiptActivity">
+
+    <RelativeLayout
+        android:id="@+id/receipt_header"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@android:color/white"
+        android:elevation="4dp"
+        android:paddingHorizontal="16dp">
+
+        <ImageView
+            android:id="@+id/receipt_close_btn"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:src="@drawable/cross_icon"
+            app:tint="@android:color/black" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:text="Payment details"
+            android:textColor="@android:color/black"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+    </RelativeLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/receipt_header"
+        android:layout_above="@id/receipt_download_btn"
+        android:clipToPadding="false"
+        android:padding="16dp">
+
+        <androidx.cardview.widget.CardView
+            android:id="@+id/receipt_card_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@android:color/white">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:text="Payment Successful"
+                    android:textColor="@android:color/black"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <ImageView
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="24dp"
+                    android:src="@drawable/check_icon"
+                    app:tint="@color/design_default_color_primary" />
+
+                <TextView
+                    style="@style/ReceiptSectionHeader"
+                    android:text="Payment summary" />
+
+                <RelativeLayout style="@style/ReceiptRow">
+                    <TextView
+                        style="@style/ReceiptLabel"
+                        android:text="Reference ID:" />
+                    <TextView
+                        android:id="@+id/receipt_reference_id"
+                        style="@style/ReceiptValue"
+                        tools:text="ABC123XYZ" />
+                </RelativeLayout>
+
+                <RelativeLayout style="@style/ReceiptRow">
+                    <TextView
+                        style="@style/ReceiptLabel"
+                        android:text="Amount paid:" />
+                    <TextView
+                        android:id="@+id/receipt_amount_paid"
+                        style="@style/ReceiptValue"
+                        tools:text="PHP 549.21" />
+                </RelativeLayout>
+
+                <RelativeLayout style="@style/ReceiptRow">
+                    <TextView
+                        style="@style/ReceiptLabel"
+                        android:text="Payment date &amp; time:" />
+                    <TextView
+                        android:id="@+id/receipt_payment_date"
+                        style="@style/ReceiptValue"
+                        tools:text="Nov 13, 2025 - 07:30 PM" />
+                </RelativeLayout>
+
+                <RelativeLayout style="@style/ReceiptRow">
+                    <TextView
+                        style="@style/ReceiptLabel"
+                        android:text="Payment method:" />
+                    <TextView
+                        android:id="@+id/receipt_payment_method"
+                        style="@style/ReceiptValue"
+                        tools:text="Cash" />
+                </RelativeLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="16dp"
+                    android:background="#E0E0E0" />
+
+                <TextView
+                    style="@style/ReceiptSectionHeader"
+                    android:text="Your details" />
+
+                <RelativeLayout style="@style/ReceiptRow">
+                    <TextView
+                        style="@style/ReceiptLabel"
+                        android:text="Name:" />
+                    <TextView
+                        android:id="@+id/receipt_customer_name"
+                        style="@style/ReceiptValue"
+                        tools:text="John Doe" />
+                </RelativeLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="16dp"
+                    android:background="#E0E0E0" />
+
+                <TextView
+                    style="@style/ReceiptSectionHeader"
+                    android:text="Service summary" />
+
+                <RelativeLayout style="@style/ReceiptRow">
+                    <TextView
+                        style="@style/ReceiptLabel"
+                        android:text="Service type:" />
+                    <TextView
+                        android:id="@+id/receipt_service_type"
+                        style="@style/ReceiptValue"
+                        tools:text="Towing" />
+                </RelativeLayout>
+
+                <RelativeLayout style="@style/ReceiptRow">
+                    <TextView
+                        style="@style/ReceiptLabel"
+                        android:text="From:" />
+                    <TextView
+                        android:id="@+id/receipt_pickup_address"
+                        style="@style/ReceiptValue"
+                        android:layout_marginStart="60dp"
+                        tools:text="123 Main St, Los Altos, CA" />
+                </RelativeLayout>
+
+                <RelativeLayout style="@style/ReceiptRow">
+                    <TextView
+                        style="@style/ReceiptLabel"
+                        android:text="To:" />
+                    <TextView
+                        android:id="@+id/receipt_destination_address"
+                        style="@style/ReceiptValue"
+                        android:layout_marginStart="60dp"
+                        tools:text="456 Other Rd, Mountain View, CA" />
+                </RelativeLayout>
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+    </ScrollView>
+
+    <Button
+        android:id="@+id/receipt_download_btn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Download Receipt"
+        android:layout_alignParentBottom="true"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:padding="12dp"
+        app:cornerRadius="100dp" />
+</RelativeLayout>
