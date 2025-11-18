@@ -1,6 +1,8 @@
 package fourthyear.roadrescue;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -12,21 +14,21 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 public class ChatConversationActivity extends AppCompatActivity {
@@ -38,13 +40,26 @@ public class ChatConversationActivity extends AppCompatActivity {
     private List<MessageModel> messageList;
     private EditText messageInput;
     private ImageButton sendButton;
+    private TextView userNameText;
 
     private FirebaseFirestore db;
     private FirebaseAuth auth;
+
+    // Listeners
     private ListenerRegistration messagesListener;
+    private ListenerRegistration chatStatusListener;
+
+    // --- Badge Listeners ---
+    private ListenerRegistration unreadBadgeListener;
+    private ListenerRegistration notificationBadgeListener;
+
+    // --- Badge UI ---
+    private TextView unreadBadge;
+    private TextView unreadNotificationBadge;
 
     private String chatId;
     private String otherUserName;
+    private boolean isChatClosed = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,10 +83,120 @@ public class ChatConversationActivity extends AppCompatActivity {
         initializeRecyclerView();
         setupViews();
         setupFirestoreListener();
+        setupChatStatusListener();
+
+        // --- Setup Badge Listeners ---
+        setupUnreadBadgeListener();
+        setupNotificationBadgeListener();
+
         setupNavbar();
+
+        resetUnreadCount();
+    }
+
+    private void resetUnreadCount() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+
+        String currentUserId = user.getUid();
+
+        db.collection("chats").document(chatId)
+                .update("unreadCounts." + currentUserId, 0)
+                .addOnFailureListener(e -> Log.e(TAG, "Failed to reset unread count", e));
+    }
+
+    private void setupChatStatusListener() {
+        chatStatusListener = db.collection("chats").document(chatId)
+                .addSnapshotListener((snapshot, e) -> {
+                    if (e != null) {
+                        Log.w(TAG, "Listen for chat status failed.", e);
+                        return;
+                    }
+
+                    if (snapshot != null && snapshot.exists()) {
+                        String status = snapshot.getString("status");
+                        if ("closed".equals(status) || "archived".equals(status)) {
+                            isChatClosed = true;
+                        } else {
+                            isChatClosed = false;
+                        }
+                        updateUiForChatStatus();
+                    }
+                });
+    }
+
+    // --- Global Badge Logic ---
+    private void setupUnreadBadgeListener() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+        String currentUserId = user.getUid();
+
+        unreadBadgeListener = db.collection("chats")
+                .whereArrayContains("participantIds", currentUserId)
+                .whereEqualTo("status", "active")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            if (count != null) {
+                                totalUnread += count;
+                            }
+                        }
+                    }
+
+                    if (unreadBadge != null) {
+                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                    }
+                });
+    }
+
+    private void setupNotificationBadgeListener() {
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) return;
+        String currentUserId = user.getUid();
+
+        notificationBadgeListener = db.collection("notifications")
+                .whereEqualTo("userId", currentUserId)
+                .whereEqualTo("read", false)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+                    if (unreadNotificationBadge != null) {
+                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+                    }
+                });
+    }
+
+    private void updateUiForChatStatus() {
+        if (isChatClosed) {
+            messageInput.setEnabled(false);
+            messageInput.setHint("This session is closed.");
+            messageInput.setBackgroundResource(android.R.color.transparent);
+            sendButton.setEnabled(false);
+            sendButton.setVisibility(View.INVISIBLE);
+            if (userNameText != null) {
+                userNameText.setText(otherUserName + " (Closed)");
+            }
+        } else {
+            messageInput.setEnabled(true);
+            messageInput.setHint("Type a message...");
+            sendButton.setEnabled(true);
+            sendButton.setVisibility(View.VISIBLE);
+            if (userNameText != null) {
+                userNameText.setText(otherUserName);
+            }
+        }
     }
 
     private void setupNavbar() {
+        // --- Init Badge Views ---
+        unreadBadge = findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         notificationButton.setOnClickListener(v -> {
             Intent intent = new Intent(ChatConversationActivity.this, NotificationsActivity.class);
@@ -84,12 +209,11 @@ public class ChatConversationActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-        // --- THIS IS THE FIX ---
+        // --- HOME BUTTON FIX (Handles "driver" and "Service Provider") ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         homeButton.setOnClickListener(v -> {
             FirebaseUser user = auth.getCurrentUser();
             if (user == null) {
-                // Failsafe, go to login
                 Intent intent = new Intent(ChatConversationActivity.this, MainActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(intent);
@@ -97,52 +221,70 @@ public class ChatConversationActivity extends AppCompatActivity {
                 return;
             }
 
-            // Check the user's type from Firestore
             db.collection("users").document(user.getUid()).get()
                     .addOnSuccessListener(documentSnapshot -> {
-                        String userType = "Customer"; // Default to customer
+                        String userType = "Customer"; // Default
                         if (documentSnapshot.exists()) {
                             String type = documentSnapshot.getString("userType");
-                            if (type != null && type.equals("Service Provider")) {
-                                userType = type;
+
+                            // Robust Check: Handles "driver", "Driver", "Service Provider", "service provider"
+                            if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
+                                userType = "Service Provider";
                             }
                         }
 
+                        Intent intent;
                         if (userType.equals("Service Provider")) {
-                            // Go to provider homepage
-                            Intent intent = new Intent(ChatConversationActivity.this, ServiceProviderHomepage.class);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
+                            intent = new Intent(ChatConversationActivity.this, ServiceProviderHomepage.class);
                         } else {
-                            // Go to customer homepage
-                            Intent intent = new Intent(ChatConversationActivity.this, homepage.class);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
+                            intent = new Intent(ChatConversationActivity.this, homepage.class);
                         }
-                        finish(); // Finish chat activity after navigating home
+
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        finish();
                     })
                     .addOnFailureListener(e -> {
-                        // On failure, just default to the customer homepage
-                        Log.e(TAG, "Failed to get userType, defaulting to customer homepage", e);
+                        Log.e(TAG, "Failed to get userType", e);
                         Intent intent = new Intent(ChatConversationActivity.this, homepage.class);
                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(intent);
                         finish();
                     });
         });
+        // ---------------------------------------------------------------
 
-        ImageView messageButton = findViewById(R.id.message_icon_btn);
-        messageButton.setOnClickListener(v -> {
-            Intent intent = new Intent(ChatConversationActivity.this, ChatInboxActivity.class);
-            startActivity(intent);
-        });
+        // --- Message Button Logic & Styling (Active State) ---
+        ImageView messageIcon = findViewById(R.id.message_icon_btn);
+        ConstraintLayout messageLayout = findViewById(R.id.nav_message_layout);
+        TextView messageText = findViewById(R.id.message_text);
+
+        if (messageLayout != null) {
+            messageLayout.setBackgroundResource(R.drawable.rounded_white_background);
+        }
+        if (messageIcon != null) {
+            messageIcon.setColorFilter(Color.BLACK);
+        }
+        if (messageText != null) {
+            messageText.setTextColor(Color.BLACK);
+            messageText.setTypeface(null, Typeface.BOLD);
+        }
+
+        if (messageIcon != null) {
+            messageIcon.setOnClickListener(v -> {
+                Intent intent = new Intent(ChatConversationActivity.this, ChatInboxActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                startActivity(intent);
+                finish();
+            });
+        }
     }
 
     private void setupToolbar() {
         ImageView backButton = findViewById(R.id.backButton);
         backButton.setOnClickListener(v -> finish());
 
-        TextView userNameText = findViewById(R.id.userNameText);
+        userNameText = findViewById(R.id.userNameText);
         userNameText.setText(otherUserName != null ? otherUserName : "Chat");
     }
 
@@ -165,6 +307,11 @@ public class ChatConversationActivity extends AppCompatActivity {
     }
 
     private void sendMessage() {
+        if (isChatClosed) {
+            Toast.makeText(this, "This session is closed. You cannot send messages.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         String messageText = messageInput.getText().toString().trim();
         if (TextUtils.isEmpty(messageText)) {
             return;
@@ -183,23 +330,34 @@ public class ChatConversationActivity extends AppCompatActivity {
                 .set(message)
                 .addOnSuccessListener(aVoid -> {
                     messageInput.setText("");
-                    updateLastMessage(messageText);
+                    updateLastMessageAndUnreadCount(messageText);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Error sending message: ", e);
                 });
     }
 
-    private void updateLastMessage(String lastMessage) {
-        Map<String, Object> updates = new HashMap<>();
-        updates.put("lastMessage", lastMessage);
-        updates.put("lastMessageTimestamp", Timestamp.now());
+    private void updateLastMessageAndUnreadCount(String lastMessage) {
+        db.collection("chats").document(chatId).get().addOnSuccessListener(doc -> {
+            if (doc.exists()) {
+                List<String> participants = (List<String>) doc.get("participantIds");
+                if (participants != null) {
+                    String currentUserId = getCurrentUserId();
 
-        db.collection("chats").document(chatId)
-                .update(updates)
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error updating last message: ", e);
-                });
+                    for (String id : participants) {
+                        if (!id.equals(currentUserId)) {
+                            db.collection("chats").document(chatId)
+                                    .update(
+                                            "unreadCounts." + id, FieldValue.increment(1),
+                                            "lastMessage", lastMessage,
+                                            "lastMessageTimestamp", Timestamp.now()
+                                    )
+                                    .addOnFailureListener(e -> Log.e(TAG, "Failed to update chat meta", e));
+                        }
+                    }
+                }
+            }
+        });
     }
 
     private void setupFirestoreListener() {
@@ -250,6 +408,15 @@ public class ChatConversationActivity extends AppCompatActivity {
         super.onDestroy();
         if (messagesListener != null) {
             messagesListener.remove();
+        }
+        if (chatStatusListener != null) {
+            chatStatusListener.remove();
+        }
+        if (unreadBadgeListener != null) {
+            unreadBadgeListener.remove();
+        }
+        if (notificationBadgeListener != null) {
+            notificationBadgeListener.remove();
         }
     }
 }

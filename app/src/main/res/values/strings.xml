@@ -26,6 +26,7 @@
     <string name="sign_up_phone_number">Phone Number</string>
     <string name="sign_up_phone_number_country_code">+63</string>
     <string name="sign_up_termsandcondition">Terms And Conditions</string>
+    <string name="password_standards_helper">Must be 8+ characters, with uppercase, number &amp; symbol.</string>
 
     <!-- Verify -->
     <string name="verify_text">Enter the 6-digit code sent via Phone at</string>
@@ -88,5 +89,59 @@
     <string name="profile_text_page">Profile</string>"
     <string name="profile_name">Juan Dela Cruz</string>
     <string name="profile_account_settings">Account Settings</string>
+    <string name="Data_Privacy_Compliance">•\tWe comply with the Data Privacy Act of 2012 (RA 10173) to ensure that all personal information shared with us is collected, processed, and stored with the highest level of confidentiality.\n•\tA Data Protection Officer (DPO) is designated to oversee compliance, security, and protection of user information.\n•\tAll data processing systems are registered with the National Privacy Commission (NPC).\n•\tRegular Privacy Impact Assessments are conducted to evaluate potential risks.\n•\tReasonable and appropriate security measures are in place to protect against unauthorized access, breaches, or loss of data.\n</string>
+
+        <string name="terms_title">Terms and Conditions</string>
+        <string name="terms_last_updated">Last updated: November 17, 2025</string>
+
+        <string name="terms_heading_1">1. Agreement to Terms</string>
+        <string name="terms_body_1">
+        These Terms and Conditions ("Terms") govern your access to and use of the RoadRescue mobile application (the "Service"). By creating an account or using the Service, you agree to be bound by these Terms. If you do not agree to these Terms, do not use the Service.
+    </string>
+
+        <string name="terms_heading_2">2. The RoadRescue Service</string>
+        <string name="terms_body_2">
+        RoadRescue is a technology platform that connects users ("Users") seeking roadside assistance with independent, third-party service providers ("Service Providers" or "Rescuers").\n\n
+        <b>You acknowledge that RoadRescue is a software platform and does NOT provide roadside assistance services itself.</b> The Service Providers are independent contractors, not employees or agents of RoadRescue.
+    </string>
+
+        <string name="terms_heading_3">3. User Accounts and Conduct</string>
+        <string name="terms_body_3">
+        You must be at least 18 years old to use the Service. You agree to provide accurate and complete information when creating your account and to keep this information updated.\n\n
+        You are responsible for all activity that occurs under your account. You agree not to:\n
+        •   Use the service for any fraudulent or illegal purpose.\n
+        •   Submit false or prank requests for assistance.\n
+        •   Harass, threaten, or harm Service Providers or other users.\n
+        •   Attempt to reverse-engineer or gain unauthorized access to the Service.
+    </string>
+
+        <string name="terms_heading_4">4. Disclaimer of Warranties</string>
+        <string name="terms_body_4">
+        The Service is provided "AS IS" and "AS AVAILABLE" without warranties of any kind.\n\n
+        We do not guarantee that:\n
+        (a) The Service will be error-free, secure, or uninterrupted.\n
+        (b) A Service Provider will be available to accept your request.\n
+        (c) The quality, safety, or timeliness of the services provided by the Third-Party Service Provider will meet your expectations.
+    </string>
+
+        <string name="terms_heading_5">5. Limitation of Liability</string>
+        <string name="terms_body_5">
+        To the fullest extent permitted by law, RoadRescue and its creators (including Jem, Joshua, and Winnely) shall not be liable for any indirect, incidental, special, or consequential damages, or for any damages related to:\n\n
+        (a) Personal injury, property damage, or disputes arising from your interaction with a Service Provider.\n
+        (b) Any failure of the app to function, or any errors or delays in service.\n
+        (c) The actions, inactions, or quality of work of any Third-Party Service Provider.\n\n
+        Our total liability to you for any all claims arising from the use of the Service is limited to the amount you paid us for the Service, if any.
+    </string>
+
+        <string name="terms_heading_6">6. Governing Law</string>
+        <string name="terms_body_6">
+        These Terms shall be governed by and construed in accordance with the laws of the Republic of the Philippines, without regard to its conflict of law provisions.
+    </string>
+
+        <string name="terms_heading_7">7. Changes to Terms</string>
+        <string name="terms_body_7">
+        We reserve the right to modify these Terms at any time. We will provide notice of changes by updating the "Last updated" date. Your continued use of the Service after any change constitutes your acceptance of the new Terms.
+    </string>
+
 
 </resources>

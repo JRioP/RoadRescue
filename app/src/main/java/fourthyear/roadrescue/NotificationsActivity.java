@@ -2,16 +2,22 @@ package fourthyear.roadrescue;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.ImageView;
+import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
@@ -25,7 +31,15 @@ public class NotificationsActivity extends AppCompatActivity {
     private NotificationsAdapter notificationsAdapter;
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
-    private ListenerRegistration notificationListener;
+
+    // Listeners
+    private ListenerRegistration mainNotificationListener;
+    private ListenerRegistration unreadListener;
+    private ListenerRegistration badgeNotificationListener;
+
+    // Badges
+    private TextView unreadBadge;
+    private TextView unreadNotificationBadge;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,16 +48,64 @@ public class NotificationsActivity extends AppCompatActivity {
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
 
-        setupNavbar();
-
         notificationsList = new ArrayList<>();
 
         setupClickListeners();
         setupRecyclerView();
 
+        // Setup Badges and Navbar
+        setupNavbar();
+        setupUnreadMessageListener();
+        setupNotificationBadgeListener();
+
         listenForNotifications();
     }
 
+    // --- Listener for Unread Chat Messages Badge ---
+    private void setupUnreadMessageListener() {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
+        String currentUserId = user.getUid();
+
+        unreadListener = db.collection("chats")
+                .whereArrayContains("participantIds", currentUserId)
+                .whereEqualTo("status", "active")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            if (count != null) {
+                                totalUnread += count;
+                            }
+                        }
+                    }
+
+                    if (unreadBadge != null) {
+                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                    }
+                });
+    }
+
+    private void setupNotificationBadgeListener() {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
+        String currentUserId = user.getUid();
+
+        badgeNotificationListener = db.collection("notifications")
+                .whereEqualTo("userId", currentUserId)
+                .whereEqualTo("read", false)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+                    if (unreadNotificationBadge != null) {
+                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+                    }
+                });
+    }
 
     private void listenForNotifications() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
@@ -58,7 +120,7 @@ public class NotificationsActivity extends AppCompatActivity {
                 .whereEqualTo("customerId", userId)
                 .orderBy("timestamp", Query.Direction.DESCENDING);
 
-        notificationListener = requestsQuery.addSnapshotListener((snapshots, e) -> {
+        mainNotificationListener = requestsQuery.addSnapshotListener((snapshots, e) -> {
             if (e != null) {
                 Log.w(TAG, "Listen failed.", e);
                 return;
@@ -122,15 +184,36 @@ public class NotificationsActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (notificationListener != null) {
-            notificationListener.remove();
-        }
+        if (mainNotificationListener != null) mainNotificationListener.remove();
+        if (unreadListener != null) unreadListener.remove();
+        if (badgeNotificationListener != null) badgeNotificationListener.remove();
     }
 
     private void setupNavbar() {
-        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        notificationButton.setOnClickListener(v -> {
-        });
+        // Initialize Badges
+        unreadBadge = findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+
+        // --- Notification Button (Active State) ---
+        ConstraintLayout notificationLayout = findViewById(R.id.nav_notification_layout);
+        ImageView notificationIcon = findViewById(R.id.notification_icon_btn);
+        TextView notificationText = findViewById(R.id.notification_text);
+
+        if (notificationLayout != null) {
+            notificationLayout.setClickable(false);
+            notificationLayout.setFocusable(false);
+            notificationLayout.setBackgroundResource(R.drawable.rounded_white_background);
+        }
+
+        if (notificationIcon != null) {
+            notificationIcon.setColorFilter(Color.BLACK);
+        }
+
+        if (notificationText != null) {
+            notificationText.setTextColor(Color.BLACK);
+            notificationText.setTypeface(null, Typeface.BOLD);
+        }
+        // ------------------------------------------
 
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
         profileButton.setOnClickListener(v -> {
@@ -138,6 +221,7 @@ public class NotificationsActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
+        // --- HOME BUTTON FIX ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         homeButton.setOnClickListener(v -> {
             FirebaseUser user = mAuth.getCurrentUser();
@@ -151,23 +235,25 @@ public class NotificationsActivity extends AppCompatActivity {
 
             db.collection("users").document(user.getUid()).get()
                     .addOnSuccessListener(documentSnapshot -> {
-                        String userType = "Customer";
+                        String userType = "Customer"; // Default
                         if (documentSnapshot.exists()) {
                             String type = documentSnapshot.getString("userType");
-                            if (type != null && type.equals("Service Provider")) {
-                                userType = type;
+
+                            // Robust check for "driver" or "Service Provider"
+                            if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
+                                userType = "Service Provider";
                             }
                         }
 
+                        Intent intent;
                         if (userType.equals("Service Provider")) {
-                            Intent intent = new Intent(NotificationsActivity.this, ServiceProviderHomepage.class);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
+                            intent = new Intent(NotificationsActivity.this, ServiceProviderHomepage.class);
                         } else {
-                            Intent intent = new Intent(NotificationsActivity.this, homepage.class);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
+                            intent = new Intent(NotificationsActivity.this, homepage.class);
                         }
+
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
                         finish();
                     })
                     .addOnFailureListener(e -> {
