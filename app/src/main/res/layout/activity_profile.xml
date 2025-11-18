@@ -166,7 +166,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingHorizontal="24dp"
-            android:paddingBottom="24dp">
+            android:paddingBottom="80dp">
 
             <ImageView
                 android:id="@+id/imageView10"
@@ -459,6 +459,59 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@+id/edit_car_year" />
 
+            <LinearLayout
+                android:id="@+id/layout_services_provided"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="#F5F5F5"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:visibility="gone"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/divider_car_year">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:text="Services You Provide"
+                    android:textColor="@android:color/black"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <CheckBox
+                    android:id="@+id/cb_towing"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Towing" />
+
+                <CheckBox
+                    android:id="@+id/cb_fuel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Fuel Delivery" />
+
+                <CheckBox
+                    android:id="@+id/cb_tire"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Flat Tire Repair" />
+
+                <CheckBox
+                    android:id="@+id/cb_battery"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Replace Battery" />
+
+                <CheckBox
+                    android:id="@+id/cb_jumpstart"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Jump-Start" />
+            </LinearLayout>
+
             <ImageView
                 android:id="@+id/imageView19"
                 android:layout_width="wrap_content"
@@ -501,31 +554,46 @@
             android:layout_height="match_parent"
             android:clickable="true"
             android:focusable="true"
-            app:layout_constraintHorizontal_chainStyle="spread"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/nav_home_layout"
+            app:layout_constraintHorizontal_chainStyle="spread"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/nav_home_layout">
+            app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
                 android:id="@+id/notification_icon_btn"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
-                android:contentDescription="@string/notification_text"
-                app:layout_constraintVertical_chainStyle="packed"
-                app:layout_constraintTop_toTopOf="parent"
+                android:layout_marginTop="10dp"
                 app:layout_constraintBottom_toTopOf="@+id/notification_text"
-                app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintVertical_chainStyle="packed"
                 app:srcCompat="@drawable/notifications" />
+
+            <TextView
+                android:id="@+id/unread_notification_badge"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginStart="-10dp"
+                android:layout_marginTop="-4dp"
+                android:background="@drawable/badge_background"
+                android:gravity="center"
+                android:textColor="@android:color/white"
+                android:textSize="8sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:layout_constraintStart_toEndOf="@id/notification_icon_btn"
+                app:layout_constraintTop_toTopOf="@id/notification_icon_btn"
+                tools:visibility="visible" />
 
             <TextView
                 android:id="@+id/notification_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
-                android:fontFamily="@font/poppins"
-                android:text="@string/title_notification"
+                android:text="Notification"
                 android:textColor="@color/white"
                 android:textSize="10sp"
                 app:layout_constraintBottom_toBottomOf="parent"
@@ -541,20 +609,20 @@
             android:clickable="true"
             android:focusable="true"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/nav_message_layout"
             app:layout_constraintStart_toEndOf="@+id/nav_notification_layout"
-            app:layout_constraintEnd_toStartOf="@+id/nav_message_layout">
+            app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
                 android:id="@+id/home_icon_btn"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
-                android:contentDescription="@string/home_text"
-                app:layout_constraintVertical_chainStyle="packed"
-                app:layout_constraintTop_toTopOf="parent"
+                android:layout_marginTop="10dp"
                 app:layout_constraintBottom_toTopOf="@+id/home_text"
-                app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintVertical_chainStyle="packed"
                 app:srcCompat="@drawable/home" />
 
             <TextView
@@ -562,8 +630,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
-                android:fontFamily="@font/poppins"
-                android:text="@string/home_text"
+                android:text="Home"
                 android:textColor="@color/white"
                 android:textSize="10sp"
                 app:layout_constraintBottom_toBottomOf="parent"
@@ -579,29 +646,44 @@
             android:clickable="true"
             android:focusable="true"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/nav_profile_layout"
             app:layout_constraintStart_toEndOf="@+id/nav_home_layout"
-            app:layout_constraintEnd_toStartOf="@+id/nav_profile_layout">
+            app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
                 android:id="@+id/message_icon_btn"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
-                android:contentDescription="@string/message_text"
-                app:layout_constraintVertical_chainStyle="packed"
-                app:layout_constraintTop_toTopOf="parent"
+                android:layout_marginTop="10dp"
                 app:layout_constraintBottom_toTopOf="@+id/message_text"
-                app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintVertical_chainStyle="packed"
                 app:srcCompat="@drawable/chat_bubble" />
+
+            <TextView
+                android:id="@+id/unread_message_badge"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginStart="-10dp"
+                android:layout_marginTop="-4dp"
+                android:background="@drawable/badge_background"
+                android:gravity="center"
+                android:textColor="@android:color/white"
+                android:textSize="8sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:layout_constraintStart_toEndOf="@id/message_icon_btn"
+                app:layout_constraintTop_toTopOf="@id/message_icon_btn"
+                tools:visibility="visible" />
 
             <TextView
                 android:id="@+id/message_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
-                android:fontFamily="@font/poppins"
-                android:text="@string/message_text"
+                android:text="Message"
                 android:textColor="@color/white"
                 android:textSize="10sp"
                 app:layout_constraintBottom_toBottomOf="parent"
@@ -617,20 +699,20 @@
             android:clickable="true"
             android:focusable="true"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toEndOf="@+id/nav_message_layout"
-            app:layout_constraintEnd_toEndOf="parent">
+            app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
                 android:id="@+id/profile_icon_btn"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
-                android:contentDescription="@string/profile_text"
-                app:layout_constraintVertical_chainStyle="packed"
-                app:layout_constraintTop_toTopOf="parent"
+                android:layout_marginTop="10dp"
                 app:layout_constraintBottom_toTopOf="@+id/profile_text"
-                app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintVertical_chainStyle="packed"
                 app:srcCompat="@drawable/group_3" />
 
             <TextView
@@ -638,15 +720,13 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
-                android:fontFamily="@font/poppins"
-                android:text="@string/profile_text"
+                android:text="Profile"
                 android:textColor="@color/white"
                 android:textSize="10sp"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@+id/profile_icon_btn" />
-
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 

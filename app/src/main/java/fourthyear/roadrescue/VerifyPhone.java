@@ -2,14 +2,15 @@ package fourthyear.roadrescue;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.text.Editable;  // Import this
-import android.text.TextWatcher; // Import this
+import android.os.CountDownTimer; // --- ADDED ---
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageView; // Import this
-import android.widget.TextView; // Import this
+import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -35,6 +36,7 @@ public class VerifyPhone extends AppCompatActivity {
     TextView didNotReceiveText;
     TextView phoneNumberText;
     ImageView backButton;
+    TextView timerText;
 
     FirebaseAuth fAuth;
     PhoneAuthProvider.ForceResendingToken token;
@@ -43,6 +45,9 @@ public class VerifyPhone extends AppCompatActivity {
     String phone;
 
     PhoneAuthProvider.OnVerificationStateChangedCallbacks mCallbacks;
+
+    private CountDownTimer countDownTimer;
+    private static final long COUNTDOWN_IN_MILLIS = 60000;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,7 +58,6 @@ public class VerifyPhone extends AppCompatActivity {
 
         fAuth = FirebaseAuth.getInstance();
 
-
         digitNumberOne = findViewById(R.id.digit_number_one);
         digitNumberTwo = findViewById(R.id.digit_number_two);
         digitNumberThree = findViewById(R.id.digit_number_three);
@@ -61,12 +65,13 @@ public class VerifyPhone extends AppCompatActivity {
         digitNumberFive = findViewById(R.id.digit_number_five);
         digitNumberSix = findViewById(R.id.digit_number_six);
 
-        verifyBtn = findViewById(R.id.button_next); // Was verify_btn
-        resendBtn = findViewById(R.id.button_get_new_code); // Was resend_button
+        verifyBtn = findViewById(R.id.button_next);
+        resendBtn = findViewById(R.id.button_get_new_code);
 
         didNotReceiveText = findViewById(R.id.text_did_not_receive);
         phoneNumberText = findViewById(R.id.text_phone_number);
         backButton = findViewById(R.id.back_button);
+        timerText = findViewById(R.id.text_timer);
 
         phoneNumberText.setText(phone);
         backButton.setOnClickListener(v -> finish());
@@ -101,30 +106,25 @@ public class VerifyPhone extends AppCompatActivity {
                 verificationId = s;
                 token = forceResendingToken;
 
-                resendBtn.setVisibility(View.GONE);
-                didNotReceiveText.setVisibility(View.GONE);
+                startTimer();
                 Toast.makeText(VerifyPhone.this, "OTP Sent to " + phone, Toast.LENGTH_SHORT).show();
             }
 
             @Override
             public void onCodeAutoRetrievalTimeOut(@NonNull String s) {
                 super.onCodeAutoRetrievalTimeOut(s);
-
-                resendBtn.setVisibility(View.VISIBLE);
-                didNotReceiveText.setVisibility(View.VISIBLE);
                 Toast.makeText(VerifyPhone.this, "OTP Auto-retrieval timed out.", Toast.LENGTH_LONG).show();
             }
 
             @Override
             public void onVerificationCompleted(@NonNull PhoneAuthCredential credential) {
+                stopTimer();
                 verifyAuthentication(credential);
-
-                resendBtn.setVisibility(View.GONE);
-                didNotReceiveText.setVisibility(View.GONE);
             }
 
             @Override
             public void onVerificationFailed(@NonNull FirebaseException e) {
+                stopTimer();
                 Toast.makeText(VerifyPhone.this, "OTP Verification Failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 Log.e("VerifyPhone", "Verification Failed: " + e.getMessage());
             }
@@ -144,6 +144,38 @@ public class VerifyPhone extends AppCompatActivity {
         });
     }
 
+    private void startTimer() {
+        stopTimer();
+        timerText.setVisibility(View.VISIBLE);
+        resendBtn.setVisibility(View.GONE);
+        didNotReceiveText.setVisibility(View.GONE);
+
+        countDownTimer = new CountDownTimer(COUNTDOWN_IN_MILLIS, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                timerText.setText("Resend code in " + millisUntilFinished / 1000 + "s");
+            }
+
+            @Override
+            public void onFinish() {
+                timerText.setVisibility(View.GONE);
+                resendBtn.setVisibility(View.VISIBLE);
+                didNotReceiveText.setVisibility(View.VISIBLE);
+            }
+        }.start();
+    }
+
+    private void stopTimer() {
+        if (countDownTimer != null) {
+            countDownTimer.cancel();
+            countDownTimer = null;
+        }
+        // Hide all timer-related UI
+        timerText.setVisibility(View.GONE);
+        resendBtn.setVisibility(View.GONE);
+        didNotReceiveText.setVisibility(View.GONE);
+    }
+
     public void sendOTP(String phoneNumber) {
         PhoneAuthProvider.getInstance().verifyPhoneNumber(phoneNumber,
                 60, // Timeout duration
@@ -161,9 +193,7 @@ public class VerifyPhone extends AppCompatActivity {
                 token); // Use the forceResendingToken for resending
         Toast.makeText(VerifyPhone.this, "Resending OTP to " + phoneNumber, Toast.LENGTH_SHORT).show();
 
-        // --- MODIFIED: Hide both TextViews again ---
-        resendBtn.setVisibility(View.GONE);
-        didNotReceiveText.setVisibility(View.GONE);
+        startTimer();
     }
 
     private void setupTextWatchers() {
@@ -219,8 +249,9 @@ public class VerifyPhone extends AppCompatActivity {
             currentUser.linkWithCredential(credential).addOnSuccessListener(new OnSuccessListener<AuthResult>() {
                 @Override
                 public void onSuccess(AuthResult authResult) {
-                    Toast.makeText(VerifyPhone.this, "Phone Verified!", Toast.LENGTH_SHORT).show();
+                    stopTimer(); // --- MODIFIED --- (Stop timer on success)
 
+                    Toast.makeText(VerifyPhone.this, "Phone Verified!", Toast.LENGTH_SHORT).show();
 
                     Intent intent = new Intent(VerifyPhone.this, ProfileSetupActivity.class);
                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -238,5 +269,10 @@ public class VerifyPhone extends AppCompatActivity {
             Toast.makeText(VerifyPhone.this, "No user currently signed in to link phone to.", Toast.LENGTH_LONG).show();
             Log.e("VerifyPhone", "No current user to link phone credential.");
         }
+    }
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        stopTimer();
     }
 }

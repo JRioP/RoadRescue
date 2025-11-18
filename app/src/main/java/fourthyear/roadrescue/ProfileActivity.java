@@ -1,14 +1,18 @@
 package fourthyear.roadrescue;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -18,14 +22,15 @@ import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
 
 import com.bumptech.glide.Glide;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.SetOptions;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
@@ -33,6 +38,7 @@ import com.google.firebase.storage.StorageReference;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ProfileActivity extends AppCompatActivity {
@@ -51,36 +57,31 @@ public class ProfileActivity extends AppCompatActivity {
 
     private TextView profileName;
     private ImageView editButton;
-    // --- Renamed variable for clarity ---
     private EditText editFullName, editEmail, editPhone;
     private Spinner spinnerGender, spinnerCarType, spinnerCarBrand, spinnerCarModel, spinnerCarYear;
+
+    // Service Provider UI Elements
+    private LinearLayout layoutServicesProvided;
+    private CheckBox cbTowing, cbFuel, cbTire, cbBattery, cbJumpstart, cbGasStation;
+    private boolean isServiceProvider = false;
 
     private TextView accountSettingsButton;
     private boolean isEditMode = false;
 
-    private ArrayAdapter<String> genderAdapter;
-    private ArrayAdapter<String> carTypeAdapter;
-    private ArrayAdapter<String> carBrandAdapter;
-    private ArrayAdapter<String> carYearAdapter;
+    // Adapters
+    private ArrayAdapter<String> genderAdapter, carTypeAdapter, carBrandAdapter, carYearAdapter;
+    private ArrayAdapter<String> toyotaAdapter, hondaAdapter, mitsubishiAdapter, fordAdapter, nissanAdapter, hyundaiAdapter, kiaAdapter, suzukiAdapter, chevroletAdapter, otherAdapter;
 
-    private ArrayAdapter<String> toyotaAdapter;
-    private ArrayAdapter<String> hondaAdapter;
-    private ArrayAdapter<String> mitsubishiAdapter;
-    private ArrayAdapter<String> fordAdapter;
-    private ArrayAdapter<String> nissanAdapter;
-    private ArrayAdapter<String> hyundaiAdapter;
-    private ArrayAdapter<String> kiaAdapter;
-    private ArrayAdapter<String> suzukiAdapter;
-    private ArrayAdapter<String> chevroletAdapter;
-    private ArrayAdapter<String> otherAdapter;
-
+    // Badge Listeners & UI
+    private ListenerRegistration unreadListener;
+    private ListenerRegistration notificationListener;
+    private TextView unreadBadge;
+    private TextView unreadNotificationBadge;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_profile);
-
-        setupBottomNavigation();
 
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
@@ -97,9 +98,13 @@ public class ProfileActivity extends AppCompatActivity {
         userDocRef = db.collection("users").document(currentUser.getUid());
 
         findViews();
+        setupBottomNavigation();
         setupClickListeners();
         setupSpinners();
         setupImagePicker();
+
+        setupUnreadMessageListener();
+        setupNotificationListener();
 
         setFieldsEditable(false);
         loadUserProfile();
@@ -110,7 +115,6 @@ public class ProfileActivity extends AppCompatActivity {
         profileName = findViewById(R.id.profile_name);
         editButton = findViewById(R.id.edit_button);
 
-        // --- Use new variable name, but find the same ID ---
         editFullName = findViewById(R.id.edit_username);
         editEmail = findViewById(R.id.edit_email);
         editPhone = findViewById(R.id.edit_phone);
@@ -121,25 +125,123 @@ public class ProfileActivity extends AppCompatActivity {
         spinnerCarModel = findViewById(R.id.edit_car_model);
         spinnerCarYear = findViewById(R.id.edit_car_year);
 
+        // Find Service Provider Views
+        layoutServicesProvided = findViewById(R.id.layout_services_provided);
+        cbTowing = findViewById(R.id.cb_towing);
+        cbFuel = findViewById(R.id.cb_fuel);
+        cbTire = findViewById(R.id.cb_tire);
+        cbBattery = findViewById(R.id.cb_battery);
+        cbJumpstart = findViewById(R.id.cb_jumpstart);
+
         accountSettingsButton = findViewById(R.id.btn_account_settings);
     }
 
+    private void setupUnreadMessageListener() {
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
+
+        unreadListener = db.collection("chats")
+                .whereArrayContains("participantIds", currentUserId)
+                .whereEqualTo("status", "active")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            if (count != null) totalUnread += count;
+                        }
+                    }
+                    if (unreadBadge != null) {
+                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                    }
+                });
+    }
+
+    private void setupNotificationListener() {
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
+
+        notificationListener = db.collection("notifications")
+                .whereEqualTo("userId", currentUserId)
+                .whereEqualTo("read", false)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+                    if (unreadNotificationBadge != null) {
+                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+                    }
+                });
+    }
+
     private void setupBottomNavigation() {
+        unreadBadge = findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         if (notificationButton != null) {
             notificationButton.setOnClickListener(v -> startActivity(new Intent(ProfileActivity.this, NotificationsActivity.class)));
         }
-        ImageView profileButton = findViewById(R.id.profile_icon_btn);
-        if (profileButton != null) {
-            profileButton.setOnClickListener(v -> startActivity(new Intent(ProfileActivity.this, ProfileActivity.class)));
-        }
-        ImageView homeButton = findViewById(R.id.home_icon_btn);
-        if (homeButton != null) {
-            homeButton.setOnClickListener(v -> startActivity(new Intent(ProfileActivity.this, homepage.class)));
-        }
+
         ImageView messageButton = findViewById(R.id.message_icon_btn);
         if (messageButton != null) {
             messageButton.setOnClickListener(v -> startActivity(new Intent(ProfileActivity.this, ChatInboxActivity.class)));
+        }
+
+        ConstraintLayout profileLayout = findViewById(R.id.nav_profile_layout);
+        ImageView profileIcon = findViewById(R.id.profile_icon_btn);
+        TextView profileText = findViewById(R.id.profile_text);
+
+        if (profileLayout != null) {
+            profileLayout.setClickable(false);
+            profileLayout.setFocusable(false);
+            profileLayout.setBackgroundResource(R.drawable.rounded_white_background);
+        }
+        if (profileIcon != null) {
+            profileIcon.setColorFilter(Color.BLACK);
+        }
+        if (profileText != null) {
+            profileText.setTextColor(Color.BLACK);
+            profileText.setTypeface(null, Typeface.BOLD);
+        }
+
+        ImageView homeButton = findViewById(R.id.home_icon_btn);
+        if (homeButton != null) {
+            homeButton.setOnClickListener(v -> {
+                if (currentUser == null) {
+                    startActivity(new Intent(ProfileActivity.this, MainActivity.class));
+                    finish();
+                    return;
+                }
+
+                db.collection("users").document(currentUser.getUid()).get()
+                        .addOnSuccessListener(documentSnapshot -> {
+                            String userType = "Customer"; // Default
+                            if (documentSnapshot.exists()) {
+                                String type = documentSnapshot.getString("userType");
+
+                                // --- FIXED LOGIC: Check for "driver" (lowercase) OR "Service Provider" ---
+                                if (type != null && (type.equalsIgnoreCase("driver") || type.equalsIgnoreCase("Service Provider"))) {
+                                    userType = "Service Provider";
+                                }
+                            }
+
+                            Intent intent;
+                            if (userType.equals("Service Provider")) {
+                                intent = new Intent(ProfileActivity.this, ServiceProviderHomepage.class);
+                            } else {
+                                intent = new Intent(ProfileActivity.this, homepage.class);
+                            }
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Failed to get userType", e);
+                            Intent intent = new Intent(ProfileActivity.this, homepage.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        });
+            });
         }
     }
 
@@ -199,6 +301,7 @@ public class ProfileActivity extends AppCompatActivity {
         carYearAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCarYear.setAdapter(carYearAdapter);
 
+        // Initialize brand model adapters (Toyota, Honda, etc.)
         String[] toyotaModels = {"Vios", "Corolla", "Camry", "Fortuner", "Hilux", "Other"};
         toyotaAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, toyotaModels);
         toyotaAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -249,47 +352,24 @@ public class ProfileActivity extends AppCompatActivity {
         }
 
         switch (brand) {
-            case "Toyota":
-                spinnerCarModel.setAdapter(toyotaAdapter);
-                break;
-            case "Honda":
-                spinnerCarModel.setAdapter(hondaAdapter);
-                break;
-            case "Mitsubishi":
-                spinnerCarModel.setAdapter(mitsubishiAdapter);
-                break;
-            case "Ford":
-                spinnerCarModel.setAdapter(fordAdapter);
-                break;
-            case "Nissan":
-                spinnerCarModel.setAdapter(nissanAdapter);
-                break;
-            case "Hyundai":
-                spinnerCarModel.setAdapter(hyundaiAdapter);
-                break;
-            case "Kia":
-                spinnerCarModel.setAdapter(kiaAdapter);
-                break;
-            case "Suzuki":
-                spinnerCarModel.setAdapter(suzukiAdapter);
-                break;
-            case "Chevrolet":
-                spinnerCarModel.setAdapter(chevroletAdapter);
-                break;
-            default:
-                spinnerCarModel.setAdapter(otherAdapter);
-                break;
+            case "Toyota": spinnerCarModel.setAdapter(toyotaAdapter); break;
+            case "Honda": spinnerCarModel.setAdapter(hondaAdapter); break;
+            case "Mitsubishi": spinnerCarModel.setAdapter(mitsubishiAdapter); break;
+            case "Ford": spinnerCarModel.setAdapter(fordAdapter); break;
+            case "Nissan": spinnerCarModel.setAdapter(nissanAdapter); break;
+            case "Hyundai": spinnerCarModel.setAdapter(hyundaiAdapter); break;
+            case "Kia": spinnerCarModel.setAdapter(kiaAdapter); break;
+            case "Suzuki": spinnerCarModel.setAdapter(suzukiAdapter); break;
+            case "Chevrolet": spinnerCarModel.setAdapter(chevroletAdapter); break;
+            default: spinnerCarModel.setAdapter(otherAdapter); break;
         }
     }
 
     private void setupImagePicker() {
         pickMediaLauncher = registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
             if (uri != null) {
-                Log.d(TAG, "Photo selected: " + uri);
                 Glide.with(ProfileActivity.this).load(uri).circleCrop().into(profileImageView);
                 uploadImageToFirebase(uri);
-            } else {
-                Log.d(TAG, "No photo selected");
             }
         });
     }
@@ -345,6 +425,15 @@ public class ProfileActivity extends AppCompatActivity {
         spinnerCarBrand.setEnabled(editable);
         spinnerCarModel.setEnabled(editable);
         spinnerCarYear.setEnabled(editable);
+
+        if (isServiceProvider) {
+            cbTowing.setEnabled(editable);
+            cbFuel.setEnabled(editable);
+            cbTire.setEnabled(editable);
+            cbBattery.setEnabled(editable);
+            cbJumpstart.setEnabled(editable);
+            if(cbGasStation != null) cbGasStation.setEnabled(editable);
+        }
     }
 
     private void loadUserProfile() {
@@ -355,7 +444,27 @@ public class ProfileActivity extends AppCompatActivity {
             if (task.isSuccessful()) {
                 DocumentSnapshot document = task.getResult();
                 if (document.exists()) {
-                    Log.d(TAG, "User data loaded: " + document.getData());
+
+                    // --- FIXED LOGIC: Case Insensitive check for "driver" ---
+                    String type = document.getString("userType");
+                    if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
+                        isServiceProvider = true;
+                        layoutServicesProvided.setVisibility(View.VISIBLE);
+
+                        List<String> services = (List<String>) document.get("servicesProvided");
+                        if (services != null) {
+                            if (services.contains("Towing")) cbTowing.setChecked(true);
+                            if (services.contains("Fuel Delivery")) cbFuel.setChecked(true);
+                            if (services.contains("Flat Tire Repair")) cbTire.setChecked(true);
+                            if (services.contains("Replace Battery")) cbBattery.setChecked(true);
+                            if (services.contains("Jump-Start")) cbJumpstart.setChecked(true);
+                            if (services.contains("Gas Station") && cbGasStation != null) cbGasStation.setChecked(true);
+                        }
+                    } else {
+                        isServiceProvider = false;
+                        layoutServicesProvided.setVisibility(View.GONE);
+                    }
+                    // -------------------------------------------------------
 
                     String name = document.getString("name");
                     String fullName = document.getString("fullName");
@@ -370,7 +479,7 @@ public class ProfileActivity extends AppCompatActivity {
                     String carYear = document.getString("carYear");
                     String imageUrl = document.getString("profileImageUrl");
 
-                    String displayedName = "User"; // Default
+                    String displayedName = "User";
                     if (name != null && !name.isEmpty()) {
                         displayedName = name;
                     } else if (fullName != null && !fullName.isEmpty()) {
@@ -402,8 +511,9 @@ public class ProfileActivity extends AppCompatActivity {
                     setSpinnerToValue(spinnerCarModel, carModel, (ArrayAdapter<String>) spinnerCarModel.getAdapter());
                     setSpinnerToValue(spinnerCarYear, carYear, carYearAdapter);
 
+                    setFieldsEditable(false);
+
                 } else {
-                    Log.d(TAG, "No such user document. Setting defaults.");
                     editEmail.setText(authEmail);
                     editPhone.setText(authPhone);
                     profileName.setText("User");
@@ -446,11 +556,8 @@ public class ProfileActivity extends AppCompatActivity {
 
         Map<String, Object> updates = new HashMap<>();
 
-        // --- START OF FIX ---
-        // Save the edited name to BOTH 'name' and 'fullName' fields
         updates.put("name", newFullName);
         updates.put("fullName", newFullName);
-        // --- END OF FIX ---
 
         updates.put("phone", newPhone);
         updates.put("gender", newGender);
@@ -459,16 +566,34 @@ public class ProfileActivity extends AppCompatActivity {
         updates.put("carModel", newCarModel);
         updates.put("carYear", newCarYear);
 
+        if (isServiceProvider) {
+            List<String> selectedServices = new ArrayList<>();
+            if (cbTowing.isChecked()) selectedServices.add("Towing");
+            if (cbFuel.isChecked()) selectedServices.add("Fuel Delivery");
+            if (cbTire.isChecked()) selectedServices.add("Flat Tire Repair");
+            if (cbBattery.isChecked()) selectedServices.add("Replace Battery");
+            if (cbJumpstart.isChecked()) selectedServices.add("Jump-Start");
+            if (cbGasStation != null && cbGasStation.isChecked()) selectedServices.add("Gas Station");
+
+            updates.put("servicesProvided", selectedServices);
+        }
+
         userDocRef.set(updates, SetOptions.merge())
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "User profile updated successfully!");
                     Toast.makeText(this, "Profile Saved!", Toast.LENGTH_SHORT).show();
                     profileName.setText(newFullName);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Error updating user profile", e);
-                    Toast.makeText(this, "Error saving profile. Please try again.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Error saving profile.", Toast.LENGTH_SHORT).show();
                     loadUserProfile();
                 });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (unreadListener != null) unreadListener.remove();
+        if (notificationListener != null) notificationListener.remove();
     }
 }

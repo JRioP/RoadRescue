@@ -149,6 +149,15 @@
         app:layout_constraintTop_toTopOf="@+id/digit_number_one" />
 
     <TextView
+        android:id="@+id/text_timer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Resend code in 60s"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@+id/text_did_not_receive"
+        app:layout_constraintEnd_toEndOf="@+id/text_did_not_receive" />
+
+    <TextView
         android:id="@+id/text_did_not_receive"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

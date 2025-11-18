@@ -90,6 +90,11 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private DocumentReference mProviderDocRef;
     private ListenerRegistration mPendingRequestsListener;
     private ListenerRegistration mActiveJobListener;
+
+    // --- NEW: Badge Listeners ---
+    private ListenerRegistration unreadListener;
+    private ListenerRegistration notificationListener;
+
     private SwitchMaterial mOnlineSwitch;
     private TextView mStatusTextView;
     private RecyclerView mPendingRequestsRecyclerView;
@@ -99,6 +104,11 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private TextView mActiveJobDistanceText;
     private Button mCompleteJobButton;
     private Button mNavigateButton;
+
+    // --- NEW: Badge UI ---
+    private TextView unreadBadge;
+    private TextView unreadNotificationBadge;
+
     private PendingRequestsAdapter mPendingRequestsAdapter;
     private final List<Map<String, Object>> mPendingRequestsList = new ArrayList<>();
     private Map<String, Object> mActiveJobData;
@@ -152,12 +162,55 @@ public class ProviderMapActivity extends AppCompatActivity implements
             mapFragment.getMapAsync(this);
         }
 
-        setupUIComponents();
-        setupViews();
+        setupViews(); // Init main views
+        setupNavbar(); // Init badges and nav buttons
         setupRecyclerView();
         setupListeners();
         createLocationCallback();
         checkLocationPermission();
+
+        // --- NEW: Setup Badge Listeners ---
+        setupUnreadMessageListener();
+        setupNotificationListener();
+    }
+
+    // --- NEW: Badge Logic ---
+    private void setupUnreadMessageListener() {
+        if (mCurrentUser == null) return;
+        String currentUserId = mCurrentUser.getUid();
+
+        unreadListener = db.collection("chats")
+                .whereArrayContains("participantIds", currentUserId)
+                .whereEqualTo("status", "active")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            if (count != null) totalUnread += count;
+                        }
+                    }
+                    if (unreadBadge != null) {
+                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                    }
+                });
+    }
+
+    private void setupNotificationListener() {
+        if (mCurrentUser == null) return;
+        String currentUserId = mCurrentUser.getUid();
+
+        notificationListener = db.collection("notifications")
+                .whereEqualTo("userId", currentUserId)
+                .whereEqualTo("read", false)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+                    if (unreadNotificationBadge != null) {
+                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+                    }
+                });
     }
 
     @Override
@@ -190,6 +243,46 @@ public class ProviderMapActivity extends AppCompatActivity implements
         mNavigateButton = findViewById(R.id.navigate_button);
     }
 
+    // --- UPDATED: Unified Navbar Setup ---
+    private void setupNavbar() {
+        // Init Badges
+        unreadBadge = findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+
+        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
+        if (notificationButton != null) {
+            notificationButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ProviderMapActivity.this, NotificationsActivity.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView profileButton = findViewById(R.id.profile_icon_btn);
+        if (profileButton != null) {
+            profileButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ProviderMapActivity.this, ProfileActivity.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView homeButton = findViewById(R.id.home_icon_btn);
+        if (homeButton != null) {
+            homeButton.setOnClickListener(v -> {
+                // Since this is the Provider Map, Home goes to Provider Homepage
+                Intent intent = new Intent(ProviderMapActivity.this, ServiceProviderHomepage.class);
+                startActivity(intent);
+            });
+        }
+
+        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        if (messageButton != null) {
+            messageButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ProviderMapActivity.this, ChatInboxActivity.class);
+                startActivity(intent);
+            });
+        }
+    }
+
     private void setupRecyclerView() {
         mPendingRequestsAdapter = new PendingRequestsAdapter(mPendingRequestsList, this, this);
         mPendingRequestsRecyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
@@ -206,8 +299,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
         });
         mCompleteJobButton.setOnClickListener(v -> completeJob());
         mNavigateButton.setOnClickListener(v -> toggleFollowMode());
-        findViewById(R.id.nav_home_layout).setOnClickListener(v -> Toast.makeText(this, "You are on the map screen.", Toast.LENGTH_SHORT).show());
-        findViewById(R.id.nav_profile_layout).setOnClickListener(v -> startActivity(new Intent(this, ProfileActivity.class)));
     }
 
     private void toggleFollowMode() {
@@ -655,6 +746,11 @@ public class ProviderMapActivity extends AppCompatActivity implements
             mFusedLocationClient.removeLocationUpdates(mLocationCallback);
         if (mPendingRequestsListener != null) mPendingRequestsListener.remove();
         if (mActiveJobListener != null) mActiveJobListener.remove();
+
+        // --- NEW: Cleanup Listeners ---
+        if (unreadListener != null) unreadListener.remove();
+        if (notificationListener != null) notificationListener.remove();
+
         mExecutor.shutdown();
         if (mGeoApiContext != null) {
             mGeoApiContext.shutdown();
@@ -809,41 +905,5 @@ public class ProviderMapActivity extends AppCompatActivity implements
                 Log.e(TAG, "Customer Directions API failed", e);
             }
         });
-    }
-
-    private void setupUIComponents() {
-
-        //Navigation buttons
-        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        if (notificationButton != null) {
-            notificationButton.setOnClickListener(v -> {
-                Intent intent = new Intent(ProviderMapActivity.this, NotificationsActivity.class);
-                startActivity(intent);
-            });
-        }
-
-        ImageView profileButton = findViewById(R.id.profile_icon_btn);
-        if (profileButton != null) {
-            profileButton.setOnClickListener(v -> {
-                Intent intent = new Intent(ProviderMapActivity.this, ProfileActivity.class);
-                startActivity(intent);
-            });
-        }
-
-        ImageView homeButton = findViewById(R.id.home_icon_btn);
-        if (homeButton != null) {
-            homeButton.setOnClickListener(v -> {
-                Intent intent = new Intent(ProviderMapActivity.this, ServiceProviderHomepage.class);
-                startActivity(intent);
-            });
-        }
-
-        ImageView messageButton = findViewById(R.id.message_icon_btn);
-        if (messageButton != null) {
-            messageButton.setOnClickListener(v -> {
-                Intent intent = new Intent(ProviderMapActivity.this, ChatInboxActivity.class);
-                startActivity(intent);
-            });
-        }
     }
 }

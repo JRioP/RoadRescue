@@ -1,4 +1,3 @@
-// MessageAdapter.java
 package fourthyear.roadrescue;
 
 import android.view.LayoutInflater;
@@ -6,19 +5,18 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
-
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Locale;
 
 public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageViewHolder> {
 
-    private List<MessageModel> messageList;
-    private String currentUserId;
-    private SimpleDateFormat timeFormat;
+    private final List<MessageModel> messageList;
+    private final String currentUserId;
+    private final SimpleDateFormat timeFormat;
 
     public MessageAdapter(List<MessageModel> messageList, String currentUserId) {
         this.messageList = messageList;
@@ -46,11 +44,11 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
     }
 
     class MessageViewHolder extends RecyclerView.ViewHolder {
-        private LinearLayout messageContainer;
-        private LinearLayout messageBubble;
-        private TextView messageText;
-        private TextView senderName;
-        private TextView messageTime;
+        private final LinearLayout messageContainer;
+        private final LinearLayout messageBubble;
+        private final TextView messageText;
+        private final TextView senderName;
+        private final TextView messageTime;
 
         MessageViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -67,19 +65,30 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             if (message.getTimestamp() != null) {
                 String time = timeFormat.format(message.getTimestamp().toDate());
                 messageTime.setText(time);
+            } else {
+                messageTime.setText("");
             }
 
-            boolean isCurrentUser = message.getSenderId().equals(currentUserId);
+            boolean isCurrentUser = currentUserId.equals(message.getSenderId());
 
             if (isCurrentUser) {
                 messageContainer.setGravity(android.view.Gravity.END);
                 messageBubble.setBackgroundResource(R.drawable.bubble_outgoing);
-                senderName.setVisibility(View.GONE); // Hide sender name for own messages
+                senderName.setVisibility(View.GONE);
+                messageText.setTextColor(ContextCompat.getColor(itemView.getContext(), android.R.color.white));
+                messageTime.setTextColor(ContextCompat.getColor(itemView.getContext(), R.color.white_dim));
+
             } else {
                 messageContainer.setGravity(android.view.Gravity.START);
                 messageBubble.setBackgroundResource(R.drawable.bubble_incoming);
                 senderName.setVisibility(View.VISIBLE);
-                senderName.setText(message.getSenderName());
+
+                String name = message.getSenderName() != null ? message.getSenderName() : "User";
+                senderName.setText(name);
+
+                messageText.setTextColor(ContextCompat.getColor(itemView.getContext(), android.R.color.black));
+                messageTime.setTextColor(ContextCompat.getColor(itemView.getContext(), android.R.color.darker_gray));
+                senderName.setTextColor(ContextCompat.getColor(itemView.getContext(), android.R.color.black));
             }
         }
     }

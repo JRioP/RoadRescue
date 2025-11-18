@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
@@ -43,6 +45,7 @@ import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.SetOptions;
 
 import java.io.IOException;
@@ -68,9 +71,15 @@ public class homepage extends AppCompatActivity {
     private TextView locationTextView;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
 
-    // --- NEW: Launchers for permissions and contact picking ---
+    // Launchers
     private ActivityResultLauncher<Intent> contactPickerLauncher;
     private ActivityResultLauncher<String> requestContactsPermissionLauncher;
+
+    // Badges
+    private ListenerRegistration unreadListener;
+    private ListenerRegistration notificationListener;
+    private TextView unreadBadge;
+    private TextView unreadNotificationBadge;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,27 +98,27 @@ public class homepage extends AppCompatActivity {
             return;
         }
 
-        // --- NEW: Set up the user document reference ---
-        userDocRef = db.collection("users").document(currentUser.getUid());
+        // --- NEW: Check User Type & Redirect if needed ---
+        checkUserTypeAndRedirect();
 
+        userDocRef = db.collection("users").document(currentUser.getUid());
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // --- NEW: Initialize the launchers ---
         initializeLaunchers();
-
         setupUIComponents();
         initializeRecentItems();
         setupRecyclerView();
 
+        // Setup Badge Listeners
+        setupUnreadMessageListener();
+        setupNotificationListener();
+
         // Delayed tasks
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            Log.d(TAG, "Running delayed tasks...");
             SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
             localSessionId = prefs.getString("currentSessionId", null);
-            Log.d(TAG, "Retrieved session ID: " + localSessionId);
 
             if (localSessionId == null) {
-                Log.w(TAG, "Local session ID is missing. Creating new session.");
                 createNewSession(currentUser);
             } else {
                 checkSingleSessionConstraint();
@@ -118,8 +127,64 @@ public class homepage extends AppCompatActivity {
         }, 250);
     }
 
-    // --- NEW: Methods copied from your example for SOS contacts ---
+    // --- NEW: Redirect Logic (The Fix) ---
+    private void checkUserTypeAndRedirect() {
+        db.collection("users").document(currentUser.getUid()).get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        String type = documentSnapshot.getString("userType");
+                        // If user is a Driver/Service Provider, redirect them to THEIR homepage
+                        if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
+                            Log.d(TAG, "User is a Service Provider. Redirecting...");
+                            Intent intent = new Intent(homepage.this, ServiceProviderHomepage.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                            startActivity(intent);
+                            finish();
+                        }
+                    }
+                });
+    }
 
+    // --- Badge Listeners ---
+    private void setupUnreadMessageListener() {
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
+
+        unreadListener = db.collection("chats")
+                .whereArrayContains("participantIds", currentUserId)
+                .whereEqualTo("status", "active")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            if (count != null) totalUnread += count;
+                        }
+                    }
+                    if (unreadBadge != null) {
+                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                    }
+                });
+    }
+
+    private void setupNotificationListener() {
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
+
+        notificationListener = db.collection("notifications")
+                .whereEqualTo("userId", currentUserId)
+                .whereEqualTo("read", false)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+                    if (unreadNotificationBadge != null) {
+                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+                    }
+                });
+    }
+
+    // --- SOS Methods ---
     private void initializeLaunchers() {
         requestContactsPermissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(),
@@ -152,33 +217,26 @@ public class homepage extends AppCompatActivity {
 
         userDocRef.get().addOnSuccessListener(documentSnapshot -> {
             if (documentSnapshot.exists()) {
-                // Check for the 'sos_contacts' array field from your example
                 List<Map<String, Object>> sosContacts = (List<Map<String, Object>>) documentSnapshot.get("sos_contacts");
-
                 if (sosContacts != null && !sosContacts.isEmpty()) {
-                    // Contact list exists, get the first one
                     Map<String, Object> firstContact = sosContacts.get(0);
                     String phone = (String) firstContact.get("phone");
                     String name = (String) firstContact.get("name");
-
                     if (phone != null && !phone.isEmpty()) {
                         Toast.makeText(this, "Sending SOS to " + name, Toast.LENGTH_SHORT).show();
                         sendSosMessage(phone);
                     } else {
                         Toast.makeText(this, "Emergency contact has no phone number.", Toast.LENGTH_SHORT).show();
-                        promptToAddContact(); // Prompt to add a new one
+                        promptToAddContact();
                     }
                 } else {
-                    // Field doesn't exist or is empty
                     promptToAddContact();
                 }
             } else {
-                // User document doesn't exist? (Should not happen if logged in)
                 promptToAddContact();
             }
         }).addOnFailureListener(e -> {
-            Log.e(TAG, "Error checking SOS contact", e);
-            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Error checking SOS contact", Toast.LENGTH_SHORT).show();
         });
     }
 
@@ -186,9 +244,7 @@ public class homepage extends AppCompatActivity {
         new AlertDialog.Builder(this)
                 .setTitle("Add Emergency Contact")
                 .setMessage("You have no emergency contact. Please select one from your phone's contacts to use the SOS feature.")
-                .setPositiveButton("Select Contact", (dialog, which) -> {
-                    checkAndRequestContactsPermission();
-                })
+                .setPositiveButton("Select Contact", (dialog, which) -> checkAndRequestContactsPermission())
                 .setNegativeButton("Cancel", (dialog, which) -> dialog.cancel())
                 .show();
     }
@@ -211,7 +267,6 @@ public class homepage extends AppCompatActivity {
     }
 
     private void launchContactPicker() {
-        // Use ACTION_PICK and Phone.CONTENT_URI to let user pick a phone number directly
         Intent intent = new Intent(Intent.ACTION_PICK);
         intent.setType(ContactsContract.CommonDataKinds.Phone.CONTENT_TYPE);
         contactPickerLauncher.launch(intent);
@@ -221,9 +276,7 @@ public class homepage extends AppCompatActivity {
         String[] contactDetails = getContactDetails(contactUri);
         String contactName = contactDetails[0];
         String contactNumber = contactDetails[1];
-
         if (contactName != null && contactNumber != null) {
-            // Clean the number
             contactNumber = contactNumber.replaceAll("[^\\d+]", "");
             saveSosContact(contactName, contactNumber);
         } else {
@@ -232,14 +285,9 @@ public class homepage extends AppCompatActivity {
     }
 
     private String[] getContactDetails(Uri contactUri) {
-        String[] details = new String[2]; // [Name, Number]
+        String[] details = new String[2];
         ContentResolver cr = getContentResolver();
-
-        // This query works directly on the Phone.CONTENT_URI
-        Cursor cursor = cr.query(contactUri,
-                new String[]{ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER},
-                null, null, null);
-
+        Cursor cursor = cr.query(contactUri, new String[]{ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER}, null, null, null);
         if (cursor != null && cursor.moveToFirst()) {
             details[0] = cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME));
             details[1] = cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER));
@@ -252,19 +300,15 @@ public class homepage extends AppCompatActivity {
         Map<String, Object> sosContact = new HashMap<>();
         sosContact.put("name", name);
         sosContact.put("phone", phone);
-
-        // This uses arrayUnion, just like your example file
         userDocRef.update("sos_contacts", FieldValue.arrayUnion(sosContact))
-                .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, name + " added to SOS contacts! Click SOS again to send.", Toast.LENGTH_LONG).show();
-                })
-                .addOnFailureListener(e -> Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                .addOnSuccessListener(aVoid -> Toast.makeText(this, name + " added to SOS contacts!", Toast.LENGTH_LONG).show())
+                .addOnFailureListener(e -> Toast.makeText(this, "Error saving contact", Toast.LENGTH_SHORT).show());
     }
 
     private void showGoToSettingsDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("Permission Denied")
-                .setMessage("You have permanently denied contact permission. To add an SOS contact, you must enable it in the app settings.")
+                .setMessage("You have permanently denied contact permission. Please enable it in settings.")
                 .setPositiveButton("Go to Settings", (dialog, which) -> {
                     Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
                     Uri uri = Uri.fromParts("package", getPackageName(), null);
@@ -283,189 +327,123 @@ public class homepage extends AppCompatActivity {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
             return;
         }
-
         fusedLocationClient.getLastLocation().addOnSuccessListener(location -> {
             if (location == null) {
-                Toast.makeText(this, "Could not get your location. Please try again.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Could not get location.", Toast.LENGTH_SHORT).show();
                 return;
             }
-
             double lat = location.getLatitude();
             double lng = location.getLongitude();
             String mapsLink = "http://maps.google.com/maps?q=loc:" + lat + "," + lng;
-            String message = "SOS! This is an emergency message from " +
-                    (currentUser.getDisplayName() != null ? currentUser.getDisplayName() : "a user") +
-                    ". My current location is: " + mapsLink;
-
+            String message = "SOS! Emergency from " + (currentUser.getDisplayName() != null ? currentUser.getDisplayName() : "user") + ". Location: " + mapsLink;
             Intent smsIntent = new Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + phone));
             smsIntent.putExtra("sms_body", message);
             startActivity(smsIntent);
-
-        }).addOnFailureListener(e -> {
-            Toast.makeText(this, "Failed to get location for SOS.", Toast.LENGTH_SHORT).show();
         });
     }
-
-    // --- End of new SOS methods ---
-
 
     private void createNewSession(FirebaseUser user) {
         String newSessionId = UUID.randomUUID().toString();
         SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
         prefs.edit().putString("currentSessionId", newSessionId).apply();
         localSessionId = newSessionId;
-        Log.i(TAG, "Created new session ID: " + newSessionId);
-
-        // Use userDocRef which is already defined
-        userDocRef.update("currentSessionId", newSessionId)
-                .addOnSuccessListener(aVoid -> Log.i(TAG, "New session saved to Firestore successfully"))
-                .addOnFailureListener(e -> Log.e(TAG, "Failed to update session ID in Firestore", e));
+        userDocRef.update("currentSessionId", newSessionId);
     }
 
     private void setupUIComponents() {
         locationTextView = findViewById(R.id.textView7);
 
+        // Initialize Badges
+        unreadBadge = findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+
         Button sosButton = findViewById(R.id.sos_button);
         if (sosButton != null) {
             sosButton.setOnClickListener(v -> onSosButtonClick());
-        } else {
-            Log.e(TAG, "SOS Button not found! Make sure its ID is 'sos_button'");
         }
-        // ------------------------------------
 
-        //Navigation buttons
+        // Navigation Buttons
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         if (notificationButton != null) {
-            notificationButton.setOnClickListener(v -> {
-                Intent intent = new Intent(homepage.this, NotificationsActivity.class);
-                startActivity(intent);
-            });
+            notificationButton.setOnClickListener(v -> startActivity(new Intent(homepage.this, NotificationsActivity.class)));
         }
 
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
         if (profileButton != null) {
-            profileButton.setOnClickListener(v -> {
-                Intent intent = new Intent(homepage.this, ProfileActivity.class);
-                startActivity(intent);
-            });
-        }
-
-        ImageView homeButton = findViewById(R.id.home_icon_btn);
-        if (homeButton != null) {
-            homeButton.setOnClickListener(v -> {
-                Intent intent = new Intent(homepage.this, homepage.class);
-                startActivity(intent);
-            });
+            profileButton.setOnClickListener(v -> startActivity(new Intent(homepage.this, ProfileActivity.class)));
         }
 
         ImageView messageButton = findViewById(R.id.message_icon_btn);
         if (messageButton != null) {
-            messageButton.setOnClickListener(v -> {
-                Intent intent = new Intent(homepage.this, ChatInboxActivity.class);
-                startActivity(intent);
-            });
+            messageButton.setOnClickListener(v -> startActivity(new Intent(homepage.this, ChatInboxActivity.class)));
         }
 
+        // --- HOME BUTTON ACTIVE STATE (with rounded background) ---
+        ConstraintLayout homeLayout = findViewById(R.id.nav_home_layout);
+        ImageView homeIcon = findViewById(R.id.home_icon_btn);
+        TextView homeText = findViewById(R.id.home_text);
 
-        //Request Buttons
-        ConstraintLayout towingButton = findViewById(R.id.towing_btn);
-        if (towingButton != null) {
-            towingButton.setOnClickListener(v -> {
+        if (homeLayout != null) {
+            // Disable click since we are here
+            homeLayout.setClickable(false);
+            homeLayout.setFocusable(false);
+            // Set the rounded white background
+            homeLayout.setBackgroundResource(R.drawable.rounded_white_background);
+        }
+
+        if (homeIcon != null) {
+            homeIcon.setColorFilter(Color.BLACK);
+        }
+
+        if (homeText != null) {
+            homeText.setTextColor(Color.BLACK);
+            homeText.setTypeface(null, Typeface.BOLD);
+        }
+        // ---------------------------------------------------------
+
+        // Request Buttons
+        setupRequestButton(R.id.towing_btn, "Towing");
+        setupRequestButton(R.id.jump_start_btn, "Jump-Start");
+        setupRequestButton(R.id.fuel_delivery_btn, "Fuel Delivery");
+        setupRequestButton(R.id.flat_tire_repair_btn, "Flat Tire Repair");
+        setupRequestButton(R.id.replace_battery_btn, "Replace Battery");
+        setupRequestButton(R.id.gas_station_btn, "Gas Station");
+    }
+
+    private void setupRequestButton(int id, String type) {
+        ConstraintLayout btn = findViewById(id);
+        if (btn != null) {
+            btn.setOnClickListener(v -> {
                 Intent intent = new Intent(homepage.this, MapActivity.class);
-                intent.putExtra("REQUEST_TYPE", "Towing");
+                intent.putExtra("REQUEST_TYPE", type);
                 startActivity(intent);
             });
         }
-
-        ConstraintLayout jumpStartButton = findViewById(R.id.jump_start_btn);
-        if (jumpStartButton != null) {
-            jumpStartButton.setOnClickListener(v -> {
-                Intent intent = new Intent(homepage.this, MapActivity.class);
-                intent.putExtra("REQUEST_TYPE", "Jump-Start");
-                startActivity(intent);
-            });
-        }
-
-        ConstraintLayout fuelDeliveryButton = findViewById(R.id.fuel_delivery_btn);
-        if (fuelDeliveryButton != null) {
-            fuelDeliveryButton.setOnClickListener(v -> {
-                Intent intent = new Intent(homepage.this, MapActivity.class);
-                intent.putExtra("REQUEST_TYPE", "Fuel Delivery");
-                startActivity(intent);
-            });
-        }
-        ConstraintLayout flatTireRepairButton = findViewById(R.id.flat_tire_repair_btn);
-        if (flatTireRepairButton != null) {
-            flatTireRepairButton.setOnClickListener(v -> {
-                Intent intent = new Intent(homepage.this, MapActivity.class);
-                intent.putExtra("REQUEST_TYPE", "Flat Tire Repair");
-                startActivity(intent);
-            });
-        }
-
-        ConstraintLayout replaceBatteryButton = findViewById(R.id.replace_battery_btn);
-        if (replaceBatteryButton != null) {
-            replaceBatteryButton.setOnClickListener(v -> {
-                Intent intent = new Intent(homepage.this, MapActivity.class);
-                intent.putExtra("REQUEST_TYPE", "Replace Battery");
-                startActivity(intent);
-            });
-        }
-
-        ConstraintLayout gasStationButton = findViewById(R.id.gas_station_btn);
-        if (gasStationButton != null) {
-            gasStationButton.setOnClickListener(v -> {
-                Intent intent = new Intent(homepage.this, MapActivity.class);
-                intent.putExtra("REQUEST_TYPE", "Gas Station");
-                startActivity(intent);
-            });
-        }
-
-
     }
 
     private void checkSingleSessionConstraint() {
-        // Use the class-level userDocRef
         userDocRef.get().addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
                 DocumentSnapshot document = task.getResult();
                 if (document.exists()) {
                     String dbSessionId = document.getString("currentSessionId");
-                    Log.d(TAG, "DB Session ID: " + dbSessionId);
-                    Log.d(TAG, "Local Session ID: " + localSessionId);
-
                     if (dbSessionId == null) {
-                        Log.w(TAG, "No session ID in Firestore. Updating with local session.");
-                        userDocRef.update("currentSessionId", localSessionId)
-                                .addOnSuccessListener(aVoid -> Log.i(TAG, "Session ID created in Firestore"))
-                                .addOnFailureListener(e -> Log.e(TAG, "Failed to create session ID in Firestore", e));
+                        userDocRef.update("currentSessionId", localSessionId);
                     } else if (!dbSessionId.equals(localSessionId)) {
-                        Log.w(TAG, "Session mismatch. Forcing sign out.");
                         forceSignOut("Your account was logged into from another device.");
-                    } else {
-                        Log.i(TAG, "Session verified as active.");
                     }
                 } else {
-                    Log.e(TAG, "User document does not exist in Firestore!");
                     Map<String, Object> sessionUpdate = new HashMap<>();
                     sessionUpdate.put("currentSessionId", localSessionId);
-                    userDocRef.set(sessionUpdate, SetOptions.merge()) // Use merge to be safe
-                            .addOnSuccessListener(aVoid -> Log.i(TAG, "Created session ID in new user document"))
-                            .addOnFailureListener(e -> Log.e(TAG, "Failed to create session ID in new user document", e));
+                    userDocRef.set(sessionUpdate, SetOptions.merge());
                 }
-            } else {
-                Log.e(TAG, "Failed to fetch user document for session check.", task.getException());
-                Toast.makeText(this, "Warning: Could not verify session status.", Toast.LENGTH_SHORT).show();
             }
         });
     }
 
     private void forceSignOut(String message) {
-        Log.i(TAG, "Force sign out: " + message);
         mAuth.signOut();
-        getSharedPreferences("AppPrefs", MODE_PRIVATE).edit()
-                .remove("currentSessionId")
-                .apply();
+        getSharedPreferences("AppPrefs", MODE_PRIVATE).edit().remove("currentSessionId").apply();
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
         redirectToLogin();
     }
@@ -504,24 +482,14 @@ public class homepage extends AppCompatActivity {
         } else if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
             new AlertDialog.Builder(this)
                     .setTitle("Location Permission Needed")
-                    .setMessage("This app needs the location permission to show your current city. Please allow permission.")
-                    .setPositiveButton("OK", (dialog, which) -> {
-                        ActivityCompat.requestPermissions(homepage.this,
-                                new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                                LOCATION_PERMISSION_REQUEST_CODE);
-                    })
-                    .setNegativeButton("Cancel", (dialog, which) -> {
-                        dialog.dismiss();
-                        if (locationTextView != null) {
-                            locationTextView.setText("Location Denied");
-                        }
-                    })
-                    .create()
+                    .setMessage("This app needs the location permission to show your current city.")
+                    .setPositiveButton("OK", (dialog, which) -> ActivityCompat.requestPermissions(homepage.this,
+                            new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE))
+                    .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
                     .show();
         } else {
             ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                    LOCATION_PERMISSION_REQUEST_CODE);
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
         }
     }
 
@@ -531,62 +499,41 @@ public class homepage extends AppCompatActivity {
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 fetchLastLocation();
-            } else {
-                Toast.makeText(this, "Location permission is required to show your city", Toast.LENGTH_SHORT).show();
-                if (locationTextView != null) {
-                    locationTextView.setText("Location Denied");
-                }
+            } else if (locationTextView != null) {
+                locationTextView.setText("Location Denied");
             }
         }
     }
 
     @SuppressLint("MissingPermission")
     private void fetchLastLocation() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED)
             return;
-        }
 
-        fusedLocationClient.getLastLocation()
-                .addOnSuccessListener(this, location -> {
-                    if (location != null && locationTextView != null) {
-                        Geocoder geocoder = new Geocoder(homepage.this, Locale.getDefault());
-                        try {
-                            List<Address> addresses = geocoder.getFromLocation(
-                                    location.getLatitude(),
-                                    location.getLongitude(),
-                                    1);
-
-                            if (addresses != null && !addresses.isEmpty()) {
-                                String cityName = addresses.get(0).getLocality();
-                                if (cityName != null && !cityName.isEmpty()) {
-                                    locationTextView.setText(cityName);
-                                } else {
-                                    String area = addresses.get(0).getSubAdminArea();
-                                    if(area != null) {
-                                        locationTextView.setText(area);
-                                    } else {
-                                        locationTextView.setText("City Not Found");
-                                    }
-                                }
-                            } else {
-                                locationTextView.setText("Address Not Found");
-                            }
-                        } catch (IOException e) {
-                            Log.e(TAG, "Geocoder failed", e);
-                            locationTextView.setText("Can't get address");
-                        }
+        fusedLocationClient.getLastLocation().addOnSuccessListener(this, location -> {
+            if (location != null && locationTextView != null) {
+                Geocoder geocoder = new Geocoder(homepage.this, Locale.getDefault());
+                try {
+                    List<Address> addresses = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
+                    if (addresses != null && !addresses.isEmpty()) {
+                        String cityName = addresses.get(0).getLocality();
+                        locationTextView.setText(cityName != null ? cityName : addresses.get(0).getSubAdminArea());
                     } else {
-                        if (locationTextView != null) {
-                            locationTextView.setText("Location N/A");
-                        }
+                        locationTextView.setText("Address Not Found");
                     }
-                })
-                .addOnFailureListener(this, e -> {
-                    Log.e(TAG, "Failed to get location", e);
-                    if (locationTextView != null) {
-                        locationTextView.setText("Location Error");
-                    }
-                });
+                } catch (IOException e) {
+                    locationTextView.setText("Can't get address");
+                }
+            } else if (locationTextView != null) {
+                locationTextView.setText("Location N/A");
+            }
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (unreadListener != null) unreadListener.remove();
+        if (notificationListener != null) notificationListener.remove();
     }
 }

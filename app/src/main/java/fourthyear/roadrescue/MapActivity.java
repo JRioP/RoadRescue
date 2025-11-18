@@ -84,6 +84,7 @@ public class MapActivity extends AppCompatActivity
     private Button editPickupButton;
     private Button messageButton;
     private Button callButton;
+    private Button cancelRequestButton;
 
     private boolean isSettingPickup = false;
     private String pickupAddress;
@@ -96,8 +97,12 @@ public class MapActivity extends AppCompatActivity
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
     private String currentRequestId;
+
+    // Listeners
     private ListenerRegistration requestListener;
     private ListenerRegistration providerListener;
+    private ListenerRegistration unreadListener; // For Messages
+    private ListenerRegistration notificationListener; // For Notifications
 
     // Provider Details
     private String mProviderId;
@@ -113,11 +118,16 @@ public class MapActivity extends AppCompatActivity
 
     // UI
     private View statusCard;
+    private View searchingCard;
     private TextView providerNameText;
     private TextView providerSubtitleText;
     private TextView distanceText;
     private TextView etaText;
     private TextView requestTypeText;
+
+    // Badges
+    private TextView unreadBadge; // Message Badge
+    private TextView unreadNotificationBadge; // Notification Badge
 
     // Request Data
     private String selectedRequestType;
@@ -152,6 +162,10 @@ public class MapActivity extends AppCompatActivity
         setupPermissionLauncher();
         setupPaymentLauncher();
 
+        // Setup Badges
+        setupUnreadMessageListener();
+        setupNotificationListener();
+
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map_fragment);
         if (mapFragment != null) {
@@ -164,6 +178,7 @@ public class MapActivity extends AppCompatActivity
         requestServiceButton = findViewById(R.id.request_service_btn);
         editPickupButton = findViewById(R.id.edit_pickup_btn);
         statusCard = findViewById(R.id.status_card);
+        searchingCard = findViewById(R.id.searching_card);
         providerNameText = findViewById(R.id.provider_name);
         providerSubtitleText = findViewById(R.id.provider_subtitle);
         distanceText = findViewById(R.id.distance_text);
@@ -171,6 +186,11 @@ public class MapActivity extends AppCompatActivity
         requestTypeText = findViewById(R.id.request_type_text);
         messageButton = findViewById(R.id.message_button);
         callButton = findViewById(R.id.call_button);
+        cancelRequestButton = findViewById(R.id.cancel_request_btn);
+
+        // Init Badges
+        unreadBadge = findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
 
         if (!"Towing".equals(selectedRequestType)) {
             destinationInput.setHint("Service will be at your pickup location.");
@@ -183,6 +203,54 @@ public class MapActivity extends AppCompatActivity
         if (selectedRequestType != null && !selectedRequestType.isEmpty()) {
             requestServiceButton.setText("Request " + selectedRequestType + " Service");
         }
+    }
+
+    // --- Message Badge Listener ---
+    private void setupUnreadMessageListener() {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
+
+        unreadListener = db.collection("chats")
+                .whereArrayContains("participantIds", user.getUid())
+                .whereEqualTo("status", "active")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + user.getUid());
+                            if (count != null) {
+                                totalUnread += count;
+                            }
+                        }
+                    }
+
+                    if (totalUnread > 0) {
+                        unreadBadge.setVisibility(View.VISIBLE);
+                    } else {
+                        unreadBadge.setVisibility(View.GONE);
+                    }
+                });
+    }
+
+    // --- Notification Badge Listener ---
+    private void setupNotificationListener() {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
+
+        notificationListener = db.collection("notifications")
+                .whereEqualTo("userId", user.getUid())
+                .whereEqualTo("read", false)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    if (snapshots != null && !snapshots.isEmpty()) {
+                        unreadNotificationBadge.setVisibility(View.VISIBLE);
+                    } else {
+                        unreadNotificationBadge.setVisibility(View.GONE);
+                    }
+                });
     }
 
     private void setupClickListeners() {
@@ -220,16 +288,89 @@ public class MapActivity extends AppCompatActivity
             startActivity(dialIntent);
         });
 
+        cancelRequestButton.setOnClickListener(v -> cancelServiceRequest());
+
         findViewById(R.id.notification_icon_btn).setOnClickListener(v -> startActivity(new Intent(MapActivity.this, NotificationsActivity.class)));
-        findViewById(R.id.home_icon_btn).setOnClickListener(v -> startActivity(new Intent(MapActivity.this, homepage.class)));
+
         findViewById(R.id.message_icon_btn).setOnClickListener(v -> startActivity(new Intent(MapActivity.this, ChatInboxActivity.class)));
+
         findViewById(R.id.back_btn).setOnClickListener(v -> finish());
+
+        // --- HOME BUTTON FIX ---
+        findViewById(R.id.home_icon_btn).setOnClickListener(v -> {
+            FirebaseUser user = mAuth.getCurrentUser();
+            if (user == null) {
+                Intent intent = new Intent(MapActivity.this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+                finish();
+                return;
+            }
+
+            db.collection("users").document(user.getUid()).get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        String userType = "Customer";
+                        if (documentSnapshot.exists()) {
+                            String type = documentSnapshot.getString("userType");
+                            // Check for both "Service Provider" and "driver"
+                            if (type != null && (type.equalsIgnoreCase("Service Provider") || type.equalsIgnoreCase("driver"))) {
+                                userType = "Service Provider";
+                            }
+                        }
+
+                        Intent intent;
+                        if (userType.equals("Service Provider")) {
+                            intent = new Intent(MapActivity.this, ServiceProviderHomepage.class);
+                        } else {
+                            intent = new Intent(MapActivity.this, homepage.class);
+                        }
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        finish();
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e(TAG, "Failed to get userType", e);
+                        Intent intent = new Intent(MapActivity.this, homepage.class);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        finish();
+                    });
+        });
     }
 
+    private void cancelServiceRequest() {
+        if (currentRequestId == null || currentRequestId.isEmpty()) {
+            resetUiForNewRequest();
+            return;
+        }
+
+        if (mProviderId != null) {
+            closeChatSession(mProviderId, currentRequestId);
+        }
+
+        String reqIdToCancel = currentRequestId;
+
+        resetUiForNewRequest();
+
+        db.collection("service_requests").document(reqIdToCancel)
+                .delete()
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, "Request cancelled.", Toast.LENGTH_SHORT).show();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to delete request " + reqIdToCancel, e);
+                    Toast.makeText(this, "Cancellation failed on server, but UI was reset.", Toast.LENGTH_LONG).show();
+                });
+    }
 
     private void findOrCreateChatRoom() {
         if (mProviderId == null || mProviderName == null) {
             Toast.makeText(this, "Provider details not available yet.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (currentRequestId == null) {
+            Toast.makeText(this, "No active service request found.", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -244,15 +385,15 @@ public class MapActivity extends AppCompatActivity
         db.collection("users").document(currentUserId).get().addOnSuccessListener(userDoc -> {
             String currentUserName = userDoc.getString("name");
             if (currentUserName == null || currentUserName.isEmpty()) {
-                currentUserName = "Customer"; // Fallback name
+                currentUserName = "Customer";
             }
 
-
             String chatRoomId;
+
             if (currentUserId.compareTo(mProviderId) > 0) {
-                chatRoomId = currentUserId + "_" + mProviderId;
+                chatRoomId = currentUserId + "_" + mProviderId + "_" + currentRequestId;
             } else {
-                chatRoomId = mProviderId + "_" + currentUserId;
+                chatRoomId = mProviderId + "_" + currentUserId + "_" + currentRequestId;
             }
 
             DocumentReference chatRef = db.collection("chats").document(chatRoomId);
@@ -268,12 +409,18 @@ public class MapActivity extends AppCompatActivity
                         chatData.put("participantIds", Arrays.asList(currentUserId, mProviderId));
                         chatData.put("lastMessage", "Chat started");
                         chatData.put("lastMessageTimestamp", FieldValue.serverTimestamp());
+                        chatData.put("status", "active");
+                        chatData.put("requestId", currentRequestId);
 
                         Map<String, String> names = new HashMap<>();
                         names.put(currentUserId, finalCurrentUserName1);
                         names.put(mProviderId, mProviderName);
                         chatData.put("participantNames", names);
 
+                        Map<String, Integer> unreadCounts = new HashMap<>();
+                        unreadCounts.put(currentUserId, 0);
+                        unreadCounts.put(mProviderId, 0);
+                        chatData.put("unreadCounts", unreadCounts);
 
                         chatData.put("requestRef", currentRequestId);
 
@@ -363,13 +510,12 @@ public class MapActivity extends AppCompatActivity
                         if ("accepted".equals(status)) {
                             MyMap.clear();
                             showTrackerCard(doc);
-                            mProviderId = doc.getString("providerId"); // FIX: Store provider ID
+                            mProviderId = doc.getString("providerId");
                             if (mProviderId != null) {
                                 listenForProviderLocation(mProviderId);
                             }
                         } else {
                             updateMapWithMarkers();
-                            requestTypeText.setText(selectedRequestType);
                             showSearchingUI();
                         }
                         listenForRequestUpdates(currentRequestId);
@@ -470,7 +616,6 @@ public class MapActivity extends AppCompatActivity
         requestData.put("paymentMethod", paymentMethod);
         requestData.put("amount", calculatedAmount);
 
-        requestTypeText.setText(selectedRequestType);
         showSearchingUI();
 
         db.collection("service_requests").add(requestData)
@@ -506,14 +651,14 @@ public class MapActivity extends AppCompatActivity
 
     @SuppressLint("MissingPermission")
     private void getDeviceLocation() {
-        if (pickupLatLng != null) return; // Only get location if we don't have one
+        if (pickupLatLng != null) return;
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
         fusedLocationClient.getLastLocation().addOnSuccessListener(this, location -> {
             if (location != null) {
                 pickupLatLng = new LatLng(location.getLatitude(), location.getLongitude());
-                getAddressFromLatLng(pickupLatLng, true); // This will call updateMapWithMarkers
+                getAddressFromLatLng(pickupLatLng, true);
             } else {
                 Toast.makeText(MapActivity.this, "Could not get current location. Please use 'Edit Pickup Location' to set it manually.", Toast.LENGTH_LONG).show();
             }
@@ -543,7 +688,7 @@ public class MapActivity extends AppCompatActivity
                 hasPoints = true;
             }
         } else {
-            if (pickupLatLng != null) destinationLatLng = pickupLatLng; // Ensure destination is set for logic
+            if (pickupLatLng != null) destinationLatLng = pickupLatLng;
         }
 
         if (hasPoints && providerMarker == null) {
@@ -571,6 +716,7 @@ public class MapActivity extends AppCompatActivity
         }
     }
 
+
     private void lockUiForTracking() {
         requestServiceButton.setVisibility(View.GONE);
         editPickupButton.setVisibility(View.GONE);
@@ -578,17 +724,12 @@ public class MapActivity extends AppCompatActivity
     }
 
     private void showSearchingUI() {
-        statusCard.setVisibility(View.VISIBLE);
-        providerNameText.setText("Searching for a provider...");
-        providerSubtitleText.setText("Please wait.");
-        distanceText.setText("...");
-        etaText.setText("...");
-        requestTypeText.setText(selectedRequestType != null ? selectedRequestType : "Searching...");
-        messageButton.setVisibility(View.GONE);
-        callButton.setVisibility(View.GONE);
+        statusCard.setVisibility(View.GONE);
+        searchingCard.setVisibility(View.VISIBLE);
     }
 
     private void showTrackerCard(DocumentSnapshot doc) {
+        searchingCard.setVisibility(View.GONE);
         statusCard.setVisibility(View.VISIBLE);
         messageButton.setVisibility(View.VISIBLE);
         callButton.setVisibility(View.VISIBLE);
@@ -598,7 +739,6 @@ public class MapActivity extends AppCompatActivity
         distanceText.setText("...");
         etaText.setText("...");
 
-        // Also add the pickup marker back to the map
         if (pickupLatLng != null && MyMap != null) {
             pickupMarker = MyMap.addMarker(new MarkerOptions()
                     .position(pickupLatLng)
@@ -627,6 +767,12 @@ public class MapActivity extends AppCompatActivity
                             listenForProviderLocation(mProviderId);
                         }
                     } else if ("completed".equals(status)) {
+
+                        String providerId = snapshot.getString("providerId");
+                        if (providerId != null) {
+                            closeChatSession(providerId, snapshot.getId());
+                        }
+
                         Intent intent = new Intent(MapActivity.this, PaymentReceiptActivity.class);
                         intent.putExtra("REFERENCE_ID", snapshot.getId());
                         intent.putExtra("AMOUNT_PAID", String.format(Locale.getDefault(), "PHP %.2f", snapshot.getDouble("amount")));
@@ -638,10 +784,9 @@ public class MapActivity extends AppCompatActivity
                         intent.putExtra("DESTINATION_ADDRESS", snapshot.getString("destinationAddress"));
                         startActivity(intent);
 
-                        resetUiForNewRequest(); // This will also remove the listeners
+                        resetUiForNewRequest();
 
                     } else if ("pending".equals(status)) {
-                        requestTypeText.setText(snapshot.getString("requestType"));
                         showSearchingUI();
                     }
                 });
@@ -649,7 +794,9 @@ public class MapActivity extends AppCompatActivity
 
     private void resetUiForNewRequest() {
         statusCard.setVisibility(View.GONE);
+        searchingCard.setVisibility(View.GONE);
         editPickupButton.setVisibility(View.VISIBLE);
+
         if ("Towing".equals(selectedRequestType)) {
             destinationInput.setEnabled(true);
             destinationInput.setText("");
@@ -684,7 +831,6 @@ public class MapActivity extends AppCompatActivity
                         return;
                     }
 
-                    // Store details for Call/Message buttons
                     mProviderName = snapshot.getString("name");
                     mProviderPhone = snapshot.getString("phone");
                     String providerLocText = snapshot.getString("currentLocationAddress");
@@ -796,11 +942,34 @@ public class MapActivity extends AppCompatActivity
         etaText.setText(String.format(Locale.getDefault(), "~ %d min", timeInMinutes));
     }
 
+    private void closeChatSession(String providerId, String requestId) {
+        if (providerId == null || requestId == null || mAuth.getCurrentUser() == null) return;
+
+        String currentUserId = mAuth.getCurrentUser().getUid();
+        String chatRoomId;
+
+        if (currentUserId.compareTo(providerId) > 0) {
+            chatRoomId = currentUserId + "_" + providerId + "_" + requestId;
+        } else {
+            chatRoomId = providerId + "_" + currentUserId + "_" + requestId;
+        }
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("status", "closed");
+
+        db.collection("chats").document(chatRoomId)
+                .update(updates)
+                .addOnSuccessListener(aVoid -> Log.d(TAG, "Chat session closed."))
+                .addOnFailureListener(e -> Log.w(TAG, "Chat session not found or update failed."));
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
         if (requestListener != null) requestListener.remove();
         if (providerListener != null) providerListener.remove();
+        if (unreadListener != null) unreadListener.remove();
+        if (notificationListener != null) notificationListener.remove(); // Clean up notification listener
         executor.execute(() -> {
             if (mGeoApiContext != null) {
                 mGeoApiContext.shutdown();

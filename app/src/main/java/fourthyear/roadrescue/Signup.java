@@ -5,12 +5,18 @@ import android.content.Intent;
 import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.TextPaint;
+import android.text.method.LinkMovementMethod;
+import android.text.style.ClickableSpan;
 import android.util.Log;
 import android.util.Patterns;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -40,6 +46,7 @@ public class Signup extends Fragment {
 
     private EditText personUsername, personEmail, personPassword, personRPassword, phoneCountryCode, phoneNumber;
     private Button signupBtn;
+    private CheckBox termsAndConditionsCheck; // ADDED: Class-level variable
     private FirebaseAuth fAuth;
     private FirebaseFirestore db;
 
@@ -52,11 +59,7 @@ public class Signup extends Fragment {
         View v = inflater.inflate(R.layout.activity_sign_up, container, false);
         initializeViews(v);
 
-        TextView termsAndConditionsBtn = v.findViewById(R.id.termsandconditions_btn);
-        termsAndConditionsBtn.setOnClickListener(view -> {
-            Intent intent = new Intent(getActivity(), NotificationsActivity.class);
-            startActivity(intent);
-        });
+        // CHANGED: Removed click listener from here. It's now in initializeViews()
 
         fAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
@@ -85,6 +88,12 @@ public class Signup extends Fragment {
         phoneNumber = v.findViewById(R.id.signup_phone_number);
         signupBtn = v.findViewById(R.id.btn_signup);
 
+        // ADDED: Initialize CheckBox
+        termsAndConditionsCheck = v.findViewById(R.id.check_terms_and_conditions);
+
+        // CHANGED: Replaced simple OnClickListener with a clickable text span
+        setupTermsAndConditionsClickableText();
+
         personPassword.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
@@ -111,6 +120,42 @@ public class Signup extends Fragment {
         personEmail.addTextChangedListener(new SimpleTextWatcher(personEmail));
         phoneNumber.addTextChangedListener(new SimpleTextWatcher(phoneNumber));
         phoneCountryCode.addTextChangedListener(new SimpleTextWatcher(phoneCountryCode));
+    }
+
+    // ADDED: This method makes the "Terms and Conditions" text clickable
+    private void setupTermsAndConditionsClickableText() {
+        String fullText = getString(R.string.sign_up_termsandcondition);
+        // Assuming your string is "I agree to the Terms and Conditions"
+        // Adjust "Terms and Conditions" if your string text is different
+        String clickableText = "Terms and Conditions";
+
+        SpannableString ss = new SpannableString(fullText);
+
+        ClickableSpan clickableSpan = new ClickableSpan() {
+            @Override
+            public void onClick(@NonNull View widget) {
+                Intent intent = new Intent(getActivity(), TermsAndConditionsActivity.class);
+                startActivity(intent);
+            }
+
+            @Override
+            public void updateDrawState(@NonNull TextPaint ds) {
+                super.updateDrawState(ds);
+                ds.setUnderlineText(true);
+            }
+        };
+
+        int startIndex = fullText.indexOf(clickableText);
+        int endIndex = startIndex + clickableText.length();
+
+        if (startIndex != -1) {
+            ss.setSpan(clickableSpan, startIndex, endIndex, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            termsAndConditionsCheck.setText(ss);
+            termsAndConditionsCheck.setMovementMethod(LinkMovementMethod.getInstance()); // This makes the link clickable
+        } else {
+            termsAndConditionsCheck.setText(fullText);
+            Log.w(TAG, "Could not find clickable text in terms and conditions string.");
+        }
     }
 
     private static class SimpleTextWatcher implements TextWatcher {
@@ -153,6 +198,7 @@ public class Signup extends Fragment {
     }
 
     private void checkIfEmailExists(String email, String password, String phone, String username) {
+        // ... (This logic remains the same)
         fAuth.fetchSignInMethodsForEmail(email)
                 .addOnCompleteListener(task -> {
                     signupBtn.setText("Creating Account...");
@@ -186,8 +232,17 @@ public class Signup extends Fragment {
         if (!validatePassword()) isValid = false;
         if (!validatePasswordMatch()) isValid = false;
         if (!validatePhone()) isValid = false;
+        if (!validateTerms()) isValid = false;
 
         return isValid;
+    }
+
+    private boolean validateTerms() {
+        if (!termsAndConditionsCheck.isChecked()) {
+            showToast("You must accept the Terms and Conditions");
+            return false;
+        }
+        return true;
     }
 
     private boolean validateUsername() {
@@ -297,6 +352,7 @@ public class Signup extends Fragment {
     }
 
     private void handleSignupSuccess(String email, String phone, String username) {
+        // ... (This logic remains the same)
         FirebaseUser newUser = fAuth.getCurrentUser();
         if (newUser != null) {
             String userId = newUser.getUid();
@@ -326,6 +382,7 @@ public class Signup extends Fragment {
     }
 
     private void sendEmailVerification(FirebaseUser user, String email, String phone) {
+        // ... (This logic remains the same)
         user.sendEmailVerification()
                 .addOnSuccessListener(new OnSuccessListener<Void>() {
                     @Override
@@ -346,6 +403,7 @@ public class Signup extends Fragment {
     }
 
     private void handleSignupFailure(Exception e) {
+        // ... (This logic remains the same)
         signupBtn.setEnabled(true);
         signupBtn.setText("Sign Up");
 
@@ -364,6 +422,7 @@ public class Signup extends Fragment {
     }
 
     private void redirectToPhoneVerification(String phone, String email) {
+        // ... (This logic remains the same)
         Intent phoneVerificationIntent = new Intent(getActivity(), VerifyPhone.class);
         phoneVerificationIntent.putExtra("phone", phone);
         phoneVerificationIntent.putExtra("email", email);
@@ -371,6 +430,7 @@ public class Signup extends Fragment {
     }
 
     private void redirectToLogin() {
+        // ... (This logic remains the same)
         Intent loginIntent = new Intent(getActivity(), MainActivity.class);
         loginIntent.putExtra("LOAD_FRAGMENT_INDEX", 0);
         startActivity(loginIntent);

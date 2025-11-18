@@ -3,14 +3,18 @@ package fourthyear.roadrescue;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -50,6 +54,12 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
     private FusedLocationProviderClient fusedLocationClient;
     private LatLng currentLatLng;
 
+    // --- NEW: Badge Listeners & UI ---
+    private ListenerRegistration unreadListener;
+    private ListenerRegistration notificationListener;
+    private TextView unreadBadge;
+    private TextView unreadNotificationBadge;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -66,14 +76,61 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
             return;
         }
 
-        setupUIComponents();
+        setupUIComponents(); // Now handles Nav and Badges init
         setupViews();
-        setupNavigationListeners();
         setupRecyclerView();
         checkLocationPermission();
         updateLocation();
 
+        // --- NEW: Setup Badge Listeners ---
+        setupUnreadMessageListener();
+        setupNotificationListener();
+
         checkProviderForActiveJob();
+    }
+
+    // --- NEW: Badge Listener Logic ---
+    private void setupUnreadMessageListener() {
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
+
+        unreadListener = db.collection("chats")
+                .whereArrayContains("participantIds", currentUserId)
+                .whereEqualTo("status", "active")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            if (count != null) {
+                                totalUnread += count;
+                            }
+                        }
+                    }
+
+                    if (unreadBadge != null) {
+                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                    }
+                });
+    }
+
+    private void setupNotificationListener() {
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
+
+        notificationListener = db.collection("notifications")
+                .whereEqualTo("userId", currentUserId)
+                .whereEqualTo("read", false)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+                    if (unreadNotificationBadge != null) {
+                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+                    }
+                });
     }
 
     private void checkProviderForActiveJob() {
@@ -81,7 +138,7 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
 
         db.collection("service_requests")
                 .whereEqualTo("providerId", currentUser.getUid())
-                .whereEqualTo("status", "accepted") // Look for jobs they've already accepted
+                .whereEqualTo("status", "accepted")
                 .limit(1)
                 .get()
                 .addOnCompleteListener(task -> {
@@ -104,29 +161,7 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         requestsRecyclerView = findViewById(R.id.requests_recycler_view);
     }
 
-    private void setupNavigationListeners() {
-        // ... (your existing navigation code)
-        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        ImageView profileButton = findViewById(R.id.profile_icon_btn);
-        ImageView homeButton = findViewById(R.id.home_icon_btn);
-        ImageView messageButton = findViewById(R.id.message_icon_btn);
-
-        notificationButton.setOnClickListener(v ->
-                startActivity(new Intent(this, NotificationsActivity.class))
-        );
-
-        profileButton.setOnClickListener(v ->
-                startActivity(new Intent(this, ProfileActivity.class))
-        );
-
-        homeButton.setOnClickListener(v ->
-                Toast.makeText(this, "You’re already on the homepage.", Toast.LENGTH_SHORT).show()
-        );
-
-        messageButton.setOnClickListener(v ->
-                startActivity(new Intent(this, ChatInboxActivity.class))
-        );
-    }
+    // Note: setupNavigationListeners removed as it is redundant with setupUIComponents
 
     private void setupRecyclerView() {
         requestsAdapter = new PendingRequestsAdapter(requestsList, this, this);
@@ -269,14 +304,17 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (requestsListener != null) {
-            requestsListener.remove();
-        }
+        if (requestsListener != null) requestsListener.remove();
+        if (unreadListener != null) unreadListener.remove();
+        if (notificationListener != null) notificationListener.remove();
     }
 
     private void setupUIComponents() {
+        // --- Init Badge Views ---
+        unreadBadge = findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
 
-        //Navigation buttons
+        // Notifications
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         if (notificationButton != null) {
             notificationButton.setOnClickListener(v -> {
@@ -285,6 +323,7 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
             });
         }
 
+        // Profile
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
         if (profileButton != null) {
             profileButton.setOnClickListener(v -> {
@@ -293,14 +332,26 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
             });
         }
 
-        ImageView homeButton = findViewById(R.id.home_icon_btn);
-        if (homeButton != null) {
-            homeButton.setOnClickListener(v -> {
-                Intent intent = new Intent(ServiceProviderHomepage.this, homepage.class);
-                startActivity(intent);
-            });
-        }
+        // --- Home Button (Active State) ---
+        ConstraintLayout homeLayout = findViewById(R.id.nav_home_layout);
+        ImageView homeIcon = findViewById(R.id.home_icon_btn);
+        TextView homeText = findViewById(R.id.home_text);
 
+        if (homeLayout != null) {
+            homeLayout.setClickable(false);
+            homeLayout.setFocusable(false);
+            homeLayout.setBackgroundResource(R.drawable.rounded_white_background);
+        }
+        if (homeIcon != null) {
+            homeIcon.setColorFilter(Color.BLACK);
+        }
+        if (homeText != null) {
+            homeText.setTextColor(Color.BLACK);
+            homeText.setTypeface(null, Typeface.BOLD);
+        }
+        // ----------------------------------
+
+        // Messages
         ImageView messageButton = findViewById(R.id.message_icon_btn);
         if (messageButton != null) {
             messageButton.setOnClickListener(v -> {

@@ -1,18 +1,23 @@
 package fourthyear.roadrescue;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
@@ -32,8 +37,17 @@ public class ChatInboxActivity extends AppCompatActivity {
 
     private FirebaseFirestore db;
     private FirebaseAuth auth;
+
+    // Listeners
     private ListenerRegistration chatsListener;
+    private ListenerRegistration unreadListener; // For Message Badge
+    private ListenerRegistration notificationListener; // For Notification Badge
+
     private String currentUserId;
+
+    // Badges
+    private TextView unreadBadge;
+    private TextView unreadNotificationBadge;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,7 +67,12 @@ public class ChatInboxActivity extends AppCompatActivity {
 
         setupViews();
         initializeRecyclerView();
-        setupFirestoreListener();
+        setupFirestoreListener(); // Listener for the chat list
+
+        // Setup Badge Listeners
+        setupUnreadMessageListener();
+        setupNotificationListener();
+
         setupNavbar();
     }
 
@@ -67,6 +86,56 @@ public class ChatInboxActivity extends AppCompatActivity {
         if (titleText != null) {
             titleText.setText("Messages");
         }
+
+        // Initialize Badge TextViews
+        unreadBadge = findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+    }
+
+    // --- Listener for Unread Chat Messages Badge ---
+    private void setupUnreadMessageListener() {
+        if (currentUserId == null) return;
+
+        unreadListener = db.collection("chats")
+                .whereArrayContains("participantIds", currentUserId)
+                .whereEqualTo("status", "active")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            if (count != null) {
+                                totalUnread += count;
+                            }
+                        }
+                    }
+
+                    if (totalUnread > 0) {
+                        unreadBadge.setVisibility(View.VISIBLE);
+                    } else {
+                        unreadBadge.setVisibility(View.GONE);
+                    }
+                });
+    }
+
+    // --- Listener for Unread Notifications Badge ---
+    private void setupNotificationListener() {
+        if (currentUserId == null) return;
+
+        notificationListener = db.collection("notifications")
+                .whereEqualTo("userId", currentUserId)
+                .whereEqualTo("read", false)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    if (snapshots != null && !snapshots.isEmpty()) {
+                        unreadNotificationBadge.setVisibility(View.VISIBLE);
+                    } else {
+                        unreadNotificationBadge.setVisibility(View.GONE);
+                    }
+                });
     }
 
     private void initializeRecyclerView() {
@@ -117,9 +186,7 @@ public class ChatInboxActivity extends AppCompatActivity {
                         chatList.clear();
                         for (QueryDocumentSnapshot doc : value) {
                             ChatInboxItem chat = doc.toObject(ChatInboxItem.class);
-
                             chat.setChatId(doc.getId());
-
                             chatList.add(chat);
                         }
                         chatInboxAdapter.notifyDataSetChanged();
@@ -143,12 +210,11 @@ public class ChatInboxActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-        // --- THIS IS THE FIX ---
+        // --- HOME BUTTON FIX ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         homeButton.setOnClickListener(v -> {
             FirebaseUser user = auth.getCurrentUser();
             if (user == null) {
-                // Failsafe, go to login
                 Intent intent = new Intent(ChatInboxActivity.this, MainActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(intent);
@@ -156,32 +222,30 @@ public class ChatInboxActivity extends AppCompatActivity {
                 return;
             }
 
-            // Check the user's type from Firestore
             db.collection("users").document(user.getUid()).get()
                     .addOnSuccessListener(documentSnapshot -> {
-                        String userType = "Customer"; // Default to customer
+                        String userType = "Customer"; // Default
                         if (documentSnapshot.exists()) {
                             String type = documentSnapshot.getString("userType");
-                            if (type != null && type.equals("Service Provider")) {
-                                userType = type;
+
+                            // Robust check for "driver" or "Service Provider"
+                            if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
+                                userType = "Service Provider";
                             }
                         }
 
                         if (userType.equals("Service Provider")) {
-                            // Go to provider homepage
                             Intent intent = new Intent(ChatInboxActivity.this, ServiceProviderHomepage.class);
                             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                             startActivity(intent);
                         } else {
-                            // Go to customer homepage
                             Intent intent = new Intent(ChatInboxActivity.this, homepage.class);
                             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                             startActivity(intent);
                         }
-                        finish(); // Finish chat activity after navigating home
+                        finish();
                     })
                     .addOnFailureListener(e -> {
-                        // On failure, just default to the customer homepage
                         Log.e(TAG, "Failed to get userType, defaulting to customer homepage", e);
                         Intent intent = new Intent(ChatInboxActivity.this, homepage.class);
                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -190,11 +254,29 @@ public class ChatInboxActivity extends AppCompatActivity {
                     });
         });
 
-        ImageView messageButton = findViewById(R.id.message_icon_btn);
-        messageButton.setOnClickListener(v -> {
-            Intent intent = new Intent(ChatInboxActivity.this, ChatInboxActivity.class);
-            startActivity(intent);
-        });
+        // --- MESSAGE BUTTON (Active State Styling) ---
+        ConstraintLayout messageLayout = findViewById(R.id.nav_message_layout);
+        ImageView messageIcon = findViewById(R.id.message_icon_btn);
+        TextView messageText = findViewById(R.id.message_text);
+
+        if (messageLayout != null) {
+            // Disable click so it stays on the page
+            messageLayout.setClickable(false);
+            messageLayout.setFocusable(false);
+            // Add Rounded White Background
+            messageLayout.setBackgroundResource(R.drawable.rounded_white_background);
+        }
+
+        if (messageIcon != null) {
+            messageIcon.setColorFilter(Color.BLACK); // Force black icon
+            messageIcon.setClickable(false);
+            messageIcon.setFocusable(false);
+        }
+
+        if (messageText != null) {
+            messageText.setTextColor(Color.BLACK); // Force black text
+            messageText.setTypeface(null, Typeface.BOLD); // Force bold text
+        }
     }
 
     @Override
@@ -202,6 +284,12 @@ public class ChatInboxActivity extends AppCompatActivity {
         super.onDestroy();
         if (chatsListener != null) {
             chatsListener.remove();
+        }
+        if (unreadListener != null) {
+            unreadListener.remove();
+        }
+        if (notificationListener != null) {
+            notificationListener.remove();
         }
     }
 }

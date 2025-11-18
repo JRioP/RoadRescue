@@ -1,10 +1,14 @@
 package fourthyear.roadrescue;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -15,7 +19,9 @@ import com.google.android.material.button.MaterialButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 
 public class ProfileAccountDeleteSettingsActivity extends AppCompatActivity {
 
@@ -28,6 +34,12 @@ public class ProfileAccountDeleteSettingsActivity extends AppCompatActivity {
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
+
+    // --- Badge Listeners & UI ---
+    private ListenerRegistration unreadListener;
+    private ListenerRegistration notificationListener;
+    private TextView unreadBadge;
+    private TextView unreadNotificationBadge;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,12 +58,65 @@ public class ProfileAccountDeleteSettingsActivity extends AppCompatActivity {
         navMessage = findViewById(R.id.nav_message_layout);
         navProfile = findViewById(R.id.nav_profile_layout);
 
+        // --- Init Badge Views ---
+        unreadBadge = findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+
         backButton.setOnClickListener(v -> finish());
         buttonCancel.setOnClickListener(v -> finish());
 
         buttonDelete.setOnClickListener(v -> showDeleteConfirmationDialog());
 
+        // --- Setup Listeners ---
+        setupUnreadMessageListener();
+        setupNotificationListener();
         setupNavbar();
+    }
+
+    // --- Badge Listener Logic ---
+    private void setupUnreadMessageListener() {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
+        String currentUserId = user.getUid();
+
+        unreadListener = db.collection("chats")
+                .whereArrayContains("participantIds", currentUserId)
+                .whereEqualTo("status", "active")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            if (count != null) {
+                                totalUnread += count;
+                            }
+                        }
+                    }
+
+                    if (unreadBadge != null) {
+                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                    }
+                });
+    }
+
+    private void setupNotificationListener() {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
+        String currentUserId = user.getUid();
+
+        notificationListener = db.collection("notifications")
+                .whereEqualTo("userId", currentUserId)
+                .whereEqualTo("read", false)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+                    if (unreadNotificationBadge != null) {
+                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+                    }
+                });
     }
 
     private void showDeleteConfirmationDialog() {
@@ -103,7 +168,6 @@ public class ProfileAccountDeleteSettingsActivity extends AppCompatActivity {
                         finish();
 
                     } else {
-
                         Log.w(TAG, "Error deleting user account", task.getException());
 
                         if (task.getException() instanceof FirebaseAuthRecentLoginRequiredException) {
@@ -119,12 +183,26 @@ public class ProfileAccountDeleteSettingsActivity extends AppCompatActivity {
     private void setupNavbar() {
         navNotification.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, NotificationsActivity.class)));
         navMessage.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, ChatInboxActivity.class)));
-        navProfile.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, ProfileActivity.class)));
 
+        // --- Active State: Profile Button ---
+        navProfile.setBackgroundResource(R.drawable.rounded_white_background);
+
+        ImageView profileIcon = findViewById(R.id.profile_icon_btn);
+        TextView profileText = findViewById(R.id.profile_text);
+
+        if (profileIcon != null) profileIcon.setColorFilter(Color.BLACK);
+        if (profileText != null) {
+            profileText.setTextColor(Color.BLACK);
+            profileText.setTypeface(null, Typeface.BOLD);
+        }
+
+        navProfile.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, ProfileActivity.class)));
+        // ------------------------------------
+
+        // --- HOME BUTTON FIX ---
         navHome.setOnClickListener(v -> {
             FirebaseUser user = mAuth.getCurrentUser();
             if (user == null) {
-
                 Intent intent = new Intent(ProfileAccountDeleteSettingsActivity.this, MainActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(intent);
@@ -134,25 +212,25 @@ public class ProfileAccountDeleteSettingsActivity extends AppCompatActivity {
 
             db.collection("users").document(user.getUid()).get()
                     .addOnSuccessListener(documentSnapshot -> {
-                        String userType = "Customer"; // Default to customer
+                        String userType = "Customer"; // Default
                         if (documentSnapshot.exists()) {
                             String type = documentSnapshot.getString("userType");
-                            if (type != null && type.equals("Service Provider")) {
-                                userType = type;
+
+                            // Robust check: Handles "driver", "Driver", "Service Provider"
+                            if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
+                                userType = "Service Provider";
                             }
                         }
 
+                        Intent intent;
                         if (userType.equals("Service Provider")) {
-
-                            Intent intent = new Intent(ProfileAccountDeleteSettingsActivity.this, ServiceProviderHomepage.class);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
+                            intent = new Intent(ProfileAccountDeleteSettingsActivity.this, ServiceProviderHomepage.class);
                         } else {
-
-                            Intent intent = new Intent(ProfileAccountDeleteSettingsActivity.this, homepage.class);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
+                            intent = new Intent(ProfileAccountDeleteSettingsActivity.this, homepage.class);
                         }
+
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
                         finish();
                     })
                     .addOnFailureListener(e -> {
@@ -163,6 +241,12 @@ public class ProfileAccountDeleteSettingsActivity extends AppCompatActivity {
                         finish();
                     });
         });
-        // --- END OF FIX ---
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (unreadListener != null) unreadListener.remove();
+        if (notificationListener != null) notificationListener.remove();
     }
 }
