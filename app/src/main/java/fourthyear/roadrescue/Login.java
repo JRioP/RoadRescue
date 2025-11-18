@@ -14,7 +14,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.CheckBox; // Import CheckBox
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -26,9 +26,6 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
-import com.google.firebase.auth.FirebaseAuthInvalidUserException;
-import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -40,10 +37,7 @@ public class Login extends Fragment {
 
     private Button loginButton;
     private EditText emailEditText, passwordEditText;
-    private CheckBox rememberMeCheckBox; // 1. Add CheckBox reference
-
-    private long lastAttemptTime = 0;
-    private static final long MIN_TIME_BETWEEN_ATTEMPTS = 2000;
+    private CheckBox rememberMeCheckBox;
 
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
@@ -56,13 +50,20 @@ public class Login extends Fragment {
     private static final String KEY_REMEMBER_ME = "rememberMe";
     private static final String KEY_EMAIL = "email";
 
+    // --- SECURITY: Anti-Brute Force Constants ---
+    private static final String SECURITY_PREFS = "SecurityPrefs";
+    private static final String KEY_FAILED_ATTEMPTS = "failedAttempts";
+    private static final String KEY_LOCKOUT_TIME = "lockoutTimestamp";
+    private static final int MAX_FAILED_ATTEMPTS = 5;
+    private static final long LOCKOUT_DURATION = 5 * 60 * 1000; // 5 Minutes in milliseconds
+    private static final long INITIAL_WAIT_TIME = 2000; // 2 seconds
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
-        // Initialize Shared Preferences
         if (getActivity() != null) {
             sharedPreferences = getActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         }
@@ -71,10 +72,8 @@ public class Login extends Fragment {
     @Override
     public void onStart() {
         super.onStart();
-        // 2. Check if user is already logged in (Auto-Login)
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser != null && currentUser.isEmailVerified()) {
-            // User is already signed in and verified, redirect immediately
             showLoading(true);
             checkUserTypeAndRedirect(currentUser);
         }
@@ -90,11 +89,9 @@ public class Login extends Fragment {
         emailEditText = view.findViewById(R.id.login_email);
         passwordEditText = view.findViewById(R.id.login_password);
         loadingOverlay = view.findViewById(R.id.loading_overlay);
-
-        // Make sure your XML has a CheckBox with this ID
         rememberMeCheckBox = view.findViewById(R.id.checkBox);
 
-        // 3. Load saved Email if "Remember Me" was previously checked
+        // Load "Remember Me" data
         if (sharedPreferences != null) {
             boolean isRemembered = sharedPreferences.getBoolean(KEY_REMEMBER_ME, false);
             if (isRemembered) {
@@ -106,20 +103,13 @@ public class Login extends Fragment {
 
         setupInputListeners();
 
-        forgotPassword.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(getActivity(), ForgotPassword.class);
-                startActivity(intent);
-            }
+        forgotPassword.setOnClickListener(v -> {
+            Intent intent = new Intent(getActivity(), ForgotPassword.class);
+            startActivity(intent);
         });
 
-        loginButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                authenticateUser();
-            }
-        });
+        loginButton.setOnClickListener(v -> authenticateUser());
+
         return view;
     }
 
@@ -137,13 +127,11 @@ public class Login extends Fragment {
         }
     }
 
+    // --- SECURITY: Enhanced Authentication Logic ---
     private void authenticateUser() {
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastAttemptTime < MIN_TIME_BETWEEN_ATTEMPTS) {
-            Toast.makeText(getActivity(), "Please wait before trying again", Toast.LENGTH_SHORT).show();
-            return;
+        if (isLockedOut()) {
+            return; // Stop execution if user is locked out
         }
-        lastAttemptTime = currentTime;
 
         String email = emailEditText.getText().toString().trim();
         String password = passwordEditText.getText().toString().trim();
@@ -152,38 +140,106 @@ public class Login extends Fragment {
 
         showLoading(true);
 
-        mAuth.signInWithEmailAndPassword(email, password)
-                .addOnCompleteListener(getActivity(), new OnCompleteListener<AuthResult>() {
-                    @Override
-                    public void onComplete(@NonNull Task<AuthResult> task) {
-                        // Use handler only for the loading delay, logic runs immediately inside
-                        handler.postDelayed(new Runnable() {
-                            @Override
-                            public void run() {
-                                if (task.isSuccessful()) {
-                                    // 4. Handle "Remember Me" Logic on Success
-                                    handleRememberMe(email);
+        // Calculate dynamic delay: 2s, 4s, 8s... based on failed attempts
+        int failedAttempts = getFailedAttempts();
+        long dynamicDelay = INITIAL_WAIT_TIME * (long) Math.pow(2, failedAttempts);
 
-                                    FirebaseUser user = mAuth.getCurrentUser();
-                                    if (user != null) {
-                                        if (user.isEmailVerified()) {
-                                            updateUserSession(user);
-                                        } else {
-                                            showLoading(false);
-                                            redirectToHomepage(user, true);
-                                        }
-                                    }
+        // Cap the visual delay at 4 seconds so honest users don't wait too long on UI
+        // deeper backoff happens via the 'isLockedOut' check
+        long uiDelay = Math.min(dynamicDelay, 4000);
+
+        handler.postDelayed(() -> {
+            mAuth.signInWithEmailAndPassword(email, password)
+                    .addOnCompleteListener(getActivity(), task -> {
+                        if (task.isSuccessful()) {
+                            // Reset Security Counters on Success
+                            resetSecurityCounters();
+
+                            handleRememberMe(email);
+                            FirebaseUser user = mAuth.getCurrentUser();
+                            if (user != null) {
+                                if (user.isEmailVerified()) {
+                                    updateUserSession(user);
                                 } else {
                                     showLoading(false);
-                                    handleLoginError(task.getException());
+                                    redirectToHomepage(user, true);
                                 }
                             }
-                        }, 1000); // Reduced delay for better UX
-                    }
-                });
+                        } else {
+                            showLoading(false);
+                            // Increment security counters on failure
+                            handleLoginFailure(task.getException());
+                        }
+                    });
+        }, uiDelay);
     }
 
-    // 5. Helper method to save/clear preferences
+    // --- SECURITY: Helper Methods ---
+
+    private boolean isLockedOut() {
+        if (getActivity() == null) return false;
+        SharedPreferences securePrefs = getActivity().getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE);
+
+        long lockoutTimestamp = securePrefs.getLong(KEY_LOCKOUT_TIME, 0);
+        long currentTime = System.currentTimeMillis();
+
+        if (lockoutTimestamp > 0) {
+            if (currentTime < lockoutTimestamp) {
+                // User is currently locked out
+                long remainingSeconds = (lockoutTimestamp - currentTime) / 1000;
+                Toast.makeText(getActivity(), "Too many failed attempts. Try again in " + remainingSeconds + "s", Toast.LENGTH_LONG).show();
+                return true;
+            } else {
+                // Lockout expired, reset
+                resetSecurityCounters();
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private int getFailedAttempts() {
+        if (getActivity() == null) return 0;
+        SharedPreferences securePrefs = getActivity().getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE);
+        return securePrefs.getInt(KEY_FAILED_ATTEMPTS, 0);
+    }
+
+    private void handleLoginFailure(Exception exception) {
+        if (getActivity() == null) return;
+
+        SharedPreferences securePrefs = getActivity().getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = securePrefs.edit();
+
+        int currentAttempts = securePrefs.getInt(KEY_FAILED_ATTEMPTS, 0) + 1;
+        editor.putInt(KEY_FAILED_ATTEMPTS, currentAttempts);
+
+        if (currentAttempts >= MAX_FAILED_ATTEMPTS) {
+            // Trigger Lockout
+            long unlockTime = System.currentTimeMillis() + LOCKOUT_DURATION;
+            editor.putLong(KEY_LOCKOUT_TIME, unlockTime);
+            editor.apply();
+
+            Toast.makeText(getActivity(), "Too many attempts. Account locked for 5 minutes.", Toast.LENGTH_LONG).show();
+        } else {
+            editor.apply();
+
+            // SECURITY: Generic Error Message to prevent Enumeration
+            // We Log the real error for the developer, but show a generic one to the user
+            if (exception != null) {
+                Log.e("LoginSecurity", "Auth Error: " + exception.getMessage());
+            }
+            Toast.makeText(getActivity(), "Invalid email or password.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void resetSecurityCounters() {
+        if (getActivity() == null) return;
+        SharedPreferences securePrefs = getActivity().getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE);
+        securePrefs.edit().clear().apply();
+    }
+
+    // --------------------------------
+
     private void handleRememberMe(String email) {
         if (sharedPreferences == null) return;
 
@@ -192,7 +248,7 @@ public class Login extends Fragment {
             editor.putBoolean(KEY_REMEMBER_ME, true);
             editor.putString(KEY_EMAIL, email);
         } else {
-            editor.clear(); // Clear stored data if unchecked
+            editor.clear();
         }
         editor.apply();
     }
@@ -211,13 +267,7 @@ public class Login extends Fragment {
 
         db.collection("users").document(userId)
                 .update(updates)
-                .addOnCompleteListener(new OnCompleteListener<Void>() {
-                    @Override
-                    public void onComplete(@NonNull Task<Void> task) {
-                        // Loading is still showing here, which is good
-                        checkUserTypeAndRedirect(user);
-                    }
-                });
+                .addOnCompleteListener(task -> checkUserTypeAndRedirect(user));
     }
 
     private void checkUserTypeAndRedirect(FirebaseUser user) {
@@ -225,7 +275,7 @@ public class Login extends Fragment {
         db.collection("users").document(userId)
                 .get()
                 .addOnSuccessListener(documentSnapshot -> {
-                    showLoading(false); // Stop loading here
+                    showLoading(false);
                     if (documentSnapshot.exists()) {
                         String userType = documentSnapshot.getString("userType");
                         if (userType == null) {
@@ -234,11 +284,11 @@ public class Login extends Fragment {
                         }
                         Intent intent;
                         switch (userType.toLowerCase()) {
-                            case "service provider": // Updated based on common naming
+                            case "service provider":
                             case "driver":
                                 intent = new Intent(getActivity(), ServiceProviderHomepage.class);
                                 break;
-                            case "customer": // Updated based on common naming
+                            case "customer":
                             case "user":
                             default:
                                 intent = new Intent(getActivity(), homepage.class);
@@ -306,25 +356,6 @@ public class Login extends Fragment {
             return false;
         }
         return true;
-    }
-
-    private void handleLoginError(Exception exception) {
-        String errorMessage;
-        if (exception instanceof FirebaseAuthInvalidUserException) {
-            errorMessage = "Account not found";
-        } else if (exception instanceof FirebaseAuthInvalidCredentialsException) {
-            errorMessage = "Invalid password";
-        } else if (exception instanceof FirebaseAuthRecentLoginRequiredException) {
-            errorMessage = "Session expired. Please login again.";
-        } else {
-            errorMessage = "Authentication failed. Check connection.";
-        }
-        if (getActivity() != null) {
-            Toast.makeText(getActivity(), errorMessage, Toast.LENGTH_LONG).show();
-        }
-        if (exception != null) {
-            Log.e("LoginSecurity", "Auth error: " + exception.getMessage());
-        }
     }
 
     private void setupInputListeners() {

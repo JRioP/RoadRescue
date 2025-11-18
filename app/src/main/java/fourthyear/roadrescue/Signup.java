@@ -18,7 +18,6 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
-import android.widget.TextView;
 import android.widget.Toast;
 import android.text.TextWatcher;
 import android.text.Editable;
@@ -46,20 +45,20 @@ public class Signup extends Fragment {
 
     private EditText personUsername, personEmail, personPassword, personRPassword, phoneCountryCode, phoneNumber;
     private Button signupBtn;
-    private CheckBox termsAndConditionsCheck; // ADDED: Class-level variable
+    private CheckBox termsAndConditionsCheck;
     private FirebaseAuth fAuth;
     private FirebaseFirestore db;
 
-    private long lastSignupAttempt = 0;
-    private static final long MIN_TIME_BETWEEN_SIGNUPS = 5000;
+    // --- SECURITY: Brute-force protection variables ---
+    private int signupAttemptCounter = 0;
+    private long lastAttemptTimestamp = 0;
+    private static final long BASE_DELAY = 5000; // Start with 5 seconds
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.activity_sign_up, container, false);
         initializeViews(v);
-
-        // CHANGED: Removed click listener from here. It's now in initializeViews()
 
         fAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
@@ -88,10 +87,8 @@ public class Signup extends Fragment {
         phoneNumber = v.findViewById(R.id.signup_phone_number);
         signupBtn = v.findViewById(R.id.btn_signup);
 
-        // ADDED: Initialize CheckBox
         termsAndConditionsCheck = v.findViewById(R.id.check_terms_and_conditions);
 
-        // CHANGED: Replaced simple OnClickListener with a clickable text span
         setupTermsAndConditionsClickableText();
 
         personPassword.addTextChangedListener(new TextWatcher() {
@@ -122,11 +119,8 @@ public class Signup extends Fragment {
         phoneCountryCode.addTextChangedListener(new SimpleTextWatcher(phoneCountryCode));
     }
 
-    // ADDED: This method makes the "Terms and Conditions" text clickable
     private void setupTermsAndConditionsClickableText() {
         String fullText = getString(R.string.sign_up_termsandcondition);
-        // Assuming your string is "I agree to the Terms and Conditions"
-        // Adjust "Terms and Conditions" if your string text is different
         String clickableText = "Terms and Conditions";
 
         SpannableString ss = new SpannableString(fullText);
@@ -151,7 +145,7 @@ public class Signup extends Fragment {
         if (startIndex != -1) {
             ss.setSpan(clickableSpan, startIndex, endIndex, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             termsAndConditionsCheck.setText(ss);
-            termsAndConditionsCheck.setMovementMethod(LinkMovementMethod.getInstance()); // This makes the link clickable
+            termsAndConditionsCheck.setMovementMethod(LinkMovementMethod.getInstance());
         } else {
             termsAndConditionsCheck.setText(fullText);
             Log.w(TAG, "Could not find clickable text in terms and conditions string.");
@@ -173,17 +167,37 @@ public class Signup extends Fragment {
         public void afterTextChanged(Editable s) { }
     }
 
+    /**
+     * Enhanced security method with Exponential Backoff to prevent registration flooding.
+     */
     private void attemptSignup() {
-        if (System.currentTimeMillis() - lastSignupAttempt < MIN_TIME_BETWEEN_SIGNUPS) {
-            showToast("Please wait before trying again");
+        long currentTime = System.currentTimeMillis();
+
+        // 1. Calculate required delay based on previous attempts
+        // Logic: 5s * 2^n. (5s, 10s, 20s, 40s, 80s, capped at 160s)
+        long requiredDelay = 0;
+        if (signupAttemptCounter > 0) {
+            // We cap the power at 5 to prevent the wait time from becoming hours long too quickly
+            requiredDelay = BASE_DELAY * (long) Math.pow(2, Math.min(signupAttemptCounter - 1, 5));
+        }
+
+        // 2. Check if the user is currently blocked
+        if (currentTime - lastAttemptTimestamp < requiredDelay) {
+            long timeLeftSeconds = (requiredDelay - (currentTime - lastAttemptTimestamp)) / 1000;
+            showToast("Too many attempts. Please wait " + timeLeftSeconds + " seconds.");
             return;
         }
-        lastSignupAttempt = System.currentTimeMillis();
 
+        // 3. Update counters immediately to count this attempt
+        lastAttemptTimestamp = currentTime;
+        signupAttemptCounter++;
+
+        // 4. Reset UI errors
         passwordInputLayout.setError(null);
         retypePasswordInputLayout.setError(null);
         personEmail.setError(null);
 
+        // 5. Validate and Proceed
         if (validateAllFields()) {
             String email = personEmail.getText().toString().trim();
             String password = personPassword.getText().toString().trim();
@@ -198,7 +212,6 @@ public class Signup extends Fragment {
     }
 
     private void checkIfEmailExists(String email, String password, String phone, String username) {
-        // ... (This logic remains the same)
         fAuth.fetchSignInMethodsForEmail(email)
                 .addOnCompleteListener(task -> {
                     signupBtn.setText("Creating Account...");
@@ -352,7 +365,6 @@ public class Signup extends Fragment {
     }
 
     private void handleSignupSuccess(String email, String phone, String username) {
-        // ... (This logic remains the same)
         FirebaseUser newUser = fAuth.getCurrentUser();
         if (newUser != null) {
             String userId = newUser.getUid();
@@ -382,7 +394,6 @@ public class Signup extends Fragment {
     }
 
     private void sendEmailVerification(FirebaseUser user, String email, String phone) {
-        // ... (This logic remains the same)
         user.sendEmailVerification()
                 .addOnSuccessListener(new OnSuccessListener<Void>() {
                     @Override
@@ -403,7 +414,6 @@ public class Signup extends Fragment {
     }
 
     private void handleSignupFailure(Exception e) {
-        // ... (This logic remains the same)
         signupBtn.setEnabled(true);
         signupBtn.setText("Sign Up");
 
@@ -422,7 +432,6 @@ public class Signup extends Fragment {
     }
 
     private void redirectToPhoneVerification(String phone, String email) {
-        // ... (This logic remains the same)
         Intent phoneVerificationIntent = new Intent(getActivity(), VerifyPhone.class);
         phoneVerificationIntent.putExtra("phone", phone);
         phoneVerificationIntent.putExtra("email", email);
@@ -430,7 +439,6 @@ public class Signup extends Fragment {
     }
 
     private void redirectToLogin() {
-        // ... (This logic remains the same)
         Intent loginIntent = new Intent(getActivity(), MainActivity.class);
         loginIntent.putExtra("LOAD_FRAGMENT_INDEX", 0);
         startActivity(loginIntent);
