@@ -28,7 +28,9 @@ import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class ChatConversationActivity extends AppCompatActivity {
@@ -209,7 +211,7 @@ public class ChatConversationActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-        // --- HOME BUTTON FIX (Handles "driver" and "Service Provider") ---
+        // --- HOME BUTTON FIX ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         homeButton.setOnClickListener(v -> {
             FirebaseUser user = auth.getCurrentUser();
@@ -227,7 +229,6 @@ public class ChatConversationActivity extends AppCompatActivity {
                         if (documentSnapshot.exists()) {
                             String type = documentSnapshot.getString("userType");
 
-                            // Robust Check: Handles "driver", "Driver", "Service Provider", "service provider"
                             if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
                                 userType = "Service Provider";
                             }
@@ -252,9 +253,8 @@ public class ChatConversationActivity extends AppCompatActivity {
                         finish();
                     });
         });
-        // ---------------------------------------------------------------
 
-        // --- Message Button Logic & Styling (Active State) ---
+        // --- Message Button Logic & Styling ---
         ImageView messageIcon = findViewById(R.id.message_icon_btn);
         ConstraintLayout messageLayout = findViewById(R.id.nav_message_layout);
         TextView messageText = findViewById(R.id.message_text);
@@ -330,6 +330,8 @@ public class ChatConversationActivity extends AppCompatActivity {
                 .set(message)
                 .addOnSuccessListener(aVoid -> {
                     messageInput.setText("");
+
+                    // Only update chat unread counts. NO notification list update.
                     updateLastMessageAndUnreadCount(messageText);
                 })
                 .addOnFailureListener(e -> {

@@ -50,14 +50,39 @@ public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequests
     @Override
     public void onBindViewHolder(@NonNull RequestViewHolder holder, int position) {
         Map<String, Object> request = requests.get(position);
-        String requestId = (String) request.get("requestId");
 
+        String requestId = (String) request.get("requestId");
         String requestType = (String) request.get("requestType");
         String pickupAddress = (String) request.get("pickupAddress");
 
+        // --- FIX: Add "Vehicle: " Prefix ---
+        String carType = (String) request.get("carType");
+        String carModel = (String) request.get("carModel");
+        String carBrand = (String) request.get("carBrand");
+
+        StringBuilder sb = new StringBuilder();
+
+        // Build string like: "Sedan - Toyota Vios"
+        if (carType != null) sb.append(carType);
+
+        if (carBrand != null || carModel != null) {
+            if (sb.length() > 0) sb.append(" - ");
+            if (carBrand != null) sb.append(carBrand).append(" ");
+            if (carModel != null) sb.append(carModel);
+        }
+
+        String vehicleInfo = sb.toString();
+
+        if (vehicleInfo.isEmpty()) {
+            holder.vehicleTextView.setText("Vehicle info not available");
+        } else {
+            // HERE IS THE CHANGE: Added "Vehicle: "
+            holder.vehicleTextView.setText("Vehicle: " + vehicleInfo);
+        }
+        // -----------------------------------
+
         holder.requestTypeTextView.setText(requestType != null ? requestType + " Request" : "Service Request");
         holder.pickupAddressTextView.setText(pickupAddress != null ? "at " + pickupAddress : "at unknown location");
-
         holder.requestIdTextView.setText("ID: " + (requestId != null ? requestId.substring(0, Math.min(requestId.length(), 8)) : "N/A"));
 
         Double amount = (Double) request.get("amount");
@@ -66,6 +91,7 @@ public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequests
         String paymentStr = (paymentMethod != null) ? paymentMethod : "N/A";
         holder.paymentTextView.setText("Payment: " + paymentStr + amountStr);
 
+        // --- Distance Calculation ---
         if (providerLocation != null) {
             Double lat = (Double) request.get("pickupLat");
             Double lng = (Double) request.get("pickupLng");
@@ -85,7 +111,21 @@ public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequests
             holder.distanceTextView.setText("Calculating distance...");
         }
 
-        holder.acceptButton.setOnClickListener(v -> acceptClickListener.onAcceptClick(requestId, request));
+        // --- Active Job Logic ---
+        boolean isMyActiveJob = false;
+        if (request.containsKey("isMyActiveJob") && request.get("isMyActiveJob") != null) {
+            isMyActiveJob = (Boolean) request.get("isMyActiveJob");
+        }
+
+        if (isMyActiveJob) {
+            holder.acceptButton.setVisibility(View.GONE);
+            holder.acceptedStatusTextView.setVisibility(View.VISIBLE);
+        } else {
+            holder.acceptButton.setVisibility(View.VISIBLE);
+            holder.acceptedStatusTextView.setVisibility(View.GONE);
+            holder.acceptButton.setOnClickListener(v -> acceptClickListener.onAcceptClick(requestId, request));
+        }
+
         holder.itemView.setOnClickListener(v -> itemClickListener.onItemClick(request));
     }
 
@@ -102,20 +142,24 @@ public class PendingRequestsAdapter extends RecyclerView.Adapter<PendingRequests
 
     public static class RequestViewHolder extends RecyclerView.ViewHolder {
         TextView requestTypeTextView;
+        TextView vehicleTextView;
         TextView pickupAddressTextView;
         TextView requestIdTextView;
         TextView paymentTextView;
         TextView distanceTextView;
+        TextView acceptedStatusTextView;
         Button acceptButton;
 
         public RequestViewHolder(@NonNull View itemView) {
             super(itemView);
             requestTypeTextView = itemView.findViewById(R.id.request_type_text);
+            vehicleTextView = itemView.findViewById(R.id.request_vehicle_text);
             pickupAddressTextView = itemView.findViewById(R.id.request_address_text);
             requestIdTextView = itemView.findViewById(R.id.request_id_text);
             paymentTextView = itemView.findViewById(R.id.request_payment_text);
             distanceTextView = itemView.findViewById(R.id.request_distance_text);
-            acceptButton = itemView.findViewById(R.id.accept_button);
+            acceptButton = itemView.findViewById(R.id.btn_accept);
+            acceptedStatusTextView = itemView.findViewById(R.id.text_accepted_status);
         }
     }
 }

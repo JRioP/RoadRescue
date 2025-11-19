@@ -3,7 +3,7 @@ package fourthyear.roadrescue;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
-import android.graphics.drawable.Drawable; // Added for Glide Listener
+import android.graphics.drawable.Drawable; // For Glide Listener
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -18,7 +18,7 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.Nullable; // Added for Glide Listener
+import androidx.annotation.Nullable; // For Glide
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -27,11 +27,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.DataSource; // Added for Glide Listener
+import com.bumptech.glide.load.DataSource; // For Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
-import com.bumptech.glide.load.engine.GlideException; // Added for Glide Listener
-import com.bumptech.glide.request.RequestListener; // Added for Glide Listener
-import com.bumptech.glide.request.target.Target; // Added for Glide Listener
+import com.bumptech.glide.load.engine.GlideException; // For Glide
+import com.bumptech.glide.request.RequestListener; // For Glide
+import com.bumptech.glide.request.target.Target; // For Glide
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
@@ -117,6 +117,7 @@ public class ProfileActivity extends AppCompatActivity {
         setupSpinners();
         setupImagePicker();
 
+        // Setup Listeners
         setupUnreadMessageListener();
         setupNotificationListener();
 
@@ -126,9 +127,7 @@ public class ProfileActivity extends AppCompatActivity {
 
     private void findViews() {
         profileImageView = findViewById(R.id.profile_image_view);
-
-        // --- SAFETY CHECK: Remove background color in case XML has android:background="@color/white"
-        profileImageView.setBackground(null);
+        profileImageView.setBackground(null); // Ensure no background blocks image
 
         profileName = findViewById(R.id.profile_name);
         editButton = findViewById(R.id.edit_button);
@@ -153,44 +152,69 @@ public class ProfileActivity extends AppCompatActivity {
         accountSettingsButton = findViewById(R.id.btn_account_settings);
     }
 
-    // ... (Badge and Navigation methods remain the same) ...
+    // --- Badge Listener Logic ---
     private void setupUnreadMessageListener() {
         if (currentUser == null) return;
         String currentUserId = currentUser.getUid();
-        unreadListener = db.collection("chats").whereArrayContains("participantIds", currentUserId).whereEqualTo("status", "active").addSnapshotListener((snapshots, e) -> {
-            if (e != null) return;
-            int totalUnread = 0;
-            if (snapshots != null) {
-                for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                    Long count = doc.getLong("unreadCounts." + currentUserId);
-                    if (count != null) totalUnread += count;
-                }
-            }
-            if (unreadBadge != null) unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
-        });
+
+        unreadListener = db.collection("chats")
+                .whereArrayContains("participantIds", currentUserId)
+                .whereEqualTo("status", "active")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            if (count != null) {
+                                totalUnread += count;
+                            }
+                        }
+                    }
+
+                    if (unreadBadge != null) {
+                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                    }
+                });
     }
 
     private void setupNotificationListener() {
         if (currentUser == null) return;
         String currentUserId = currentUser.getUid();
-        notificationListener = db.collection("notifications").whereEqualTo("userId", currentUserId).whereEqualTo("read", false).addSnapshotListener((snapshots, e) -> {
-            if (e != null) return;
-            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-            if (unreadNotificationBadge != null) unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
-        });
+
+        notificationListener = db.collection("notifications")
+                .whereEqualTo("userId", currentUserId)
+                .whereEqualTo("read", false)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+
+                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+                    if (unreadNotificationBadge != null) {
+                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+                    }
+                });
     }
 
     private void setupBottomNavigation() {
         unreadBadge = findViewById(R.id.unread_message_badge);
         unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
-        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        if (notificationButton != null) notificationButton.setOnClickListener(v -> startActivity(new Intent(ProfileActivity.this, NotificationsActivity.class)));
-        ImageView messageButton = findViewById(R.id.message_icon_btn);
-        if (messageButton != null) messageButton.setOnClickListener(v -> startActivity(new Intent(ProfileActivity.this, ChatInboxActivity.class)));
 
+        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
+        if (notificationButton != null) {
+            notificationButton.setOnClickListener(v -> startActivity(new Intent(ProfileActivity.this, NotificationsActivity.class)));
+        }
+
+        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        if (messageButton != null) {
+            messageButton.setOnClickListener(v -> startActivity(new Intent(ProfileActivity.this, ChatInboxActivity.class)));
+        }
+
+        // Active State Styling
         ConstraintLayout profileLayout = findViewById(R.id.nav_profile_layout);
         ImageView profileIcon = findViewById(R.id.profile_icon_btn);
         TextView profileText = findViewById(R.id.profile_text);
+
         if (profileLayout != null) {
             profileLayout.setClickable(false);
             profileLayout.setFocusable(false);
@@ -201,22 +225,43 @@ public class ProfileActivity extends AppCompatActivity {
             profileText.setTextColor(Color.BLACK);
             profileText.setTypeface(null, Typeface.BOLD);
         }
+
+        // --- HOME BUTTON FIX ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         if (homeButton != null) {
             homeButton.setOnClickListener(v -> {
-                if (currentUser == null) { startActivity(new Intent(ProfileActivity.this, MainActivity.class)); finish(); return; }
-                db.collection("users").document(currentUser.getUid()).get().addOnSuccessListener(documentSnapshot -> {
-                    String userType = "Customer";
-                    if (documentSnapshot.exists()) {
-                        String type = documentSnapshot.getString("userType");
-                        if (type != null && (type.equalsIgnoreCase("driver") || type.equalsIgnoreCase("Service Provider"))) {
-                            userType = "Service Provider";
-                        }
-                    }
-                    Intent intent = userType.equals("Service Provider") ? new Intent(ProfileActivity.this, ServiceProviderHomepage.class) : new Intent(ProfileActivity.this, homepage.class);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(intent);
-                });
+                if (currentUser == null) {
+                    startActivity(new Intent(ProfileActivity.this, MainActivity.class));
+                    finish();
+                    return;
+                }
+
+                db.collection("users").document(currentUser.getUid()).get()
+                        .addOnSuccessListener(documentSnapshot -> {
+                            String userType = "Customer";
+                            if (documentSnapshot.exists()) {
+                                String type = documentSnapshot.getString("userType");
+                                if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
+                                    userType = "Service Provider";
+                                }
+                            }
+
+                            Intent intent;
+                            if (userType.equals("Service Provider")) {
+                                intent = new Intent(ProfileActivity.this, ServiceProviderHomepage.class);
+                            } else {
+                                intent = new Intent(ProfileActivity.this, homepage.class);
+                            }
+
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e(TAG, "Failed to get userType", e);
+                            Intent intent = new Intent(ProfileActivity.this, homepage.class);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        });
             });
         }
     }
@@ -239,7 +284,7 @@ public class ProfileActivity extends AppCompatActivity {
     }
 
     private void setupSpinners() {
-        // ... (Spinner setup logic remains the same as previous code) ...
+        // Same Adapter Logic as before
         String[] genders = {"Prefer not to say", "Male", "Female", "Other"};
         genderAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, genders);
         genderAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -263,28 +308,30 @@ public class ProfileActivity extends AppCompatActivity {
         carYearAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCarYear.setAdapter(carYearAdapter);
 
-        // Init other adapters (simplified for brevity, same as before)
+        // Init brand adapters
         toyotaAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Vios", "Corolla", "Camry", "Fortuner", "Hilux", "Other"});
-        toyotaAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        // ... (Assume other adapters are initialized same as before) ...
         hondaAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Civic", "City", "HR-V", "CR-V", "Brio", "Other"});
-        hondaAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         mitsubishiAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Montero Sport", "Mirage", "Xpander", "Strada", "Other"});
-        mitsubishiAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         fordAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Ranger", "Everest", "Territory", "Other"});
-        fordAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         nissanAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Navara", "Terra", "Almera", "Kicks", "Other"});
-        nissanAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         hyundaiAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Tucson", "Creta", "Stargazer", "Other"});
-        hyundaiAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         kiaAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Seltos", "Stonic", "Soluto", "Other"});
-        kiaAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         suzukiAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"S-Presso", "Jimny", "Ertiga", "Dzire", "Other"});
-        suzukiAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         chevroletAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Tracker", "Trailblazer", "Other"});
-        chevroletAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         otherAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Other"});
+
+        // Set drop downs
+        toyotaAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        hondaAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        mitsubishiAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        fordAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        nissanAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        hyundaiAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        kiaAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        suzukiAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        chevroletAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         otherAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
         spinnerCarModel.setAdapter(otherAdapter);
     }
 
@@ -346,23 +393,22 @@ public class ProfileActivity extends AppCompatActivity {
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(this, "Profile picture updated!", Toast.LENGTH_SHORT).show();
 
-                    // --- FORCE REFRESH + LOGGING ---
+                    // FORCE REFRESH
                     Glide.with(ProfileActivity.this)
                             .load(imageUrl)
                             .circleCrop()
-                            .diskCacheStrategy(DiskCacheStrategy.NONE) // No cache for immediate update
+                            .diskCacheStrategy(DiskCacheStrategy.NONE)
                             .skipMemoryCache(true)
                             .error(android.R.drawable.stat_notify_error)
                             .listener(new RequestListener<Drawable>() {
                                 @Override
                                 public boolean onLoadFailed(@Nullable GlideException e, Object model, Target<Drawable> target, boolean isFirstResource) {
-                                    Log.e(TAG, "IMMEDIATE GLIDE LOAD FAILED: " + e.getMessage());
-                                    if(e != null) e.logRootCauses(TAG);
+                                    Log.e(TAG, "GLIDE LOAD FAILED: " + e.getMessage());
                                     return false;
                                 }
                                 @Override
                                 public boolean onResourceReady(Drawable resource, Object model, Target<Drawable> target, DataSource dataSource, boolean isFirstResource) {
-                                    Log.d(TAG, "IMMEDIATE GLIDE LOAD SUCCESS");
+                                    Log.d(TAG, "GLIDE LOAD SUCCESS");
                                     return false;
                                 }
                             })
@@ -447,32 +493,14 @@ public class ProfileActivity extends AppCompatActivity {
                     else if (fullName != null && !fullName.isEmpty()) displayedName = fullName;
                     else if (firstName != null && !firstName.isEmpty()) displayedName = firstName + " " + (lastName != null ? lastName : "");
 
-                    // --- UPDATED GLIDE LOADING WITH DEBUGGING ---
+                    // Glide Load
                     if (imageUrl != null && !imageUrl.isEmpty()) {
-                        Log.d(TAG, "Loading Profile Image URL: " + imageUrl);
                         Glide.with(ProfileActivity.this)
                                 .load(imageUrl)
                                 .circleCrop()
-                                .error(android.R.drawable.stat_notify_error) // Show red icon if fails
-                                .listener(new RequestListener<Drawable>() {
-                                    @Override
-                                    public boolean onLoadFailed(@Nullable GlideException e, Object model, Target<Drawable> target, boolean isFirstResource) {
-                                        Log.e(TAG, "INITIAL GLIDE LOAD FAILED: " + e.getMessage());
-                                        if (e != null) e.logRootCauses(TAG);
-                                        return false;
-                                    }
-
-                                    @Override
-                                    public boolean onResourceReady(Drawable resource, Object model, Target<Drawable> target, DataSource dataSource, boolean isFirstResource) {
-                                        Log.d(TAG, "INITIAL GLIDE LOAD SUCCESS");
-                                        return false;
-                                    }
-                                })
+                                .error(android.R.drawable.stat_notify_error)
                                 .into(profileImageView);
-                    } else {
-                        Log.d(TAG, "No image URL found in Firestore");
                     }
-                    // -----------------------------------------
 
                     profileName.setText(displayedName);
                     editFullName.setText(displayedName);

@@ -2,7 +2,6 @@ package fourthyear.roadrescue;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -98,7 +97,7 @@ public class homepage extends AppCompatActivity {
             return;
         }
 
-        // --- NEW: Check User Type & Redirect if needed ---
+        // Check User Type & Redirect if needed
         checkUserTypeAndRedirect();
 
         userDocRef = db.collection("users").document(currentUser.getUid());
@@ -127,7 +126,7 @@ public class homepage extends AppCompatActivity {
         }, 250);
     }
 
-    // --- NEW: Redirect Logic (The Fix) ---
+    // --- Redirect Logic ---
     private void checkUserTypeAndRedirect() {
         db.collection("users").document(currentUser.getUid()).get()
                 .addOnSuccessListener(documentSnapshot -> {
@@ -378,16 +377,14 @@ public class homepage extends AppCompatActivity {
             messageButton.setOnClickListener(v -> startActivity(new Intent(homepage.this, ChatInboxActivity.class)));
         }
 
-        // --- HOME BUTTON ACTIVE STATE (with rounded background) ---
+        // --- HOME BUTTON ACTIVE STATE ---
         ConstraintLayout homeLayout = findViewById(R.id.nav_home_layout);
         ImageView homeIcon = findViewById(R.id.home_icon_btn);
         TextView homeText = findViewById(R.id.home_text);
 
         if (homeLayout != null) {
-            // Disable click since we are here
             homeLayout.setClickable(false);
             homeLayout.setFocusable(false);
-            // Set the rounded white background
             homeLayout.setBackgroundResource(R.drawable.rounded_white_background);
         }
 
@@ -399,9 +396,8 @@ public class homepage extends AppCompatActivity {
             homeText.setTextColor(Color.BLACK);
             homeText.setTypeface(null, Typeface.BOLD);
         }
-        // ---------------------------------------------------------
 
-        // Request Buttons
+        // Request Buttons setup
         setupRequestButton(R.id.towing_btn, "Towing");
         setupRequestButton(R.id.jump_start_btn, "Jump-Start");
         setupRequestButton(R.id.fuel_delivery_btn, "Fuel Delivery");
@@ -410,16 +406,56 @@ public class homepage extends AppCompatActivity {
         setupRequestButton(R.id.gas_station_btn, "Gas Station");
     }
 
+    // --- MODIFIED: Calls checkVehicleAndProceed instead of direct start ---
     private void setupRequestButton(int id, String type) {
         ConstraintLayout btn = findViewById(id);
         if (btn != null) {
             btn.setOnClickListener(v -> {
-                Intent intent = new Intent(homepage.this, MapActivity.class);
-                intent.putExtra("REQUEST_TYPE", type);
-                startActivity(intent);
+                // Check if vehicle profile is set before proceeding
+                checkVehicleAndProceed(type);
             });
         }
     }
+
+    // --- NEW: Helper function to check Car Profile ---
+    private void checkVehicleAndProceed(String serviceType) {
+        if (currentUser == null) return;
+
+        userDocRef.get().addOnSuccessListener(documentSnapshot -> {
+            if (documentSnapshot.exists()) {
+                String carType = documentSnapshot.getString("carType");
+                String carModel = documentSnapshot.getString("carModel");
+
+                // CHECK: Are fields null or empty?
+                if (carType != null && !carType.trim().isEmpty() &&
+                        carModel != null && !carModel.trim().isEmpty()) {
+
+                    // Success! Go to Map
+                    Intent intent = new Intent(homepage.this, MapActivity.class);
+                    intent.putExtra("REQUEST_TYPE", serviceType);
+                    startActivity(intent);
+                } else {
+                    // Failure! Show Warning
+                    showMissingProfileDialog();
+                }
+            }
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Network error checking profile. Try again.", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    // --- NEW: Dialog to warn user ---
+    private void showMissingProfileDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Vehicle Profile Incomplete")
+                .setMessage("You must add your Car Type and Car Model in your profile before requesting a service.")
+                .setPositiveButton("Go to Profile", (dialog, which) -> {
+                    startActivity(new Intent(homepage.this, ProfileActivity.class));
+                })
+                .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
+                .show();
+    }
+    // -----------------------------------------------------------------
 
     private void checkSingleSessionConstraint() {
         userDocRef.get().addOnCompleteListener(task -> {

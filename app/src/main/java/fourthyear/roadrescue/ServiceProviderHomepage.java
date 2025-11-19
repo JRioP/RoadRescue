@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.material.floatingactionbutton.FloatingActionButton; // Import FAB
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -47,14 +48,20 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
     private RecyclerView requestsRecyclerView;
     private PendingRequestsAdapter requestsAdapter;
 
-    private final List<Map<String, Object>> requestsList = new ArrayList<>();
-    private ListenerRegistration requestsListener;
+    // UI Elements
+    private FloatingActionButton btnGoToMap; // NEW: The FAB
     private TextView titleText;
+
+    private final List<Map<String, Object>> requestsList = new ArrayList<>();
+    private final List<Map<String, Object>> activeJobsList = new ArrayList<>();
+    private final List<Map<String, Object>> pendingJobsList = new ArrayList<>();
+    private List<String> driverServices = new ArrayList<>();
+
+    private ListenerRegistration pendingListener;
+    private ListenerRegistration activeJobListener;
 
     private FusedLocationProviderClient fusedLocationClient;
     private LatLng currentLatLng;
-
-    // --- NEW: Badge Listeners & UI ---
     private ListenerRegistration unreadListener;
     private ListenerRegistration notificationListener;
     private TextView unreadBadge;
@@ -71,97 +78,194 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
         if (currentUser == null) {
-            Toast.makeText(this, "Please log in as a Service Provider.", Toast.LENGTH_LONG).show();
             finish();
             return;
         }
 
-        setupUIComponents(); // Now handles Nav and Badges init
-        setupViews();
+        setupUIComponents();
+        setupViews(); // Initializes the FAB
         setupRecyclerView();
         checkLocationPermission();
         updateLocation();
-
-        // --- NEW: Setup Badge Listeners ---
         setupUnreadMessageListener();
         setupNotificationListener();
 
-        checkProviderForActiveJob();
-    }
-
-    // --- NEW: Badge Listener Logic ---
-    private void setupUnreadMessageListener() {
-        if (currentUser == null) return;
-        String currentUserId = currentUser.getUid();
-
-        unreadListener = db.collection("chats")
-                .whereArrayContains("participantIds", currentUserId)
-                .whereEqualTo("status", "active")
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
-
-                    int totalUnread = 0;
-                    if (snapshots != null) {
-                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                            Long count = doc.getLong("unreadCounts." + currentUserId);
-                            if (count != null) {
-                                totalUnread += count;
-                            }
-                        }
-                    }
-
-                    if (unreadBadge != null) {
-                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
-                    }
-                });
-    }
-
-    private void setupNotificationListener() {
-        if (currentUser == null) return;
-        String currentUserId = currentUser.getUid();
-
-        notificationListener = db.collection("notifications")
-                .whereEqualTo("userId", currentUserId)
-                .whereEqualTo("read", false)
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
-
-                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-                    if (unreadNotificationBadge != null) {
-                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
-                    }
-                });
-    }
-
-    private void checkProviderForActiveJob() {
-        if (currentUser == null) return;
-
-        db.collection("service_requests")
-                .whereEqualTo("providerId", currentUser.getUid())
-                .whereEqualTo("status", "accepted")
-                .limit(1)
-                .get()
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful() && !task.getResult().isEmpty()) {
-                        Log.d(TAG, "Provider has an active job. Redirecting to map.");
-                        DocumentSnapshot doc = task.getResult().getDocuments().get(0);
-                        Map<String, Object> requestData = new HashMap<>(doc.getData());
-                        requestData.put("requestId", doc.getId());
-
-                        redirectToActiveJob(requestData);
-                    } else {
-                        Log.d(TAG, "No active job found. Loading pending requests.");
-                        loadPendingRequests();
-                    }
-                });
+        fetchDriverServicesAndListen();
     }
 
     private void setupViews() {
         titleText = findViewById(R.id.title_text);
         requestsRecyclerView = findViewById(R.id.requests_recycler_view);
+
+        // Setup Floating Action Button
+        btnGoToMap = findViewById(R.id.btn_go_to_map);
+
+        // CHANGED: We ensure it is VISIBLE by default
+        btnGoToMap.setVisibility(View.VISIBLE);
+
+        btnGoToMap.setOnClickListener(v -> {
+            if (!activeJobsList.isEmpty()) {
+                // Go to the first active job
+                redirectToActiveJob(activeJobsList.get(0));
+            } else {
+                // Just show a message if clicked with no job
+                Toast.makeText(this, "You have no active jobs right now.", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
-    // Note: setupNavigationListeners removed as it is redundant with setupUIComponents
+    // ... (fetchDriverServicesAndListen remains the same) ...
+
+    private void fetchDriverServicesAndListen() {
+        if (currentUser == null) return;
+        db.collection("users").document(currentUser.getUid()).get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        Object servicesObj = documentSnapshot.get("servicesProvided");
+                        if (servicesObj instanceof List) {
+                            driverServices = (List<String>) servicesObj;
+                        } else {
+                            driverServices = new ArrayList<>();
+                        }
+                        listenForRequests();
+                    }
+                });
+    }
+
+    private void listenForRequests() {
+        if (currentUser == null) return;
+        String myUserId = currentUser.getUid();
+
+        // 1. Listen for Active Jobs
+        if (activeJobListener != null) activeJobListener.remove();
+        activeJobListener = db.collection("service_requests")
+                .whereEqualTo("providerId", myUserId)
+                .whereEqualTo("status", "accepted")
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) return;
+                    activeJobsList.clear();
+                    if (value != null) {
+                        for (QueryDocumentSnapshot doc : value) {
+                            Map<String, Object> data = new HashMap<>(doc.getData());
+                            data.put("requestId", doc.getId());
+                            data.put("isMyActiveJob", true);
+                            activeJobsList.add(data);
+                        }
+                    }
+
+                    // CHANGED: Removed the code that hid the button here.
+                    // The button stays visible always.
+
+                    mergeAndDisplayRequests();
+                });
+
+        // 2. Listen for Pending Jobs
+        if (pendingListener != null) pendingListener.remove();
+        pendingListener = db.collection("service_requests")
+                .whereEqualTo("status", "pending")
+                .orderBy("timestamp", Query.Direction.ASCENDING)
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) return;
+                    pendingJobsList.clear();
+                    if (value != null) {
+                        for (QueryDocumentSnapshot doc : value) {
+                            Map<String, Object> data = new HashMap<>(doc.getData());
+                            String requestType = (String) data.get("requestType");
+
+                            // Filter based on driver services
+                            if (requestType != null && driverServices.contains(requestType)) {
+                                data.put("requestId", doc.getId());
+                                pendingJobsList.add(data);
+                            }
+                        }
+                    }
+                    mergeAndDisplayRequests();
+                });
+    }
+
+    private void mergeAndDisplayRequests() {
+        requestsList.clear();
+        requestsList.addAll(activeJobsList);
+        requestsList.addAll(pendingJobsList);
+        requestsAdapter.notifyDataSetChanged();
+
+        if (!activeJobsList.isEmpty()) {
+            titleText.setText("Current Job Active");
+            titleText.setTextColor(Color.RED);
+        } else {
+            titleText.setText(String.format("Service Request (%d New)", pendingJobsList.size()));
+            titleText.setTextColor(Color.WHITE);
+        }
+    }
+
+    // ... (Rest of your methods: onAcceptClick, onItemClick, redirectToActiveJob, etc. remain exactly the same) ...
+
+    @Override
+    public void onAcceptClick(String requestId, Map<String, Object> requestData) {
+        if (currentUser == null) return;
+        if (!activeJobsList.isEmpty()) {
+            Toast.makeText(this, "Complete your current job first!", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        String spUserId = currentUser.getUid();
+        markRequestAsRead(requestId);
+
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("status", "accepted");
+        updates.put("providerId", spUserId);
+        updates.put("acceptedTimestamp", FieldValue.serverTimestamp());
+        updates.put("isRead", true);
+
+        db.collection("service_requests").document(requestId)
+                .update(updates)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, "Request accepted!", Toast.LENGTH_SHORT).show();
+                    redirectToActiveJob(requestData);
+                })
+                .addOnFailureListener(e -> Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+    }
+
+    @Override
+    public void onItemClick(Map<String, Object> requestData) {
+        String requestId = (String) requestData.get("requestId");
+        markRequestAsRead(requestId);
+        redirectToActiveJob(requestData);
+    }
+
+    private void redirectToActiveJob(Map<String, Object> requestData) {
+        if (requestData == null) return;
+
+        String requestId = (String) requestData.get("requestId");
+        Double pickupLat = (Double) requestData.get("pickupLat");
+        Double pickupLng = (Double) requestData.get("pickupLng");
+        String pickupAddress = (String) requestData.get("pickupAddress");
+        String requestType = (String) requestData.get("requestType");
+
+        if (pickupLat == null || pickupLng == null || requestId == null) {
+            Toast.makeText(this, "Error: Request data incomplete.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Intent intent = new Intent(this, ProviderMapActivity.class);
+        intent.putExtra("REQUEST_ID", requestId);
+        intent.putExtra("PICKUP_LAT", pickupLat);
+        intent.putExtra("PICKUP_LNG", pickupLng);
+        intent.putExtra("PICKUP_ADDRESS", pickupAddress);
+        intent.putExtra("REQUEST_TYPE", requestType);
+        intent.putExtra("CUSTOMER_ID", (String) requestData.get("customerId"));
+        startActivity(intent);
+    }
+
+    // ... (Include your setupRecyclerView, checkLocationPermission, updateLocation, markRequestAsRead, setupUnreadMessageListener, setupNotificationListener, setupUIComponents methods here exactly as they were) ...
+
+    // Helper to mark read (Needed for onItemClick)
+    private void markRequestAsRead(String requestId) {
+        if (requestId == null) return;
+        db.collection("service_requests").document(requestId)
+                .update("isRead", true)
+                .addOnFailureListener(e -> Log.e(TAG, "Failed to mark read", e));
+    }
 
     private void setupRecyclerView() {
         requestsAdapter = new PendingRequestsAdapter(requestsList, this, this);
@@ -169,56 +273,20 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         requestsRecyclerView.setAdapter(requestsAdapter);
     }
 
-    private void loadPendingRequests() {
-        Log.d(TAG, "Loading pending requests...");
-        if (requestsListener != null) requestsListener.remove();
-
-        requestsListener = db.collection("service_requests")
-                .whereEqualTo("status", "pending")
-                .orderBy("timestamp", Query.Direction.ASCENDING)
-                .addSnapshotListener((value, error) -> {
-                    if (error != null) {
-                        Log.e(TAG, "Listen failed for requests: ", error);
-                        Toast.makeText(this, "Failed to load requests.", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-
-                    requestsList.clear();
-                    if (value != null) {
-                        for (QueryDocumentSnapshot doc : value) {
-                            Map<String, Object> requestData = new HashMap<>(doc.getData());
-                            requestData.put("requestId", doc.getId());
-                            requestsList.add(requestData);
-                        }
-                    }
-
-                    requestsAdapter.notifyDataSetChanged();
-                    updateTitle(requestsList.size());
-
-                    if (requestsList.isEmpty()) {
-                        Log.d(TAG, "No pending requests found.");
-                    }
-                });
-    }
-
-
     private void checkLocationPermission() {
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
         }
     }
 
     private void updateLocation() {
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             return;
         }
-
         fusedLocationClient.getLastLocation().addOnSuccessListener(this, location -> {
             if (location != null) {
                 currentLatLng = new LatLng(location.getLatitude(), location.getLongitude());
                 requestsAdapter.updateProviderLocation(currentLatLng);
-            } else {
-                Toast.makeText(this, "Could not get current location for distance calculation.", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -228,136 +296,79 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             updateLocation();
-        } else {
-            Toast.makeText(this, "Location denied. Distances may be inaccurate.", Toast.LENGTH_LONG).show();
         }
     }
 
-
-    @Override
-    public void onAcceptClick(String requestId, Map<String, Object> requestData) {
+    private void setupUnreadMessageListener() {
         if (currentUser == null) return;
-        String spUserId = currentUser.getUid();
-
-        if (requestsListener != null) {
-            requestsListener.remove();
-        }
-
-        Map<String, Object> updates = new HashMap<>();
-        updates.put("status", "accepted");
-        updates.put("providerId", spUserId);
-        updates.put("acceptedTimestamp", FieldValue.serverTimestamp());
-
-        db.collection("service_requests").document(requestId)
-                .update(updates)
-                .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Request accepted! Loading map...", Toast.LENGTH_LONG).show();
-                    redirectToActiveJob(requestData);
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Failed to accept request: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    loadPendingRequests();
+        String currentUserId = currentUser.getUid();
+        unreadListener = db.collection("chats")
+                .whereArrayContains("participantIds", currentUserId)
+                .whereEqualTo("status", "active")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            if (count != null) totalUnread += count;
+                        }
+                    }
+                    if (unreadBadge != null) unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
                 });
     }
 
-    @Override
-    public void onItemClick(Map<String, Object> requestData) {
-        redirectToActiveJob(requestData);
+    private void setupNotificationListener() {
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
+        Query badgeQuery = db.collection("service_requests")
+                .whereEqualTo("providerId", currentUserId)
+                .whereEqualTo("isRead", false);
+
+        if (notificationListener != null) notificationListener.remove();
+        notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
+            if (e != null) return;
+            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+            if (unreadNotificationBadge != null) unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+        });
     }
 
-    private void redirectToActiveJob(Map<String, Object> requestData) {
-        String requestId = (String) requestData.get("requestId");
-        Double pickupLat = (Double) requestData.get("pickupLat");
-        Double pickupLng = (Double) requestData.get("pickupLng");
-        String pickupAddress = (String) requestData.get("pickupAddress");
-        String requestType = (String) requestData.get("requestType");
-
-        if (pickupLat == null || pickupLng == null || requestId == null) {
-            Toast.makeText(this, "Error: Request location data is incomplete.", Toast.LENGTH_SHORT).show();
-            return;
+    private void setupUIComponents() {
+        unreadBadge = findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
+        if (notificationButton != null) {
+            notificationButton.setOnClickListener(v -> startActivity(new Intent(ServiceProviderHomepage.this, NotificationsActivity.class)));
         }
-
-        Log.d(TAG, "Opening map for request ID: " + requestId);
-
-        Intent intent = new Intent(this, ProviderMapActivity.class);
-        intent.putExtra("REQUEST_ID", requestId);
-        intent.putExtra("PICKUP_LAT", pickupLat);
-        intent.putExtra("PICKUP_LNG", pickupLng);
-        intent.putExtra("PICKUP_ADDRESS", pickupAddress);
-        intent.putExtra("REQUEST_TYPE", requestType);
-
-        intent.putExtra("CUSTOMER_ID", (String) requestData.get("customerId"));
-
-        startActivity(intent);
-
-        if (requestsList.size() > 0) {
-            finish();
+        ImageView profileButton = findViewById(R.id.profile_icon_btn);
+        if (profileButton != null) {
+            profileButton.setOnClickListener(v -> startActivity(new Intent(ServiceProviderHomepage.this, ProfileActivity.class)));
         }
-    }
-
-    private void updateTitle(int count) {
-        if (titleText != null) {
-            titleText.setText(String.format("Service Request (%d New)", count));
+        ConstraintLayout homeLayout = findViewById(R.id.nav_home_layout);
+        ImageView homeIcon = findViewById(R.id.home_icon_btn);
+        TextView homeText = findViewById(R.id.home_text);
+        if (homeLayout != null) {
+            homeLayout.setClickable(false);
+            homeLayout.setFocusable(false);
+            homeLayout.setBackgroundResource(R.drawable.rounded_white_background);
+        }
+        if (homeIcon != null) homeIcon.setColorFilter(Color.BLACK);
+        if (homeText != null) {
+            homeText.setTextColor(Color.BLACK);
+            homeText.setTypeface(null, Typeface.BOLD);
+        }
+        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        if (messageButton != null) {
+            messageButton.setOnClickListener(v -> startActivity(new Intent(ServiceProviderHomepage.this, ChatInboxActivity.class)));
         }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (requestsListener != null) requestsListener.remove();
+        if (pendingListener != null) pendingListener.remove();
+        if (activeJobListener != null) activeJobListener.remove();
         if (unreadListener != null) unreadListener.remove();
         if (notificationListener != null) notificationListener.remove();
-    }
-
-    private void setupUIComponents() {
-        // --- Init Badge Views ---
-        unreadBadge = findViewById(R.id.unread_message_badge);
-        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
-
-        // Notifications
-        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        if (notificationButton != null) {
-            notificationButton.setOnClickListener(v -> {
-                Intent intent = new Intent(ServiceProviderHomepage.this, NotificationsActivity.class);
-                startActivity(intent);
-            });
-        }
-
-        // Profile
-        ImageView profileButton = findViewById(R.id.profile_icon_btn);
-        if (profileButton != null) {
-            profileButton.setOnClickListener(v -> {
-                Intent intent = new Intent(ServiceProviderHomepage.this, ProfileActivity.class);
-                startActivity(intent);
-            });
-        }
-
-        // --- Home Button (Active State) ---
-        ConstraintLayout homeLayout = findViewById(R.id.nav_home_layout);
-        ImageView homeIcon = findViewById(R.id.home_icon_btn);
-        TextView homeText = findViewById(R.id.home_text);
-
-        if (homeLayout != null) {
-            homeLayout.setClickable(false);
-            homeLayout.setFocusable(false);
-            homeLayout.setBackgroundResource(R.drawable.rounded_white_background);
-        }
-        if (homeIcon != null) {
-            homeIcon.setColorFilter(Color.BLACK);
-        }
-        if (homeText != null) {
-            homeText.setTextColor(Color.BLACK);
-            homeText.setTypeface(null, Typeface.BOLD);
-        }
-        // ----------------------------------
-
-        // Messages
-        ImageView messageButton = findViewById(R.id.message_icon_btn);
-        if (messageButton != null) {
-            messageButton.setOnClickListener(v -> {
-                Intent intent = new Intent(ServiceProviderHomepage.this, ChatInboxActivity.class);
-                startActivity(intent);
-            });
-        }
     }
 }

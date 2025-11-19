@@ -2,7 +2,6 @@ package fourthyear.roadrescue;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -74,7 +73,8 @@ public class PaymentActivity extends AppCompatActivity {
             if (selectedPaymentMethod.equals("Cash")) {
                 confirmPayment(selectedPaymentMethod, finalAmount);
             } else {
-                // Handle other payments
+                // Handle other payments (e.g., PayMongo) here if added later
+                Toast.makeText(this, "Only Cash is currently supported.", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -86,7 +86,7 @@ public class PaymentActivity extends AppCompatActivity {
         setupNotificationListener();
     }
 
-    // --- Badge Listener Logic ---
+    // --- Listener for Chat Badges ---
     private void setupUnreadMessageListener() {
         FirebaseUser user = mAuth.getCurrentUser();
         if (user == null) return;
@@ -114,6 +114,7 @@ public class PaymentActivity extends AppCompatActivity {
                 });
     }
 
+    // --- Listener for Notification Badges ---
     private void setupNotificationListener() {
         FirebaseUser user = mAuth.getCurrentUser();
         if (user == null) return;
@@ -163,7 +164,7 @@ public class PaymentActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-        // --- HOME BUTTON FIX ---
+        // --- HOME BUTTON FIX (Handles both User Types) ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         homeButton.setOnClickListener(v -> {
             FirebaseUser user = mAuth.getCurrentUser();
@@ -200,6 +201,7 @@ public class PaymentActivity extends AppCompatActivity {
                     })
                     .addOnFailureListener(e -> {
                         Log.e(TAG, "Failed to get userType", e);
+                        // Fallback to customer homepage
                         Intent intent = new Intent(PaymentActivity.this, homepage.class);
                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(intent);
