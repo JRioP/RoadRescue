@@ -79,7 +79,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
 
     private static final String TAG = "ProviderMapActivity";
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1002;
-
     private GoogleMap mGoogleMap;
     private FusedLocationProviderClient mFusedLocationClient;
     private LocationCallback mLocationCallback;
@@ -91,7 +90,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private ListenerRegistration mPendingRequestsListener;
     private ListenerRegistration mActiveJobListener;
 
-    // --- NEW: Badge Listeners ---
     private ListenerRegistration unreadListener;
     private ListenerRegistration notificationListener;
 
@@ -104,8 +102,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private TextView mActiveJobDistanceText;
     private Button mCompleteJobButton;
     private Button mNavigateButton;
-
-    // --- NEW: Badge UI ---
     private TextView unreadBadge;
     private TextView unreadNotificationBadge;
 
@@ -127,8 +123,8 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private Geocoder mGeocoder;
     private final ExecutorService mExecutor = Executors.newSingleThreadExecutor();
     private final Handler mHandler = new Handler(Looper.getMainLooper());
-
     private boolean isCameraFollowingProvider = false;
+    private List<String> providerServices = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -162,19 +158,19 @@ public class ProviderMapActivity extends AppCompatActivity implements
             mapFragment.getMapAsync(this);
         }
 
-        setupViews(); // Init main views
-        setupNavbar(); // Init badges and nav buttons
+        setupViews();
+        setupNavbar();
         setupRecyclerView();
         setupListeners();
         createLocationCallback();
         checkLocationPermission();
 
-        // --- NEW: Setup Badge Listeners ---
+        // Setup Badge Listeners
         setupUnreadMessageListener();
         setupNotificationListener();
     }
 
-    // --- NEW: Badge Logic ---
+
     private void setupUnreadMessageListener() {
         if (mCurrentUser == null) return;
         String currentUserId = mCurrentUser.getUid();
@@ -230,7 +226,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
             }
         });
     }
-
     private void setupViews() {
         mOnlineSwitch = findViewById(R.id.online_switch);
         mStatusTextView = findViewById(R.id.status_text_view);
@@ -242,10 +237,7 @@ public class ProviderMapActivity extends AppCompatActivity implements
         mCompleteJobButton = findViewById(R.id.complete_job_button);
         mNavigateButton = findViewById(R.id.navigate_button);
     }
-
-    // --- UPDATED: Unified Navbar Setup ---
     private void setupNavbar() {
-        // Init Badges
         unreadBadge = findViewById(R.id.unread_message_badge);
         unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
 
@@ -268,7 +260,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         if (homeButton != null) {
             homeButton.setOnClickListener(v -> {
-                // Since this is the Provider Map, Home goes to Provider Homepage
                 Intent intent = new Intent(ProviderMapActivity.this, ServiceProviderHomepage.class);
                 startActivity(intent);
             });
@@ -359,7 +350,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
     }
 
     private enum UIState {OFFLINE, SHOWING_PENDING_LIST, SHOWING_ACTIVE_JOB}
-
     private void showCorrectUI(UIState state) {
         mPendingRequestsRecyclerView.setVisibility(state == UIState.SHOWING_PENDING_LIST ? View.VISIBLE : View.GONE);
         mActiveJobCard.setVisibility(state == UIState.SHOWING_ACTIVE_JOB ? View.VISIBLE : View.GONE);
@@ -385,7 +375,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
 
         mPickupLatLng = new LatLng(pickupLat, pickupLng);
         LatLng destLatLng = new LatLng(destLat, destLng);
-
         mActiveJobPickupText.setText((String) mActiveJobData.get("pickupAddress"));
         mActiveJobDestText.setText((String) mActiveJobData.get("destinationAddress"));
 
@@ -657,26 +646,52 @@ public class ProviderMapActivity extends AppCompatActivity implements
                 });
     }
 
+    // --- UPDATED: Filter Requests by Provider Skills ---
     private void loadPendingRequests() {
         if (mPendingRequestsListener != null) mPendingRequestsListener.remove();
-        mPendingRequestsListener = db.collection("service_requests")
-                .whereEqualTo("status", "pending")
-                .orderBy("timestamp", Query.Direction.ASCENDING)
-                .addSnapshotListener((value, error) -> {
-                    if (error != null) return;
+
+        // 1. Get Provider's Skills First
+        mProviderDocRef.get().addOnSuccessListener(snapshot -> {
+            if (snapshot.exists()) {
+                List<String> myServices = (List<String>) snapshot.get("servicesProvided");
+
+                if (myServices == null || myServices.isEmpty()) {
+                    Log.w(TAG, "Provider has no services set. No requests will be shown.");
                     mPendingRequestsList.clear();
-                    if (value != null) {
-                        for (QueryDocumentSnapshot doc : value) {
-                            Map<String, Object> requestData = new HashMap<>(doc.getData());
-                            requestData.put("requestId", doc.getId());
-                            mPendingRequestsList.add(requestData);
-                        }
-                    }
                     mPendingRequestsAdapter.notifyDataSetChanged();
-                });
+                    Toast.makeText(this, "Please update your Profile with services you provide.", Toast.LENGTH_LONG).show();
+                    return;
+                }
+
+                // 2. Listen ONLY for requests matching skills
+                mPendingRequestsListener = db.collection("service_requests")
+                        .whereEqualTo("status", "pending")
+                        // Ideally use array-contains-any if filtering by multiple, but 'in' query is limited to 10 items.
+                        // For filtering by 'requestType', the 'whereIn' query is efficient.
+                        .whereIn("requestType", myServices)
+                        .orderBy("timestamp", Query.Direction.ASCENDING)
+                        .addSnapshotListener((value, error) -> {
+                            if (error != null) {
+                                Log.e(TAG, "Request listener failed", error);
+                                return;
+                            }
+                            mPendingRequestsList.clear();
+                            if (value != null) {
+                                for (QueryDocumentSnapshot doc : value) {
+                                    Map<String, Object> requestData = new HashMap<>(doc.getData());
+                                    requestData.put("requestId", doc.getId());
+                                    mPendingRequestsList.add(requestData);
+                                }
+                            }
+                            mPendingRequestsAdapter.notifyDataSetChanged();
+                        });
+
+            } else {
+                Log.e(TAG, "Provider profile missing.");
+            }
+        });
     }
-
-
+    // --------------------------------------------------
 
     private void checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -721,8 +736,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
         }
     }
 
-
-
     @Override
     protected void onResume() {
         super.onResume();
@@ -746,11 +759,8 @@ public class ProviderMapActivity extends AppCompatActivity implements
             mFusedLocationClient.removeLocationUpdates(mLocationCallback);
         if (mPendingRequestsListener != null) mPendingRequestsListener.remove();
         if (mActiveJobListener != null) mActiveJobListener.remove();
-
-        // --- NEW: Cleanup Listeners ---
         if (unreadListener != null) unreadListener.remove();
         if (notificationListener != null) notificationListener.remove();
-
         mExecutor.shutdown();
         if (mGeoApiContext != null) {
             mGeoApiContext.shutdown();
