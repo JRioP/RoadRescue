@@ -23,7 +23,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
@@ -123,7 +122,6 @@ public class MapActivity extends AppCompatActivity
     private View statusCard;
     private View searchingCard;
 
-    // --- ADDED: Provider Image View ---
     private ImageView providerImage;
 
     private TextView providerNameText;
@@ -144,17 +142,6 @@ public class MapActivity extends AppCompatActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_map);
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            android.view.Window window = getWindow();
-            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-            window.setStatusBarColor(android.graphics.Color.WHITE);
-
-            // This flag is required to make the icons (Time, Battery) dark so they show up on white
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                window.getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            }
-        }
 
         selectedRequestType = getIntent().getStringExtra("REQUEST_TYPE");
         if (selectedRequestType == null || selectedRequestType.isEmpty()) {
@@ -179,6 +166,7 @@ public class MapActivity extends AppCompatActivity
         setupPermissionLauncher();
         setupPaymentLauncher();
 
+        // --- Badge Listeners ---
         setupUnreadMessageListener();
         setupNotificationListener();
 
@@ -196,7 +184,6 @@ public class MapActivity extends AppCompatActivity
         statusCard = findViewById(R.id.status_card);
         searchingCard = findViewById(R.id.searching_card);
 
-        // --- Provider Image Border (Kept from previous step) ---
         providerImage = findViewById(R.id.provider_image);
         if (providerImage != null) {
             android.graphics.drawable.GradientDrawable border = new android.graphics.drawable.GradientDrawable();
@@ -216,10 +203,11 @@ public class MapActivity extends AppCompatActivity
         callButton = findViewById(R.id.call_button);
         cancelRequestButton = findViewById(R.id.cancel_request_btn);
 
+        // Initialize Badges
         unreadBadge = findViewById(R.id.unread_message_badge);
         unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
 
-        // --- FIX: Search Bar Text Fit ---
+        // Styling for search box
         android.graphics.drawable.GradientDrawable pillShape = new android.graphics.drawable.GradientDrawable();
         pillShape.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
         pillShape.setColor(Color.WHITE);
@@ -227,17 +215,8 @@ public class MapActivity extends AppCompatActivity
 
         destinationInput.setBackground(pillShape);
         destinationInput.setElevation(20f);
-
-        // 1. Adjust Padding:
-        // Left/Right = 50 (Clears the round corners)
-        // Top/Bottom = 25 (Reduced so text isn't squished)
         destinationInput.setPadding(50, 25, 50, 25);
-
-        // 2. Force Text Alignment:
-        // Centers text vertically and aligns it to the start (left)
         destinationInput.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
-
-        // 3. Prevent wrapping issues
         destinationInput.setSingleLine(true);
         destinationInput.setEllipsize(android.text.TextUtils.TruncateAt.END);
 
@@ -254,58 +233,9 @@ public class MapActivity extends AppCompatActivity
         }
     }
 
-    // ... (setupUnreadMessageListener, setupNotificationListener, setupClickListeners, etc. remain the same) ...
-    // ... (cancelServiceRequest, findOrCreateChatRoom, etc. remain the same) ...
-
-    // --- UPDATED: Load Image in this method ---
-    // --- UPDATED: Load Image in this method ---
-    private void listenForProviderLocation(String providerId) {
-        if (providerListener != null) providerListener.remove();
-        providerListener = db.collection("users").document(providerId)
-                .addSnapshotListener((snapshot, e) -> {
-                    if (e != null || snapshot == null || !snapshot.exists()) {
-                        Log.w(TAG, "Provider listener failed or provider doc missing.", e);
-                        return;
-                    }
-
-                    mProviderName = snapshot.getString("name");
-                    mProviderPhone = snapshot.getString("phone");
-                    String providerLocText = snapshot.getString("currentLocationAddress");
-                    String photoUrl = snapshot.getString("profileImageUrl");
-                    GeoPoint geoPoint = snapshot.getGeoPoint("liveLocation");
-
-                    handler.post(() -> {
-                        providerNameText.setText(mProviderName != null ? mProviderName : "Provider");
-                        providerSubtitleText.setText(providerLocText != null ? "En route from " + providerLocText : "Awaiting location...");
-
-                        // --- Load Image inside the White Border ---
-                        if (providerImage != null) {
-                            // Note: We do NOT set background to null here anymore.
-
-                            if (photoUrl != null && !photoUrl.isEmpty()) {
-                                Glide.with(MapActivity.this)
-                                        .load(photoUrl)
-                                        .centerCrop()
-                                        .circleCrop()
-                                        .placeholder(R.drawable.profile_icon)
-                                        .error(R.drawable.profile_icon)
-                                        .into(providerImage);
-                            } else {
-                                Glide.with(MapActivity.this)
-                                        .load(R.drawable.profile_icon)
-                                        .circleCrop()
-                                        .into(providerImage);
-                            }
-                        }
-
-                        if (geoPoint != null) {
-                            LatLng providerLocation = new LatLng(geoPoint.getLatitude(), geoPoint.getLongitude());
-                            updateProviderMarkerAndRoute(providerLocation);
-                        }
-                    });
-                });
-    }
-
+    // ==========================================================
+    //  BADGE LISTENERS
+    // ==========================================================
 
     private void setupUnreadMessageListener() {
         FirebaseUser user = mAuth.getCurrentUser();
@@ -327,15 +257,12 @@ public class MapActivity extends AppCompatActivity
                         }
                     }
 
-                    if (totalUnread > 0) {
-                        unreadBadge.setVisibility(View.VISIBLE);
-                    } else {
-                        unreadBadge.setVisibility(View.GONE);
+                    if (unreadBadge != null) {
+                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
                     }
                 });
     }
 
-    // --- Notification Badge Listener ---
     private void setupNotificationListener() {
         FirebaseUser user = mAuth.getCurrentUser();
         if (user == null) return;
@@ -346,11 +273,58 @@ public class MapActivity extends AppCompatActivity
                 .addSnapshotListener((snapshots, e) -> {
                     if (e != null) return;
 
-                    if (snapshots != null && !snapshots.isEmpty()) {
-                        unreadNotificationBadge.setVisibility(View.VISIBLE);
-                    } else {
-                        unreadNotificationBadge.setVisibility(View.GONE);
+                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+                    if (unreadNotificationBadge != null) {
+                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
                     }
+                });
+    }
+
+    // ==========================================================
+    //  CORE MAP LOGIC
+    // ==========================================================
+
+    private void listenForProviderLocation(String providerId) {
+        if (providerListener != null) providerListener.remove();
+        providerListener = db.collection("users").document(providerId)
+                .addSnapshotListener((snapshot, e) -> {
+                    if (e != null || snapshot == null || !snapshot.exists()) {
+                        Log.w(TAG, "Provider listener failed or provider doc missing.", e);
+                        return;
+                    }
+
+                    mProviderName = snapshot.getString("name");
+                    mProviderPhone = snapshot.getString("phone");
+                    String providerLocText = snapshot.getString("currentLocationAddress");
+                    String photoUrl = snapshot.getString("profileImageUrl");
+                    GeoPoint geoPoint = snapshot.getGeoPoint("liveLocation");
+
+                    handler.post(() -> {
+                        providerNameText.setText(mProviderName != null ? mProviderName : "Provider");
+                        providerSubtitleText.setText(providerLocText != null ? "En route from " + providerLocText : "Awaiting location...");
+
+                        if (providerImage != null) {
+                            if (photoUrl != null && !photoUrl.isEmpty()) {
+                                Glide.with(MapActivity.this)
+                                        .load(photoUrl)
+                                        .centerCrop()
+                                        .circleCrop()
+                                        .placeholder(R.drawable.profile_icon)
+                                        .error(R.drawable.profile_icon)
+                                        .into(providerImage);
+                            } else {
+                                Glide.with(MapActivity.this)
+                                        .load(R.drawable.profile_icon)
+                                        .circleCrop()
+                                        .into(providerImage);
+                            }
+                        }
+
+                        if (geoPoint != null) {
+                            LatLng providerLocation = new LatLng(geoPoint.getLatitude(), geoPoint.getLongitude());
+                            updateProviderMarkerAndRoute(providerLocation);
+                        }
+                    });
                 });
     }
 
@@ -392,12 +366,9 @@ public class MapActivity extends AppCompatActivity
         cancelRequestButton.setOnClickListener(v -> cancelServiceRequest());
 
         findViewById(R.id.notification_icon_btn).setOnClickListener(v -> startActivity(new Intent(MapActivity.this, NotificationsActivity.class)));
-
         findViewById(R.id.message_icon_btn).setOnClickListener(v -> startActivity(new Intent(MapActivity.this, ChatInboxActivity.class)));
-
         findViewById(R.id.back_btn).setOnClickListener(v -> finish());
 
-        // --- HOME BUTTON FIX ---
         findViewById(R.id.home_icon_btn).setOnClickListener(v -> {
             FirebaseUser user = mAuth.getCurrentUser();
             if (user == null) {
@@ -697,34 +668,63 @@ public class MapActivity extends AppCompatActivity
         });
     }
 
+    // --- UPDATED: Now fetches car details first ---
     @SuppressLint("DefaultLocale")
     private void sendServiceRequest(String paymentMethod) {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null || pickupLatLng == null || destinationLatLng == null) return;
 
-        Map<String, Object> requestData = new HashMap<>();
-        requestData.put("customerId", currentUser.getUid());
-        requestData.put("pickupLat", pickupLatLng.latitude);
-        requestData.put("pickupLng", pickupLatLng.longitude);
-        requestData.put("destinationLat", destinationLatLng.latitude);
-        requestData.put("destinationLng", destinationLatLng.longitude);
-        requestData.put("status", "pending");
-        requestData.put("timestamp", FieldValue.serverTimestamp());
-        requestData.put("pickupAddress", (pickupAddress != null) ? pickupAddress : String.format("Lat: %.4f, Lng: %.4f", pickupLatLng.latitude, pickupLatLng.longitude));
-        requestData.put("destinationAddress", (destinationAddress != null) ? destinationAddress : String.format("Lat: %.4f, Lng: %.4f", destinationLatLng.latitude, destinationLatLng.longitude));
-        requestData.put("requestType", selectedRequestType);
-        requestData.put("paymentMethod", paymentMethod);
-        requestData.put("amount", calculatedAmount);
+        String userId = currentUser.getUid();
 
-        showSearchingUI();
+        // 1. FETCH USER CAR DETAILS FIRST
+        db.collection("users").document(userId).get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    String carBrand = null;
+                    String carModel = null;
+                    String carType = null;
 
-        db.collection("service_requests").add(requestData)
-                .addOnSuccessListener(documentReference -> {
-                    currentRequestId = documentReference.getId();
-                    listenForRequestUpdates(currentRequestId);
-                    lockUiForTracking();
+                    if (documentSnapshot.exists()) {
+                        carBrand = documentSnapshot.getString("carBrand");
+                        carModel = documentSnapshot.getString("carModel");
+                        carType = documentSnapshot.getString("carType");
+                    }
+
+                    // 2. PREPARE REQUEST DATA
+                    Map<String, Object> requestData = new HashMap<>();
+                    requestData.put("customerId", userId);
+                    requestData.put("pickupLat", pickupLatLng.latitude);
+                    requestData.put("pickupLng", pickupLatLng.longitude);
+                    requestData.put("destinationLat", destinationLatLng.latitude);
+                    requestData.put("destinationLng", destinationLatLng.longitude);
+                    requestData.put("status", "pending");
+                    requestData.put("timestamp", FieldValue.serverTimestamp());
+                    requestData.put("pickupAddress", (pickupAddress != null) ? pickupAddress : String.format("Lat: %.4f, Lng: %.4f", pickupLatLng.latitude, pickupLatLng.longitude));
+                    requestData.put("destinationAddress", (destinationAddress != null) ? destinationAddress : String.format("Lat: %.4f, Lng: %.4f", destinationLatLng.latitude, destinationLatLng.longitude));
+                    requestData.put("requestType", selectedRequestType);
+                    requestData.put("paymentMethod", paymentMethod);
+                    requestData.put("amount", calculatedAmount);
+
+                    // 3. ADD CAR INFO TO REQUEST
+                    requestData.put("carBrand", carBrand);
+                    requestData.put("carModel", carModel);
+                    requestData.put("carType", carType);
+
+                    showSearchingUI();
+
+                    // 4. SEND REQUEST
+                    db.collection("service_requests").add(requestData)
+                            .addOnSuccessListener(documentReference -> {
+                                currentRequestId = documentReference.getId();
+                                listenForRequestUpdates(currentRequestId);
+                                lockUiForTracking();
+                            })
+                            .addOnFailureListener(e -> resetUiForNewRequest());
                 })
-                .addOnFailureListener(e -> resetUiForNewRequest());
+                .addOnFailureListener(e -> {
+                    // If fetching user fails, maybe log it or try anyway
+                    Log.e(TAG, "Failed to fetch user car info", e);
+                    Toast.makeText(this, "Network error. Please try again.", Toast.LENGTH_SHORT).show();
+                });
     }
 
     private double calculateServiceAmount() {
@@ -1043,7 +1043,7 @@ public class MapActivity extends AppCompatActivity
         if (requestListener != null) requestListener.remove();
         if (providerListener != null) providerListener.remove();
         if (unreadListener != null) unreadListener.remove();
-        if (notificationListener != null) notificationListener.remove(); // Clean up notification listener
+        if (notificationListener != null) notificationListener.remove();
         executor.execute(() -> {
             if (mGeoApiContext != null) {
                 mGeoApiContext.shutdown();

@@ -61,6 +61,7 @@
                 android:background="@android:color/transparent"
                 android:clickable="true"
                 android:focusable="false"
+                android:textSize="15sp"
                 android:hint="Tap on the map to set your destination."
                 android:imeOptions="actionDone"
                 android:inputType="textPostalAddress"

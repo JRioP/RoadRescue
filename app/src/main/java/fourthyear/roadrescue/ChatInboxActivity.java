@@ -40,8 +40,8 @@ public class ChatInboxActivity extends AppCompatActivity {
 
     // Listeners
     private ListenerRegistration chatsListener;
-    private ListenerRegistration unreadListener; // For Message Badge
-    private ListenerRegistration notificationListener; // For Notification Badge
+    private ListenerRegistration unreadListener;
+    private ListenerRegistration notificationListener;
 
     private String currentUserId;
 
@@ -67,9 +67,9 @@ public class ChatInboxActivity extends AppCompatActivity {
 
         setupViews();
         initializeRecyclerView();
-        setupFirestoreListener(); // Listener for the chat list
+        setupFirestoreListener();
 
-        // Setup Badge Listeners
+        // --- Setup Badge Listeners ---
         setupUnreadMessageListener();
         setupNotificationListener();
 
@@ -112,10 +112,8 @@ public class ChatInboxActivity extends AppCompatActivity {
                         }
                     }
 
-                    if (totalUnread > 0) {
-                        unreadBadge.setVisibility(View.VISIBLE);
-                    } else {
-                        unreadBadge.setVisibility(View.GONE);
+                    if (unreadBadge != null) {
+                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
                     }
                 });
     }
@@ -130,10 +128,9 @@ public class ChatInboxActivity extends AppCompatActivity {
                 .addSnapshotListener((snapshots, e) -> {
                     if (e != null) return;
 
-                    if (snapshots != null && !snapshots.isEmpty()) {
-                        unreadNotificationBadge.setVisibility(View.VISIBLE);
-                    } else {
-                        unreadNotificationBadge.setVisibility(View.GONE);
+                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+                    if (unreadNotificationBadge != null) {
+                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
                     }
                 });
     }
@@ -190,9 +187,6 @@ public class ChatInboxActivity extends AppCompatActivity {
                             chatList.add(chat);
                         }
                         chatInboxAdapter.notifyDataSetChanged();
-                        Log.d(TAG, "Inbox updated with " + chatList.size() + " conversations.");
-                    } else {
-                        Log.d(TAG, "Chat query returned null");
                     }
                 });
     }
@@ -224,11 +218,9 @@ public class ChatInboxActivity extends AppCompatActivity {
 
             db.collection("users").document(user.getUid()).get()
                     .addOnSuccessListener(documentSnapshot -> {
-                        String userType = "Customer"; // Default
+                        String userType = "Customer";
                         if (documentSnapshot.exists()) {
                             String type = documentSnapshot.getString("userType");
-
-                            // Robust check for "driver" or "Service Provider"
                             if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
                                 userType = "Service Provider";
                             }
@@ -246,7 +238,7 @@ public class ChatInboxActivity extends AppCompatActivity {
                         finish();
                     })
                     .addOnFailureListener(e -> {
-                        Log.e(TAG, "Failed to get userType, defaulting to customer homepage", e);
+                        Log.e(TAG, "Failed to get userType", e);
                         Intent intent = new Intent(ChatInboxActivity.this, homepage.class);
                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(intent);
@@ -260,36 +252,26 @@ public class ChatInboxActivity extends AppCompatActivity {
         TextView messageText = findViewById(R.id.message_text);
 
         if (messageLayout != null) {
-            // Disable click so it stays on the page
             messageLayout.setClickable(false);
             messageLayout.setFocusable(false);
-            // Add Rounded White Background
             messageLayout.setBackgroundResource(R.drawable.rounded_white_background);
         }
 
         if (messageIcon != null) {
-            messageIcon.setColorFilter(Color.BLACK); // Force black icon
-            messageIcon.setClickable(false);
-            messageIcon.setFocusable(false);
+            messageIcon.setColorFilter(Color.BLACK);
         }
 
         if (messageText != null) {
-            messageText.setTextColor(Color.BLACK); // Force black text
-            messageText.setTypeface(null, Typeface.BOLD); // Force bold text
+            messageText.setTextColor(Color.BLACK);
+            messageText.setTypeface(null, Typeface.BOLD);
         }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (chatsListener != null) {
-            chatsListener.remove();
-        }
-        if (unreadListener != null) {
-            unreadListener.remove();
-        }
-        if (notificationListener != null) {
-            notificationListener.remove();
-        }
+        if (chatsListener != null) chatsListener.remove();
+        if (unreadListener != null) unreadListener.remove();
+        if (notificationListener != null) notificationListener.remove();
     }
 }

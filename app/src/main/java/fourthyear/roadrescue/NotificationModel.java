@@ -21,6 +21,8 @@ public class NotificationModel {
     private String requestType;
     private String providerId;
     private String customerId;
+    private String requestId;
+
 
     public NotificationModel() {}
 
@@ -49,7 +51,8 @@ public class NotificationModel {
     public void setTimestamp(Timestamp timestamp) {
         this.timestamp = timestamp;
     }
-
+    public String getRequestId() { return requestId; }
+    public void setRequestId(String requestId) { this.requestId = requestId; }
 
     @Exclude
     public Long getTimestampSeconds() {
