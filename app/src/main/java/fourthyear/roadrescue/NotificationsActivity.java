@@ -107,6 +107,7 @@ public class NotificationsActivity extends AppCompatActivity {
                 });
     }
 
+    // --- UPDATED: Dynamic Notification Logic ---
     private void listenForNotifications() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) {
@@ -116,11 +117,35 @@ public class NotificationsActivity extends AppCompatActivity {
 
         String userId = currentUser.getUid();
 
-        Query requestsQuery = db.collection("service_requests")
-                .whereEqualTo("customerId", userId)
-                .orderBy("timestamp", Query.Direction.DESCENDING);
+        // 1. Check User Type to determine Query
+        db.collection("users").document(userId).get().addOnSuccessListener(userDoc -> {
+            if (userDoc.exists()) {
+                String type = userDoc.getString("userType");
+                boolean isProvider = type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"));
 
-        mainNotificationListener = requestsQuery.addSnapshotListener((snapshots, e) -> {
+                Query requestsQuery;
+
+                if (isProvider) {
+                    // If Provider: Look for requests where I am the providerId
+                    requestsQuery = db.collection("service_requests")
+                            .whereEqualTo("providerId", userId)
+                            .orderBy("timestamp", Query.Direction.DESCENDING);
+                } else {
+                    // If Customer: Look for requests where I am the customerId
+                    requestsQuery = db.collection("service_requests")
+                            .whereEqualTo("customerId", userId)
+                            .orderBy("timestamp", Query.Direction.DESCENDING);
+                }
+
+                startFirestoreListener(requestsQuery, isProvider);
+            }
+        });
+    }
+
+    private void startFirestoreListener(Query query, boolean isProvider) {
+        if (mainNotificationListener != null) mainNotificationListener.remove();
+
+        mainNotificationListener = query.addSnapshotListener((snapshots, e) -> {
             if (e != null) {
                 Log.w(TAG, "Listen failed.", e);
                 return;
@@ -129,36 +154,53 @@ public class NotificationsActivity extends AppCompatActivity {
             notificationsList.clear();
 
             if (snapshots == null) {
-                Log.w(TAG, "Snapshots value is null.");
                 notificationsAdapter.notifyDataSetChanged();
                 return;
             }
 
             for (QueryDocumentSnapshot doc : snapshots) {
                 NotificationModel notification = doc.toObject(NotificationModel.class);
-
                 String status = notification.getStatus();
-                if (status == null) {
-                    status = "unknown";
-                }
+                if (status == null) status = "unknown";
 
-                switch (status) {
-                    case "pending":
-                        notification.setTitle("Request Sent");
-                        notification.setMessage("We are searching for a nearby service provider.");
-                        break;
-                    case "accepted":
-                        notification.setTitle("Request Accepted!");
-                        notification.setMessage("A service provider is on their way to your location.");
-                        break;
-                    case "completed":
-                        notification.setTitle("Service Completed");
-                        notification.setMessage("Your vehicle service is complete. Please rate us!");
-                        break;
-                    default:
-                        notification.setTitle("Status Update");
-                        notification.setMessage("The status of your service request is: " + status);
-                        break;
+                if (isProvider) {
+                    switch (status) {
+                        case "pending":
+                            notification.setTitle("New Job Opportunity");
+                            notification.setMessage("A customer is waiting for help.");
+                            break;
+                        case "accepted":
+                            notification.setTitle("Job Active");
+                            notification.setMessage("You have accepted this request. Go to map to navigate.");
+                            break;
+                        case "completed":
+                            notification.setTitle("Job Completed");
+                            notification.setMessage("You have successfully finished this job.");
+                            break;
+                        default:
+                            notification.setTitle("Job Update");
+                            notification.setMessage("Status: " + status);
+                            break;
+                    }
+                } else {
+                    switch (status) {
+                        case "pending":
+                            notification.setTitle("Request Sent");
+                            notification.setMessage("We are searching for a nearby service provider.");
+                            break;
+                        case "accepted":
+                            notification.setTitle("Request Accepted!");
+                            notification.setMessage("A service provider is on their way to your location.");
+                            break;
+                        case "completed":
+                            notification.setTitle("Service Completed");
+                            notification.setMessage("Your vehicle service is complete. Please rate us!");
+                            break;
+                        default:
+                            notification.setTitle("Status Update");
+                            notification.setMessage("The status of your service request is: " + status);
+                            break;
+                    }
                 }
                 notificationsList.add(notification);
             }
@@ -239,7 +281,6 @@ public class NotificationsActivity extends AppCompatActivity {
                         if (documentSnapshot.exists()) {
                             String type = documentSnapshot.getString("userType");
 
-                            // Robust check for "driver" or "Service Provider"
                             if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
                                 userType = "Service Provider";
                             }

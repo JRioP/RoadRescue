@@ -5,30 +5,29 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/GhostWhite"
+    android:background="@color/blue"
+    android:fitsSystemWindows="true"
     tools:context=".ProfileActivity">
 
-    <View
-        android:id="@+id/statusBar2"
-        android:layout_width="0dp"
-        android:layout_height="30dp"
-        android:background="?attr/colorPrimaryDark"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/GhostWhite"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
 
-    <ImageView
-        android:id="@+id/back_button"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
-        android:contentDescription="@string/back_button"
-        android:padding="12dp"
-        android:src="@drawable/keyboard_arrow_down"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/statusBar2"
-        app:tint="@android:color/black" />
+        <ImageView
+            android:id="@+id/back_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="16dp"
+            android:contentDescription="@string/back_button"
+            android:padding="12dp"
+            android:src="@drawable/keyboard_arrow_down"
+            app:layout_constraintStart_toStartOf="parent"
+
+            app:layout_constraintTop_toTopOf="parent"
+            app:tint="@android:color/black" />
 
     <TextView
         android:id="@+id/profile_title"
@@ -43,18 +42,17 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="@+id/back_button" />
 
-    <ImageView
-        android:id="@+id/edit_button"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="16dp"
-        android:contentDescription="Edit"
-        android:padding="12dp"
-        android:src="@drawable/edit_icon"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/statusBar2"
-        app:tint="@android:color/black" />
+        <ImageView
+            android:id="@+id/edit_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="16dp"
+            android:contentDescription="Edit"
+            android:padding="12dp"
+            android:src="@drawable/edit_icon"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:tint="@android:color/black" />
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/profile_image_card"
@@ -71,9 +69,9 @@
             android:id="@+id/profile_image_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#222222"
-            android:src="@drawable/profile_icon"
-            app:tint="@android:color/white" />
+            android:scaleType="centerCrop"
+            android:src="@drawable/profile_icon" />
+
     </com.google.android.material.card.MaterialCardView>
 
     <TextView
@@ -729,5 +727,5 @@
                 app:layout_constraintTop_toBottomOf="@+id/profile_icon_btn" />
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
-
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

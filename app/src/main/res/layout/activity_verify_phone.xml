@@ -5,195 +5,195 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/white"
+    android:fitsSystemWindows="true"
+    android:background="@color/blue"
     tools:context=".VerifyPhone">
 
-    <View
-        android:id="@+id/statusBar10"
-        android:layout_width="0dp"
-        android:layout_height="30dp"
-        android:background="?attr/colorPrimaryDark"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <ImageView
-        android:id="@+id/back_button"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
-        android:contentDescription="Back"
-        android:padding="12dp"
-        android:src="@drawable/keyboard_arrow_down"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/statusBar10"
-        app:tint="@android:color/black"
-        tools:ignore="MissingConstraints" />
-
-    <TextView
-        android:id="@+id/textView3"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginTop="24dp"
-        android:layout_marginEnd="24dp"
-        android:fontFamily="@font/poppins"
-        android:text="Enter the 6-digit code sent via SMS at"
-        android:textColor="@android:color/black"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/back_button" />
-
-    <TextView
-        android:id="@+id/text_phone_number"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginEnd="24dp"
-        android:fontFamily="@font/poppins"
-        android:textColor="@android:color/black"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textView3"
-        tools:text="+63 917 123 4567" />
-
-    <EditText
-        android:id="@+id/digit_number_one"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginTop="32dp"
-        android:background="@drawable/otp_box_background"
-        android:gravity="center"
-        android:inputType="number"
-        android:maxLength="1"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toStartOf="@+id/digit_number_two"
-        app:layout_constraintHorizontal_chainStyle="spread"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/text_phone_number" />
-
-    <EditText
-        android:id="@+id/digit_number_two"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="@drawable/otp_box_background"
-        android:gravity="center"
-        android:inputType="number"
-        android:maxLength="1"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toStartOf="@+id/digit_number_three"
-        app:layout_constraintStart_toEndOf="@+id/digit_number_one"
-        app:layout_constraintTop_toTopOf="@+id/digit_number_one" />
-
-    <EditText
-        android:id="@+id/digit_number_three"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="@drawable/otp_box_background"
-        android:gravity="center"
-        android:inputType="number"
-        android:maxLength="1"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toStartOf="@+id/digit_number_four"
-        app:layout_constraintStart_toEndOf="@+id/digit_number_two"
-        app:layout_constraintTop_toTopOf="@+id/digit_number_one" />
-
-    <EditText
-        android:id="@+id/digit_number_four"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="@drawable/otp_box_background"
-        android:gravity="center"
-        android:inputType="number"
-        android:maxLength="1"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toStartOf="@+id/digit_number_five"
-        app:layout_constraintStart_toEndOf="@+id/digit_number_three"
-        app:layout_constraintTop_toTopOf="@+id/digit_number_one" />
-
-    <EditText
-        android:id="@+id/digit_number_five"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="@drawable/otp_box_background"
-        android:gravity="center"
-        android:inputType="number"
-        android:maxLength="1"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toStartOf="@+id/digit_number_six"
-        app:layout_constraintStart_toEndOf="@+id/digit_number_four"
-        app:layout_constraintTop_toTopOf="@+id/digit_number_one" />
-
-    <EditText
-        android:id="@+id/digit_number_six"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="@drawable/otp_box_background"
-        android:gravity="center"
-        android:inputType="number"
-        android:maxLength="1"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/digit_number_five"
-        app:layout_constraintTop_toTopOf="@+id/digit_number_one" />
-
-    <TextView
-        android:id="@+id/text_timer"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Resend code in 60s"
-        android:visibility="gone"
-        app:layout_constraintBottom_toTopOf="@+id/text_did_not_receive"
-        app:layout_constraintEnd_toEndOf="@+id/text_did_not_receive" />
-
-    <TextView
-        android:id="@+id/text_did_not_receive"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginBottom="16dp"
-        android:text="Didn't receive it?"
-        android:textColor="@android:color/darker_gray"
-        android:textSize="16sp"
-        app:layout_constraintBottom_toTopOf="@+id/button_get_new_code"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <TextView
-        android:id="@+id/button_get_new_code"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="24dp"
-        android:layout_marginBottom="24dp"
-        android:text="Get new code"
-        android:textColor="@color/blue"
-        android:textSize="16sp"
-        android:textStyle="bold"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/GhostWhite"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/button_next"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="24dp"
-        android:layout_marginBottom="24dp"
-        android:enabled="false"
-        android:text="Next"
-        android:textAllCaps="false"
-        app:backgroundTint="#F0F0F0"
-        app:cornerRadius="24dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        <ImageView
+            android:id="@+id/back_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="16dp"
+            android:contentDescription="Back"
+            android:padding="12dp"
+            android:src="@drawable/keyboard_arrow_down"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:tint="@android:color/black"
+            tools:ignore="MissingConstraints" />
 
+        <TextView
+            android:id="@+id/textView3"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginTop="24dp"
+            android:layout_marginEnd="24dp"
+            android:fontFamily="@font/poppins"
+            android:text="Enter the 6-digit code sent via SMS at"
+            android:textColor="@android:color/black"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/back_button" />
+
+        <TextView
+            android:id="@+id/text_phone_number"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginEnd="24dp"
+            android:fontFamily="@font/poppins"
+            android:textColor="@android:color/black"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/textView3"
+            tools:text="+63 917 123 4567" />
+
+        <EditText
+            android:id="@+id/digit_number_one"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginTop="32dp"
+            android:background="@drawable/otp_box_background"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="1"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toStartOf="@+id/digit_number_two"
+            app:layout_constraintHorizontal_chainStyle="spread"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/text_phone_number" />
+
+        <EditText
+            android:id="@+id/digit_number_two"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/otp_box_background"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="1"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toStartOf="@+id/digit_number_three"
+            app:layout_constraintStart_toEndOf="@+id/digit_number_one"
+            app:layout_constraintTop_toTopOf="@+id/digit_number_one" />
+
+        <EditText
+            android:id="@+id/digit_number_three"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/otp_box_background"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="1"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toStartOf="@+id/digit_number_four"
+            app:layout_constraintStart_toEndOf="@+id/digit_number_two"
+            app:layout_constraintTop_toTopOf="@+id/digit_number_one" />
+
+        <EditText
+            android:id="@+id/digit_number_four"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/otp_box_background"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="1"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toStartOf="@+id/digit_number_five"
+            app:layout_constraintStart_toEndOf="@+id/digit_number_three"
+            app:layout_constraintTop_toTopOf="@+id/digit_number_one" />
+
+        <EditText
+            android:id="@+id/digit_number_five"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/otp_box_background"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="1"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toStartOf="@+id/digit_number_six"
+            app:layout_constraintStart_toEndOf="@+id/digit_number_four"
+            app:layout_constraintTop_toTopOf="@+id/digit_number_one" />
+
+        <EditText
+            android:id="@+id/digit_number_six"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/otp_box_background"
+            android:gravity="center"
+            android:inputType="number"
+            android:maxLength="1"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/digit_number_five"
+            app:layout_constraintTop_toTopOf="@+id/digit_number_one" />
+
+        <TextView
+            android:id="@+id/text_timer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Resend code in 60s"
+            android:visibility="gone"
+            app:layout_constraintBottom_toTopOf="@+id/text_did_not_receive"
+            app:layout_constraintEnd_toEndOf="@+id/text_did_not_receive" />
+
+        <TextView
+            android:id="@+id/text_did_not_receive"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginBottom="16dp"
+            android:text="Didn't receive it?"
+            android:textColor="@android:color/darker_gray"
+            android:textSize="16sp"
+            app:layout_constraintBottom_toTopOf="@+id/button_get_new_code"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <TextView
+            android:id="@+id/button_get_new_code"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_marginBottom="24dp"
+            android:text="Get new code"
+            android:textColor="@color/blue"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/button_next"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="24dp"
+            android:layout_marginBottom="24dp"
+            android:enabled="false"
+            android:text="Next"
+            android:textAllCaps="false"
+            app:backgroundTint="#F0F0F0"
+            app:cornerRadius="24dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

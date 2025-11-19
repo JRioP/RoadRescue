@@ -5,17 +5,9 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/GhostWhite"
+    android:background="@color/blue"
+    android:fitsSystemWindows="true"
     tools:context=".MainActivity">
-
-    <View
-        android:id="@+id/statusBar9"
-        android:layout_width="0dp"
-        android:layout_height="30dp"
-        android:background="?attr/colorPrimaryDark"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
 
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabs"
@@ -48,8 +40,8 @@
         android:contentDescription="@string/viewpager_desc"
         app:layout_constraintBottom_toTopOf="@+id/tabs"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/statusBar9">
+        android:background="@color/GhostWhite"
+        app:layout_constraintStart_toStartOf="parent">
 
         <View
             android:id="@+id/statusBar7"
@@ -60,4 +52,5 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
     </androidx.viewpager.widget.ViewPager>
+
 </androidx.constraintlayout.widget.ConstraintLayout>
