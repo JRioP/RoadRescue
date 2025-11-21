@@ -230,10 +230,11 @@ public class NotificationsActivity extends AppCompatActivity {
     }
 
     private void setupClickListeners() {
-        ImageView backButton = findViewById(R.id.back_btn);
-        backButton.setOnClickListener(v -> finish());
+        ImageView backButton = findViewById(R.id.backButton);
+        if (backButton != null) {
+            backButton.setOnClickListener(v -> finish());
+        }
     }
-
     private void setupUnreadMessageListener() {
         FirebaseUser user = mAuth.getCurrentUser();
         if (user == null) return;
@@ -264,12 +265,10 @@ public class NotificationsActivity extends AppCompatActivity {
             notificationLayout.setFocusable(false);
             notificationLayout.setBackgroundResource(R.drawable.rounded_white_background);
         }
-
         ImageView notificationIcon = findViewById(R.id.notification_icon_btn);
         if (notificationIcon != null) {
             notificationIcon.setColorFilter(Color.BLACK);
         }
-
         TextView notificationText = findViewById(R.id.notification_text);
         if (notificationText != null) {
             notificationText.setTextColor(Color.BLACK);
@@ -281,7 +280,6 @@ public class NotificationsActivity extends AppCompatActivity {
             intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
-
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         homeButton.setOnClickListener(v -> {
             FirebaseUser user = mAuth.getCurrentUser();

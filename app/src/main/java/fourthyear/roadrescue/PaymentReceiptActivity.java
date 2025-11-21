@@ -11,7 +11,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
-import android.util.Log; // Added Log
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -40,7 +40,7 @@ import java.util.Objects;
 
 public class PaymentReceiptActivity extends AppCompatActivity {
 
-    private static final String TAG = "PaymentReceiptActivity"; // Added TAG
+    private static final String TAG = "PaymentReceiptActivity";
 
     private TextView referenceIdText;
     private TextView amountPaidText;
@@ -50,6 +50,7 @@ public class PaymentReceiptActivity extends AppCompatActivity {
     private TextView serviceTypeText;
     private TextView pickupAddressText;
     private TextView destinationAddressText;
+    private TextView destinationLabelText; // To hide the label "Destination Address"
     private ImageView closeButton;
     private Button downloadReceiptButton;
     private CardView receiptCardView;
@@ -87,6 +88,11 @@ public class PaymentReceiptActivity extends AppCompatActivity {
         serviceTypeText = findViewById(R.id.receipt_service_type);
         pickupAddressText = findViewById(R.id.receipt_pickup_address);
         destinationAddressText = findViewById(R.id.receipt_destination_address);
+
+        // Assuming you have a label TextView for "Destination Address:" in your XML
+        // If not, you might need to add an ID to it in your XML to hide it properly.
+        // For now, we will just hide the address text view.
+
         closeButton = findViewById(R.id.receipt_close_btn);
         downloadReceiptButton = findViewById(R.id.receipt_download_btn);
         receiptCardView = findViewById(R.id.receipt_card_content);
@@ -105,7 +111,26 @@ public class PaymentReceiptActivity extends AppCompatActivity {
         paymentMethodText.setText(method != null ? method : "N/A");
         serviceTypeText.setText(requestType != null ? requestType : "N/A");
         pickupAddressText.setText(pickupAddress != null ? pickupAddress : "N/A");
-        destinationAddressText.setText(destinationAddress != null ? destinationAddress : "N/A");
+
+        // --- LOGIC FIX: HIDE DESTINATION IF NOT TOWING ---
+        if (requestType != null && requestType.equalsIgnoreCase("Towing")) {
+            // Show Destination
+            destinationAddressText.setVisibility(View.VISIBLE);
+            destinationAddressText.setText(destinationAddress != null ? destinationAddress : "N/A");
+
+            // If you have a label TextView, set it visible here too
+            TextView destLabel = findViewById(R.id.label_destination_address); // Make sure this ID exists in XML
+            if (destLabel != null) destLabel.setVisibility(View.VISIBLE);
+
+        } else {
+            // Hide Destination for Battery, Flat Tire, Fuel, etc.
+            destinationAddressText.setVisibility(View.GONE);
+
+            // Hide the Label too
+            TextView destLabel = findViewById(R.id.label_destination_address);
+            if (destLabel != null) destLabel.setVisibility(View.GONE);
+        }
+        // -------------------------------------------------
 
         loadCustomerName();
 
@@ -116,6 +141,7 @@ public class PaymentReceiptActivity extends AppCompatActivity {
         setupNotificationListener();
     }
 
+    // ... [Rest of your methods remain unchanged] ...
 
     private void setupNavbar() {
         unreadBadge = findViewById(R.id.unread_message_badge);
@@ -141,7 +167,6 @@ public class PaymentReceiptActivity extends AppCompatActivity {
         if (profileButton != null) {
             profileButton.setOnClickListener(v -> {
                 Intent intent = new Intent(PaymentReceiptActivity.this, ProfileActivity.class);
-                // --- FIX ADDED HERE ---
                 intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                 startActivity(intent);
             });

@@ -13,6 +13,7 @@
         android:id="@+id/nestedScrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
+        android:fillViewport="true"
         app:layout_constraintBottom_toTopOf="@+id/bottomNav"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -77,13 +78,13 @@
                     android:id="@+id/textView7"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginStart="20dp"
+                    android:layout_marginTop="8dp"
                     android:fontFamily="@font/poppins"
                     android:paddingTop="5dp"
                     android:text="@string/location"
                     android:textColor="@color/white"
                     android:textSize="32sp"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginStart="20dp"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toBottomOf="@+id/current_location" />
@@ -390,6 +391,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="20dp"
                 android:layout_marginEnd="20dp"
+                android:background="@color/GhostWhite"
                 android:nestedScrollingEnabled="false"
                 android:paddingBottom="16dp"
                 app:layout_constraintBottom_toBottomOf="parent"
@@ -397,6 +399,22 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@+id/textView9"
                 app:layout_constraintVertical_bias="0.00999999" />
+
+            <TextView
+                android:id="@+id/emptyView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="40dp"
+                android:layout_marginBottom="60dp"
+                android:fontFamily="@font/poppins"
+                android:text="No recent service requests"
+                android:textColor="@color/black"
+                android:textSize="16sp"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="@+id/recentRecyclerView"
+                app:layout_constraintStart_toStartOf="@+id/recentRecyclerView"
+                app:layout_constraintTop_toTopOf="@+id/recentRecyclerView" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -417,11 +435,11 @@
             android:layout_height="match_parent"
             android:clickable="true"
             android:focusable="true"
-            app:layout_constraintHorizontal_chainStyle="spread"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/nav_home_layout"
+            app:layout_constraintHorizontal_chainStyle="spread"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toStartOf="@+id/nav_home_layout">
+            app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
                 android:id="@+id/notification_icon_btn"
@@ -439,31 +457,31 @@
                 android:id="@+id/unread_notification_badge"
                 android:layout_width="14dp"
                 android:layout_height="14dp"
+                android:layout_marginTop="-4dp"
+                android:layout_marginStart="-10dp"
                 android:background="@drawable/badge_background"
                 android:gravity="center"
+                android:textStyle="bold"
                 android:textColor="@android:color/white"
                 android:textSize="8sp"
-                android:textStyle="bold"
                 android:visibility="gone"
+                app:layout_constraintBottom_toTopOf="@id/notification_icon_btn"
                 app:layout_constraintStart_toEndOf="@id/notification_icon_btn"
                 app:layout_constraintTop_toTopOf="@id/notification_icon_btn"
-                app:layout_constraintBottom_toTopOf="@id/notification_icon_btn"
-                android:layout_marginStart="-10dp"
-                android:layout_marginTop="-4dp"
                 tools:visibility="visible" />
 
             <TextView
                 android:id="@+id/notification_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
                 android:text="Notification"
                 android:textColor="@color/white"
                 android:textSize="10sp"
-                android:layout_marginBottom="8dp"
-                app:layout_constraintTop_toBottomOf="@+id/notification_icon_btn"
                 app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"/>
+                app:layout_constraintTop_toBottomOf="@+id/notification_icon_btn" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <androidx.constraintlayout.widget.ConstraintLayout
@@ -473,9 +491,9 @@
             android:clickable="true"
             android:focusable="true"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/nav_message_layout"
             app:layout_constraintStart_toEndOf="@+id/nav_notification_layout"
-            app:layout_constraintEnd_toStartOf="@+id/nav_message_layout">
+            app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
                 android:id="@+id/home_icon_btn"
@@ -488,18 +506,19 @@
                 app:layout_constraintTop_toTopOf="parent"
                 app:layout_constraintVertical_chainStyle="packed"
                 app:srcCompat="@drawable/home_icon" />
+
             <TextView
                 android:id="@+id/home_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
                 android:text="Home"
                 android:textColor="@color/white"
                 android:textSize="10sp"
-                android:layout_marginBottom="8dp"
-                app:layout_constraintTop_toBottomOf="@+id/home_icon_btn"
                 app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"/>
+                app:layout_constraintTop_toBottomOf="@+id/home_icon_btn" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <androidx.constraintlayout.widget.ConstraintLayout
@@ -509,9 +528,9 @@
             android:clickable="true"
             android:focusable="true"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/nav_profile_layout"
             app:layout_constraintStart_toEndOf="@+id/nav_home_layout"
-            app:layout_constraintEnd_toStartOf="@+id/nav_profile_layout">
+            app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
                 android:id="@+id/message_icon_btn"
@@ -529,31 +548,31 @@
                 android:id="@+id/unread_message_badge"
                 android:layout_width="14dp"
                 android:layout_height="14dp"
+                android:layout_marginTop="-4dp"
+                android:layout_marginStart="-10dp"
                 android:background="@drawable/badge_background"
                 android:gravity="center"
+                android:textStyle="bold"
                 android:textColor="@android:color/white"
                 android:textSize="8sp"
-                android:textStyle="bold"
                 android:visibility="gone"
+                app:layout_constraintBottom_toTopOf="@id/message_icon_btn"
                 app:layout_constraintStart_toEndOf="@id/message_icon_btn"
                 app:layout_constraintTop_toTopOf="@id/message_icon_btn"
-                app:layout_constraintBottom_toTopOf="@id/message_icon_btn"
-                android:layout_marginStart="-10dp"
-                android:layout_marginTop="-4dp"
                 tools:visibility="visible" />
 
             <TextView
                 android:id="@+id/message_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
                 android:text="Message"
                 android:textColor="@color/white"
                 android:textSize="10sp"
-                android:layout_marginBottom="8dp"
-                app:layout_constraintTop_toBottomOf="@+id/message_icon_btn"
                 app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"/>
+                app:layout_constraintTop_toBottomOf="@+id/message_icon_btn" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
         <androidx.constraintlayout.widget.ConstraintLayout
@@ -563,9 +582,9 @@
             android:clickable="true"
             android:focusable="true"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toEndOf="@+id/nav_message_layout"
-            app:layout_constraintEnd_toEndOf="parent">
+            app:layout_constraintTop_toTopOf="parent">
 
             <ImageView
                 android:id="@+id/profile_icon_btn"
@@ -578,18 +597,19 @@
                 app:layout_constraintTop_toTopOf="parent"
                 app:layout_constraintVertical_chainStyle="packed"
                 app:srcCompat="@drawable/group_3" />
+
             <TextView
                 android:id="@+id/profile_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
                 android:text="Profile"
                 android:textColor="@color/white"
                 android:textSize="10sp"
-                android:layout_marginBottom="8dp"
-                app:layout_constraintTop_toBottomOf="@+id/profile_icon_btn"
                 app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"/>
+                app:layout_constraintTop_toBottomOf="@+id/profile_icon_btn" />
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 

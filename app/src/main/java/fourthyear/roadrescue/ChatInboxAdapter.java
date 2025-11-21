@@ -1,19 +1,16 @@
 package fourthyear.roadrescue;
 
 import android.content.Context;
-import android.text.format.DateUtils; // Import this
+import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-// Import CircleImageView
 import de.hdodenhof.circleimageview.CircleImageView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-import com.google.firebase.Timestamp; // Import this
+import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
-// Import Glide or another image loading library
-// import com.bumptech.glide.Glide;
 
 import java.util.List;
 import java.util.Map;
@@ -46,7 +43,6 @@ public class ChatInboxAdapter extends RecyclerView.Adapter<ChatInboxAdapter.Chat
     @Override
     public void onBindViewHolder(@NonNull ChatViewHolder holder, int position) {
         ChatInboxItem chat = chatList.get(position);
-        // Pass context to the bind method
         holder.bind(chat, currentUserId, clickListener, context);
     }
 
@@ -71,64 +67,49 @@ public class ChatInboxAdapter extends RecyclerView.Adapter<ChatInboxAdapter.Chat
             refText = itemView.findViewById(R.id.request_ref_text);
         }
 
-        // Receive context in the bind method
         void bind(final ChatInboxItem chat, String currentUserId, final OnChatItemClickListener listener, Context context) {
 
-            // Set User Name
-            String otherUserName = "Chat";
+            String otherUserName = "RoadRescue User";
             if (chat.getParticipantNames() != null) {
                 for (Map.Entry<String, String> entry : chat.getParticipantNames().entrySet()) {
                     if (!entry.getKey().equals(currentUserId)) {
-                        otherUserName = entry.getValue();
+                        String name = entry.getValue();
+                        if (name != null && !name.trim().isEmpty()) {
+                            otherUserName = name;
+                        }
                         break;
                     }
                 }
             }
             userNameText.setText(otherUserName);
 
-            // Set Last Message
             lastMessageText.setText(chat.getLastMessage());
-
-            // Set Last Message Time
             if (chat.getLastMessageTimestamp() != null) {
-                // Pass context to the formatter
                 lastMessageTimeText.setText(formatTimestamp(context, chat.getLastMessageTimestamp()));
             } else {
                 lastMessageTimeText.setText("");
             }
 
-            // Set Ref text
             if(refText != null && chat.getChatId() != null) {
-                refText.setText("Ref: " + chat.getChatId());
+                refText.setVisibility(View.VISIBLE);
+                String displayId = chat.getChatId();
+                if (displayId.length() > 10) {
+                    displayId = displayId.substring(0, 8) + "...";
+                }
+                refText.setText("Ref: " + displayId);
             }
 
-            // (Optional) Load Profile Image
-            // String imageUrl = null;
-            // ... (your logic to get image url)
-            // Glide.with(context)
-            //     .load(imageUrl)
-            //     .placeholder(R.drawable.ic_default_profile)
-            //     .into(profileImage);
-
-
+            // Click Listener
             itemView.setOnClickListener(v -> listener.onChatItemClick(chat));
         }
 
-        /**
-         * Formats a Timestamp into a relative string like "10:30 PM" or "Tue"
-         * FIX: This method is no longer static and requires a Context.
-         */
         private String formatTimestamp(Context context, Timestamp timestamp) {
             if (timestamp == null) return "";
             long timeInMillis = timestamp.toDate().getTime();
 
             if (DateUtils.isToday(timeInMillis)) {
-                // FIX: Pass context
                 return DateUtils.formatDateTime(context, timeInMillis, DateUtils.FORMAT_SHOW_TIME);
-            } else if (DateUtils.isToday(timeInMillis + DateUtils.DAY_IN_MILLIS)) {
-                return "Yesterday";
             } else {
-                // FIX: Pass context
                 return DateUtils.formatDateTime(context, timeInMillis, DateUtils.FORMAT_SHOW_DATE | DateUtils.FORMAT_ABBREV_MONTH);
             }
         }

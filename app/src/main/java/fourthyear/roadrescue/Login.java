@@ -49,8 +49,6 @@ public class Login extends Fragment {
     private static final String PREFS_NAME = "LoginPrefs";
     private static final String KEY_REMEMBER_ME = "rememberMe";
     private static final String KEY_EMAIL = "email";
-
-    // --- SECURITY: Anti-Brute Force Constants ---
     private static final String SECURITY_PREFS = "SecurityPrefs";
     private static final String KEY_FAILED_ATTEMPTS = "failedAttempts";
     private static final String KEY_LOCKOUT_TIME = "lockoutTimestamp";
@@ -69,11 +67,10 @@ public class Login extends Fragment {
         }
     }
 
-    @Override
     public void onStart() {
         super.onStart();
         FirebaseUser currentUser = mAuth.getCurrentUser();
-        if (currentUser != null && currentUser.isEmailVerified()) {
+        if (currentUser != null) {
             showLoading(true);
             checkUserTypeAndRedirect(currentUser);
         }
@@ -126,11 +123,10 @@ public class Login extends Fragment {
             if (passwordEditText != null) passwordEditText.setEnabled(true);
         }
     }
-
-    // --- SECURITY: Enhanced Authentication Logic ---
+    // Find this method in your code
     private void authenticateUser() {
         if (isLockedOut()) {
-            return; // Stop execution if user is locked out
+            return;
         }
 
         String email = emailEditText.getText().toString().trim();
@@ -139,42 +135,27 @@ public class Login extends Fragment {
         if (!validateInputs(email, password)) return;
 
         showLoading(true);
-
-        // Calculate dynamic delay: 2s, 4s, 8s... based on failed attempts
         int failedAttempts = getFailedAttempts();
         long dynamicDelay = INITIAL_WAIT_TIME * (long) Math.pow(2, failedAttempts);
-
-        // Cap the visual delay at 4 seconds so honest users don't wait too long on UI
-        // deeper backoff happens via the 'isLockedOut' check
         long uiDelay = Math.min(dynamicDelay, 4000);
 
         handler.postDelayed(() -> {
             mAuth.signInWithEmailAndPassword(email, password)
                     .addOnCompleteListener(getActivity(), task -> {
                         if (task.isSuccessful()) {
-                            // Reset Security Counters on Success
                             resetSecurityCounters();
-
                             handleRememberMe(email);
                             FirebaseUser user = mAuth.getCurrentUser();
                             if (user != null) {
-                                if (user.isEmailVerified()) {
-                                    updateUserSession(user);
-                                } else {
-                                    showLoading(false);
-                                    redirectToHomepage(user, true);
-                                }
+                                updateUserSession(user);
                             }
                         } else {
                             showLoading(false);
-                            // Increment security counters on failure
                             handleLoginFailure(task.getException());
                         }
                     });
         }, uiDelay);
     }
-
-    // --- SECURITY: Helper Methods ---
 
     private boolean isLockedOut() {
         if (getActivity() == null) return false;
@@ -185,12 +166,10 @@ public class Login extends Fragment {
 
         if (lockoutTimestamp > 0) {
             if (currentTime < lockoutTimestamp) {
-                // User is currently locked out
                 long remainingSeconds = (lockoutTimestamp - currentTime) / 1000;
                 Toast.makeText(getActivity(), "Too many failed attempts. Try again in " + remainingSeconds + "s", Toast.LENGTH_LONG).show();
                 return true;
             } else {
-                // Lockout expired, reset
                 resetSecurityCounters();
                 return false;
             }
@@ -238,8 +217,6 @@ public class Login extends Fragment {
         securePrefs.edit().clear().apply();
     }
 
-    // --------------------------------
-
     private void handleRememberMe(String email) {
         if (sharedPreferences == null) return;
 
@@ -282,31 +259,37 @@ public class Login extends Fragment {
                             redirectToHomepage(user, true);
                             return;
                         }
-                        Intent intent;
+
+                        Intent intent = null;
+
                         switch (userType.toLowerCase()) {
                             case "service provider":
                             case "driver":
                                 intent = new Intent(getActivity(), ServiceProviderHomepage.class);
                                 break;
+
                             case "customer":
                             case "user":
                             default:
-                                intent = new Intent(getActivity(), homepage.class);
-                                break;
+                                redirectToHomepage(user, false);
+                                return;
                         }
-                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                        startActivity(intent);
-                        if (getActivity() != null) {
-                            getActivity().overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
-                            getActivity().finish();
+
+                        if (intent != null) {
+                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                            startActivity(intent);
+                            if (getActivity() != null) {
+                                getActivity().overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
+                                getActivity().finish();
+                            }
                         }
                     } else {
-                        redirectToHomepage(user, true);
+                        redirectToHomepage(user, false);
                     }
                 })
                 .addOnFailureListener(e -> {
                     showLoading(false);
-                    redirectToHomepage(user, true);
+                    redirectToHomepage(user, false);
                 });
     }
 

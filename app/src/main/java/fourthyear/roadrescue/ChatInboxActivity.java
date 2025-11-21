@@ -22,8 +22,10 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.SetOptions;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,14 +40,12 @@ public class ChatInboxActivity extends AppCompatActivity {
     private FirebaseFirestore db;
     private FirebaseAuth auth;
 
-    // Listeners
     private ListenerRegistration chatsListener;
     private ListenerRegistration unreadListener;
     private ListenerRegistration notificationListener;
 
     private String currentUserId;
 
-    // Badges
     private TextView unreadBadge;
     private TextView unreadNotificationBadge;
 
@@ -68,86 +68,20 @@ public class ChatInboxActivity extends AppCompatActivity {
         setupViews();
         initializeRecyclerView();
         setupFirestoreListener();
-
-        // --- Setup Badge Listeners ---
         setupUnreadMessageListener();
-        setupNotificationListener(); // This now calls the fixed method below
-
+        setupNotificationListener();
         setupNavbar();
     }
 
     private void setupViews() {
         ImageView backButton = findViewById(R.id.backButton);
-        if (backButton != null) {
-            backButton.setOnClickListener(v -> finish());
-        }
+        if (backButton != null) backButton.setOnClickListener(v -> finish());
 
         TextView titleText = findViewById(R.id.title);
-        if (titleText != null) {
-            titleText.setText("Messages");
-        }
+        if (titleText != null) titleText.setText("Messages");
 
-        // Initialize Badge TextViews
         unreadBadge = findViewById(R.id.unread_message_badge);
         unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
-    }
-
-    // --- Listener for Unread Chat Messages Badge ---
-    private void setupUnreadMessageListener() {
-        if (currentUserId == null) return;
-
-        unreadListener = db.collection("chats")
-                .whereArrayContains("participantIds", currentUserId)
-                .whereEqualTo("status", "active")
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
-
-                    int totalUnread = 0;
-                    if (snapshots != null) {
-                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                            Long count = doc.getLong("unreadCounts." + currentUserId);
-                            if (count != null) {
-                                totalUnread += count;
-                            }
-                        }
-                    }
-
-                    if (unreadBadge != null) {
-                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
-                    }
-                });
-    }
-
-    // ---------------------------------------------------------
-    // FIXED: Notification Badge Logic (Now uses 'notifications' collection)
-    // ---------------------------------------------------------
-    private void setupNotificationListener() {
-        if (currentUserId == null) return;
-
-        // Logic from the fix:
-        Query badgeQuery = db.collection("notifications")
-                .whereEqualTo("userId", currentUserId)
-                .whereEqualTo("read", false);
-
-        if (notificationListener != null) {
-            notificationListener.remove();
-        }
-
-        notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
-            if (e != null) {
-                Log.e(TAG, "Notification listener error", e);
-                return;
-            }
-            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-
-            if (unreadNotificationBadge != null) {
-                if (hasUnread) {
-                    unreadNotificationBadge.setVisibility(View.VISIBLE);
-                } else {
-                    unreadNotificationBadge.setVisibility(View.GONE);
-                }
-            }
-        });
     }
 
     private void initializeRecyclerView() {
@@ -155,12 +89,7 @@ public class ChatInboxActivity extends AppCompatActivity {
         chatsRecyclerView = findViewById(R.id.usersRecyclerView);
 
         chatInboxAdapter = new ChatInboxAdapter(this, chatList, chat -> {
-
-            if (chat.getChatId() == null) {
-                Log.e(TAG, "Chat ID is null on click, cannot open chat.");
-                Toast.makeText(this, "Error opening chat.", Toast.LENGTH_SHORT).show();
-                return;
-            }
+            if (chat.getChatId() == null) return;
 
             Intent intent = new Intent(this, ChatConversationActivity.class);
             intent.putExtra("chatId", chat.getChatId());
@@ -174,7 +103,19 @@ public class ChatInboxActivity extends AppCompatActivity {
                     }
                 }
             }
+
+            String otherUserId = null;
+            if (chat.getParticipantIds() != null) {
+                for (String id : chat.getParticipantIds()) {
+                    if (!id.equals(currentUserId)) {
+                        otherUserId = id;
+                        break;
+                    }
+                }
+            }
+
             intent.putExtra("receiverName", otherUserName);
+            intent.putExtra("receiverId", otherUserId);
             startActivity(intent);
         });
 
@@ -199,6 +140,10 @@ public class ChatInboxActivity extends AppCompatActivity {
                         for (QueryDocumentSnapshot doc : value) {
                             ChatInboxItem chat = doc.toObject(ChatInboxItem.class);
                             chat.setChatId(doc.getId());
+
+                            // Verify and Fix Names
+                            fixMissingNames(chat, doc);
+
                             chatList.add(chat);
                         }
                         chatInboxAdapter.notifyDataSetChanged();
@@ -206,76 +151,135 @@ public class ChatInboxActivity extends AppCompatActivity {
                 });
     }
 
+    private void fixMissingNames(ChatInboxItem chat, DocumentSnapshot doc) {
+        List<String> ids = (List<String>) doc.get("participantIds");
+        Map<String, String> currentNames = chat.getParticipantNames();
+
+        if (ids != null) {
+            for (String id : ids) {
+                if (!id.equals(currentUserId)) {
+                    String savedName = (currentNames != null) ? currentNames.get(id) : null;
+                    if (savedName == null ||
+                            savedName.trim().isEmpty() ||
+                            savedName.equals("RoadRescue User") ||
+                            savedName.equals("Chat")) {
+                        fetchUserName(id, chat);
+                    }
+                }
+            }
+        }
+    }
+
+    private void fetchUserName(String userId, ChatInboxItem chatItem) {
+        db.collection("users").document(userId).get().addOnSuccessListener(userDoc -> {
+            if (userDoc.exists()) {
+                // Prioritize "fullName" as per your request
+                String name = userDoc.getString("fullName");
+
+                // Fallback to "name" if fullName is empty
+                if (name == null || name.isEmpty()) {
+                    name = userDoc.getString("name");
+                }
+
+                // Fallback to "RoadRescue User" only if absolutely nothing exists
+                if (name == null || name.isEmpty()) {
+                    name = "RoadRescue User";
+                }
+
+                // Only update if the fetched name is different from what we currently display
+                Map<String, String> namesMap = chatItem.getParticipantNames();
+                if (namesMap == null) namesMap = new HashMap<>();
+
+                String currentStoredName = namesMap.get(userId);
+
+                // Update if the name changed (e.g., from "RoadRescue User" to "Joshua Alnie Rio")
+                if (!name.equals(currentStoredName)) {
+
+                    namesMap.put(userId, name);
+
+                    // Ensure 'You' is present for the current user
+                    if (!namesMap.containsKey(currentUserId)) {
+                        namesMap.put(currentUserId, "You");
+                    }
+
+                    chatItem.setParticipantNames(namesMap);
+
+                    // 1. Update UI Immediately
+                    int index = chatList.indexOf(chatItem);
+                    if (index != -1) {
+                        chatInboxAdapter.notifyItemChanged(index);
+                    } else {
+                        chatInboxAdapter.notifyDataSetChanged();
+                    }
+
+                    // 2. Save the fixed name to Firestore so we don't have to fetch it next time
+                    Map<String, Object> updateData = new HashMap<>();
+                    updateData.put("participantNames", namesMap);
+
+                    db.collection("chats").document(chatItem.getChatId())
+                            .set(updateData, SetOptions.merge());
+                }
+            }
+        });
+    }
+
+    // ... [Keep your existing setupNavbar, setupUnreadMessageListener, onDestroy methods] ...
+    private void setupUnreadMessageListener() {
+        if (currentUserId == null) return;
+        unreadListener = db.collection("chats").whereArrayContains("participantIds", currentUserId).whereEqualTo("status", "active").addSnapshotListener((snapshots, e) -> {
+            if (e != null) return;
+            int totalUnread = 0;
+            if (snapshots != null) {
+                for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                    Long count = doc.getLong("unreadCounts." + currentUserId);
+                    if (count != null) totalUnread += count;
+                }
+            }
+            if (unreadBadge != null) unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+        });
+    }
+
+    private void setupNotificationListener() {
+        if (currentUserId == null) return;
+        Query badgeQuery = db.collection("notifications").whereEqualTo("userId", currentUserId).whereEqualTo("read", false);
+        if (notificationListener != null) notificationListener.remove();
+        notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
+            if (e != null) return;
+            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+            if (unreadNotificationBadge != null) unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+        });
+    }
+
     private void setupNavbar() {
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        notificationButton.setOnClickListener(v -> {
-            Intent intent = new Intent(ChatInboxActivity.this, NotificationsActivity.class);
+        if(notificationButton != null) notificationButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, NotificationsActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
-
+        // ... (Rest of your navbar code) ...
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
-        profileButton.setOnClickListener(v -> {
-            Intent intent = new Intent(ChatInboxActivity.this, ProfileActivity.class);
+        if(profileButton != null) profileButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, ProfileActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
-
         ImageView homeButton = findViewById(R.id.home_icon_btn);
-        homeButton.setOnClickListener(v -> {
-            FirebaseUser user = auth.getCurrentUser();
-            if (user == null) {
-                Intent intent = new Intent(ChatInboxActivity.this, MainActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        if(homeButton != null) homeButton.setOnClickListener(v -> {
+            if (auth.getCurrentUser() == null) { startActivity(new Intent(this, MainActivity.class)); return; }
+            db.collection("users").document(auth.getCurrentUser().getUid()).get().addOnSuccessListener(doc -> {
+                String type = doc.getString("userType");
+                Intent intent = new Intent(this, (type != null && (type.equalsIgnoreCase("Service Provider") || type.equalsIgnoreCase("driver"))) ? ServiceProviderHomepage.class : homepage.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
                 finish();
-                return;
-            }
-
-            db.collection("users").document(user.getUid()).get()
-                    .addOnSuccessListener(documentSnapshot -> {
-                        String userType = "Customer";
-                        if (documentSnapshot.exists()) {
-                            String type = documentSnapshot.getString("userType");
-                            if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
-                                userType = "Service Provider";
-                            }
-                        }
-
-                        if (userType.equals("Service Provider")) {
-                            Intent intent = new Intent(ChatInboxActivity.this, ServiceProviderHomepage.class);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
-                        } else {
-                            Intent intent = new Intent(ChatInboxActivity.this, homepage.class);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
-                        }
-                        finish();
-                    })
-                    .addOnFailureListener(e -> {
-                        Log.e(TAG, "Failed to get userType", e);
-                        Intent intent = new Intent(ChatInboxActivity.this, homepage.class);
-                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                        finish();
-                    });
+            });
         });
         ConstraintLayout messageLayout = findViewById(R.id.nav_message_layout);
+        if (messageLayout != null) messageLayout.setBackgroundResource(R.drawable.rounded_white_background);
         ImageView messageIcon = findViewById(R.id.message_icon_btn);
+        if (messageIcon != null) messageIcon.setColorFilter(Color.BLACK);
         TextView messageText = findViewById(R.id.message_text);
-
-        if (messageLayout != null) {
-            // This is correct: the current page's button should not be clickable.
-            messageLayout.setClickable(false);
-            messageLayout.setFocusable(false);
-            messageLayout.setBackgroundResource(R.drawable.rounded_white_background);
-        }
-
-        if (messageIcon != null) {
-            messageIcon.setColorFilter(Color.BLACK);
-        }
-
         if (messageText != null) {
             messageText.setTextColor(Color.BLACK);
             messageText.setTypeface(null, Typeface.BOLD);
