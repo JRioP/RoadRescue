@@ -22,7 +22,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.material.floatingactionbutton.FloatingActionButton; // Import FAB
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -49,7 +49,7 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
     private PendingRequestsAdapter requestsAdapter;
 
     // UI Elements
-    private FloatingActionButton btnGoToMap; // NEW: The FAB
+    private FloatingActionButton btnGoToMap;
     private TextView titleText;
 
     private final List<Map<String, Object>> requestsList = new ArrayList<>();
@@ -83,12 +83,14 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         }
 
         setupUIComponents();
-        setupViews(); // Initializes the FAB
+        setupViews();
         setupRecyclerView();
         checkLocationPermission();
         updateLocation();
+
+        // Setup Listeners
         setupUnreadMessageListener();
-        setupNotificationListener();
+        setupNotificationListener(); // Uses the fix
 
         fetchDriverServicesAndListen();
     }
@@ -97,24 +99,17 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         titleText = findViewById(R.id.title_text);
         requestsRecyclerView = findViewById(R.id.requests_recycler_view);
 
-        // Setup Floating Action Button
         btnGoToMap = findViewById(R.id.btn_go_to_map);
-
-        // CHANGED: We ensure it is VISIBLE by default
         btnGoToMap.setVisibility(View.VISIBLE);
 
         btnGoToMap.setOnClickListener(v -> {
             if (!activeJobsList.isEmpty()) {
-                // Go to the first active job
                 redirectToActiveJob(activeJobsList.get(0));
             } else {
-                // Just show a message if clicked with no job
                 Toast.makeText(this, "You have no active jobs right now.", Toast.LENGTH_SHORT).show();
             }
         });
     }
-
-    // ... (fetchDriverServicesAndListen remains the same) ...
 
     private void fetchDriverServicesAndListen() {
         if (currentUser == null) return;
@@ -152,10 +147,6 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
                             activeJobsList.add(data);
                         }
                     }
-
-                    // CHANGED: Removed the code that hid the button here.
-                    // The button stays visible always.
-
                     mergeAndDisplayRequests();
                 });
 
@@ -198,8 +189,6 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         }
     }
 
-    // ... (Rest of your methods: onAcceptClick, onItemClick, redirectToActiveJob, etc. remain exactly the same) ...
-
     @Override
     public void onAcceptClick(String requestId, Map<String, Object> requestData) {
         if (currentUser == null) return;
@@ -221,6 +210,23 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
                 .update(updates)
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(this, "Request accepted!", Toast.LENGTH_SHORT).show();
+
+                    // --- START FIX: SEND NOTIFICATION TO CUSTOMER ---
+                    String customerId = (String) requestData.get("customerId");
+                    if (customerId != null) {
+                        Map<String, Object> notification = new HashMap<>();
+                        notification.put("userId", customerId);
+                        notification.put("title", "Request Accepted!");
+                        notification.put("message", "A provider is on the way.");
+                        notification.put("read", false); // Triggers the light!
+                        notification.put("requestId", requestId);
+                        notification.put("timestamp", FieldValue.serverTimestamp());
+                        notification.put("type", "status_update");
+
+                        db.collection("notifications").add(notification);
+                    }
+                    // --- END FIX ---
+
                     redirectToActiveJob(requestData);
                 })
                 .addOnFailureListener(e -> Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
@@ -257,9 +263,6 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         startActivity(intent);
     }
 
-    // ... (Include your setupRecyclerView, checkLocationPermission, updateLocation, markRequestAsRead, setupUnreadMessageListener, setupNotificationListener, setupUIComponents methods here exactly as they were) ...
-
-    // Helper to mark read (Needed for onItemClick)
     private void markRequestAsRead(String requestId) {
         if (requestId == null) return;
         db.collection("service_requests").document(requestId)
@@ -318,18 +321,35 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
                 });
     }
 
+    // ---------------------------------------------------------
+    // FIXED: Notification Badge Listener
+    // ---------------------------------------------------------
     private void setupNotificationListener() {
         if (currentUser == null) return;
         String currentUserId = currentUser.getUid();
-        Query badgeQuery = db.collection("service_requests")
-                .whereEqualTo("providerId", currentUserId)
-                .whereEqualTo("isRead", false);
 
-        if (notificationListener != null) notificationListener.remove();
+        Query badgeQuery = db.collection("notifications")
+                .whereEqualTo("userId", currentUserId)
+                .whereEqualTo("read", false);
+
+        if (notificationListener != null) {
+            notificationListener.remove();
+        }
+
         notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
-            if (e != null) return;
+            if (e != null) {
+                Log.e(TAG, "Notification listener error", e);
+                return;
+            }
             boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-            if (unreadNotificationBadge != null) unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+
+            if (unreadNotificationBadge != null) {
+                if (hasUnread) {
+                    unreadNotificationBadge.setVisibility(View.VISIBLE);
+                } else {
+                    unreadNotificationBadge.setVisibility(View.GONE);
+                }
+            }
         });
     }
 
@@ -362,7 +382,6 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
             messageButton.setOnClickListener(v -> startActivity(new Intent(ServiceProviderHomepage.this, ChatInboxActivity.class)));
         }
     }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();

@@ -19,6 +19,7 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
 
 public class ProfileAccountSettingsActivity extends AppCompatActivity {
 
@@ -45,7 +46,7 @@ public class ProfileAccountSettingsActivity extends AppCompatActivity {
 
         // --- Setup Badge Listeners ---
         setupUnreadMessageListener();
-        setupNotificationListener();
+        setupNotificationListener(); // Uses the fix
 
         setupNavbar();
     }
@@ -78,22 +79,38 @@ public class ProfileAccountSettingsActivity extends AppCompatActivity {
                 });
     }
 
+    // ---------------------------------------------------------
+    // FIXED: Notification Badge Logic (Updated to use 'notifications' collection)
+    // ---------------------------------------------------------
     private void setupNotificationListener() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
-        String currentUserId = user.getUid();
+        FirebaseUser currentUser = auth.getCurrentUser();
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
 
-        notificationListener = db.collection("notifications")
+        // Logic from the fix:
+        Query badgeQuery = db.collection("notifications")
                 .whereEqualTo("userId", currentUserId)
-                .whereEqualTo("read", false)
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
+                .whereEqualTo("read", false);
 
-                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-                    if (unreadNotificationBadge != null) {
-                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
-                    }
-                });
+        if (notificationListener != null) {
+            notificationListener.remove();
+        }
+
+        notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
+            if (e != null) {
+                Log.e(TAG, "Notification listener error", e);
+                return;
+            }
+            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+
+            if (unreadNotificationBadge != null) {
+                if (hasUnread) {
+                    unreadNotificationBadge.setVisibility(View.VISIBLE);
+                } else {
+                    unreadNotificationBadge.setVisibility(View.GONE);
+                }
+            }
+        });
     }
 
     public void setupUIMainComponents() {
@@ -126,17 +143,23 @@ public class ProfileAccountSettingsActivity extends AppCompatActivity {
     }
 
     private void setupNavbar() {
-        // --- Init Badge Views ---
         unreadBadge = findViewById(R.id.unread_message_badge);
         unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
 
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         notificationButton.setOnClickListener(v -> {
             Intent intent = new Intent(ProfileAccountSettingsActivity.this, NotificationsActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
 
-        // --- Profile Button (Active State) ---
+        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        messageButton.setOnClickListener(v -> {
+            Intent intent = new Intent(ProfileAccountSettingsActivity.this, ChatInboxActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
+
         ConstraintLayout profileLayout = findViewById(R.id.nav_profile_layout);
         ImageView profileIcon = findViewById(R.id.profile_icon_btn);
         TextView profileText = findViewById(R.id.profile_text);
@@ -151,16 +174,13 @@ public class ProfileAccountSettingsActivity extends AppCompatActivity {
             profileText.setTextColor(Color.BLACK);
             profileText.setTypeface(null, Typeface.BOLD);
         }
-
-        // Navigate back to main Profile page
         if (profileLayout != null) {
             profileLayout.setOnClickListener(v -> {
                 Intent intent = new Intent(ProfileAccountSettingsActivity.this, ProfileActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                 startActivity(intent);
             });
         }
-
-        // --- HOME BUTTON FIX ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         homeButton.setOnClickListener(v -> {
             FirebaseUser user = auth.getCurrentUser();
@@ -177,8 +197,6 @@ public class ProfileAccountSettingsActivity extends AppCompatActivity {
                         String userType = "Customer"; // Default
                         if (documentSnapshot.exists()) {
                             String type = documentSnapshot.getString("userType");
-
-                            // Robust Check: Handles "driver", "Service Provider", etc.
                             if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
                                 userType = "Service Provider";
                             }
@@ -202,12 +220,6 @@ public class ProfileAccountSettingsActivity extends AppCompatActivity {
                         startActivity(intent);
                         finish();
                     });
-        });
-
-        ImageView messageButton = findViewById(R.id.message_icon_btn);
-        messageButton.setOnClickListener(v -> {
-            Intent intent = new Intent(ProfileAccountSettingsActivity.this, ChatInboxActivity.class);
-            startActivity(intent);
         });
     }
 

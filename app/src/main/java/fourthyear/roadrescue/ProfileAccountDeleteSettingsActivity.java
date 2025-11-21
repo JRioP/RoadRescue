@@ -181,10 +181,18 @@ public class ProfileAccountDeleteSettingsActivity extends AppCompatActivity {
     }
 
     private void setupNavbar() {
-        navNotification.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, NotificationsActivity.class)));
-        navMessage.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, ChatInboxActivity.class)));
+        navNotification.setOnClickListener(v -> {
+            Intent intent = new Intent(ProfileAccountDeleteSettingsActivity.this, NotificationsActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
 
-        // --- Active State: Profile Button ---
+        navMessage.setOnClickListener(v -> {
+            Intent intent = new Intent(ProfileAccountDeleteSettingsActivity.this, ChatInboxActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
+
         navProfile.setBackgroundResource(R.drawable.rounded_white_background);
 
         ImageView profileIcon = findViewById(R.id.profile_icon_btn);
@@ -196,10 +204,11 @@ public class ProfileAccountDeleteSettingsActivity extends AppCompatActivity {
             profileText.setTypeface(null, Typeface.BOLD);
         }
 
-        navProfile.setOnClickListener(v -> startActivity(new Intent(ProfileAccountDeleteSettingsActivity.this, ProfileActivity.class)));
-        // ------------------------------------
-
-        // --- HOME BUTTON FIX ---
+        navProfile.setOnClickListener(v -> {
+            Intent intent = new Intent(ProfileAccountDeleteSettingsActivity.this, ProfileActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
         navHome.setOnClickListener(v -> {
             FirebaseUser user = mAuth.getCurrentUser();
             if (user == null) {
@@ -215,8 +224,6 @@ public class ProfileAccountDeleteSettingsActivity extends AppCompatActivity {
                         String userType = "Customer"; // Default
                         if (documentSnapshot.exists()) {
                             String type = documentSnapshot.getString("userType");
-
-                            // Robust check: Handles "driver", "Driver", "Service Provider"
                             if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
                                 userType = "Service Provider";
                             }

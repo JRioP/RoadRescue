@@ -52,9 +52,7 @@
                     android:id="@+id/current_location"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="50dp"
                     android:layout_marginTop="40dp"
-                    android:layout_marginEnd="50dp"
                     android:fontFamily="@font/poppins"
                     android:text="@string/current_location"
                     android:textColor="@color/white"
@@ -63,17 +61,29 @@
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent" />
 
+                <ImageView
+                    android:id="@+id/imageView11"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="8dp"
+                    android:contentDescription="@string/location_icon_description"
+                    app:layout_constraintBottom_toBottomOf="@+id/textView7"
+                    app:layout_constraintEnd_toStartOf="@+id/textView7"
+                    app:layout_constraintTop_toTopOf="@+id/textView7"
+                    app:srcCompat="@drawable/location_on"
+                    app:tint="@android:color/white" />
+
                 <TextView
                     android:id="@+id/textView7"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="50dp"
-                    android:layout_marginEnd="50dp"
                     android:fontFamily="@font/poppins"
                     android:paddingTop="5dp"
                     android:text="@string/location"
                     android:textColor="@color/white"
                     android:textSize="32sp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginStart="20dp"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toBottomOf="@+id/current_location" />
@@ -82,24 +92,14 @@
                     android:id="@+id/textView8"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:layout_marginTop="8dp"
                     android:fontFamily="@font/poppins"
                     android:text="@string/services_text"
                     android:textColor="@color/white"
-                    android:textSize="15sp"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toBottomOf="@+id/textView7" />
-
-                <ImageView
-                    android:id="@+id/imageView11"
-                    android:layout_width="50dp"
-                    android:layout_height="48dp"
-                    android:contentDescription="@string/location_icon_description"
-                    app:layout_constraintEnd_toStartOf="@+id/textView7"
-                    app:layout_constraintTop_toBottomOf="@+id/current_location"
-                    app:srcCompat="@drawable/location_on" />
 
             </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -107,7 +107,7 @@
                 android:id="@+id/constraintLayout2"
                 android:layout_width="350dp"
                 android:layout_height="250dp"
-                android:layout_marginTop="-140dp"
+                android:layout_marginTop="-130dp"
                 android:background="@drawable/services_rounded_background"
                 android:elevation="2dp"
                 app:layout_constraintEnd_toEndOf="parent"
@@ -167,8 +167,8 @@
                     android:layout_marginBottom="5dp"
                     android:background="@drawable/homepage_card_background"
                     android:clickable="true"
-                    android:focusable="true"
                     android:contentDescription="@string/towing_text"
+                    android:focusable="true"
                     app:layout_constraintBottom_toTopOf="@+id/flat_tire_repair_btn"
                     app:layout_constraintEnd_toStartOf="@+id/jump_start_btn"
                     app:layout_constraintHorizontal_chainStyle="spread_inside"
@@ -192,14 +192,15 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/poppins"
+                        android:importantForAccessibility="no"
                         android:text="@string/towing_text"
                         android:textColor="@color/GhostWhite"
-                        android:importantForAccessibility="no"
                         android:textSize="15sp"
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintTop_toBottomOf="@+id/imageView12" />
                 </androidx.constraintlayout.widget.ConstraintLayout>
+
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:id="@+id/jump_start_btn"
                     android:layout_width="100dp"
@@ -208,8 +209,8 @@
                     android:layout_marginBottom="5dp"
                     android:background="@drawable/homepage_card_background"
                     android:clickable="true"
-                    android:focusable="true"
                     android:contentDescription="@string/jump_start_text"
+                    android:focusable="true"
                     app:layout_constraintBottom_toTopOf="@+id/replace_battery_btn"
                     app:layout_constraintEnd_toStartOf="@+id/fuel_delivery_btn"
                     app:layout_constraintStart_toEndOf="@+id/towing_btn"
@@ -233,9 +234,9 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/poppins"
+                        android:importantForAccessibility="no"
                         android:text="@string/jump_start_text"
                         android:textColor="@color/GhostWhite"
-                        android:importantForAccessibility="no"
                         android:textSize="15sp"
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintStart_toStartOf="parent"
@@ -335,8 +336,8 @@
                     android:layout_marginBottom="20dp"
                     android:background="@drawable/homepage_card_background"
                     android:clickable="true"
-                    android:focusable="true"
                     android:contentDescription="@string/battery_text"
+                    android:focusable="true"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintEnd_toStartOf="@+id/gas_station_btn"
                     app:layout_constraintStart_toEndOf="@+id/flat_tire_repair_btn"
@@ -359,9 +360,9 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:fontFamily="@font/poppins"
+                        android:importantForAccessibility="no"
                         android:text="@string/battery_text"
                         android:textColor="@color/GhostWhite"
-                        android:importantForAccessibility="no"
                         android:textSize="15sp"
                         app:layout_constraintEnd_toEndOf="parent"
                         app:layout_constraintStart_toStartOf="parent"
@@ -486,7 +487,7 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
                 app:layout_constraintVertical_chainStyle="packed"
-                app:srcCompat="@drawable/home" />
+                app:srcCompat="@drawable/home_icon" />
             <TextView
                 android:id="@+id/home_text"
                 android:layout_width="wrap_content"

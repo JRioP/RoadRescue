@@ -88,6 +88,9 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private static final String TAG = "ProviderMapActivity";
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1002;
 
+    // --- NEW: Distance Threshold (5 Meters) ---
+    private static final float COMPLETION_RADIUS_METERS = 5.0f;
+
     private GoogleMap mGoogleMap;
     private FusedLocationProviderClient mFusedLocationClient;
     private LocationCallback mLocationCallback;
@@ -97,7 +100,7 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private FirebaseUser mCurrentUser;
     private DocumentReference mProviderDocRef;
 
-    // --- NEW: Firebase Storage Variables ---
+    // Storage & Image Upload
     private FirebaseStorage storage;
     private ActivityResultLauncher<String> imagePickerLauncher;
     private ProgressDialog progressDialog;
@@ -135,8 +138,8 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private String mActiveJobId;
 
     // Map Data
-    private LatLng mPickupLatLng;
-    private LatLng mProviderLatLng;
+    private LatLng mPickupLatLng; // Job Pickup Location
+    private LatLng mProviderLatLng; // Driver Current Location
     private Marker mProviderMarker;
     private Marker mPickupMarker;
     private Marker mDestinationMarker;
@@ -162,15 +165,14 @@ public class ProviderMapActivity extends AppCompatActivity implements
         mCurrentUser = auth.getCurrentUser();
         mGeocoder = new Geocoder(this, Locale.getDefault());
 
-        // --- 1. Initialize Storage with your specific bucket ---
+        // Initialize Storage
         storage = FirebaseStorage.getInstance("gs://roadrescue-b46e9.firebasestorage.app");
 
-        // --- 2. Initialize Progress Dialog ---
         progressDialog = new ProgressDialog(this);
         progressDialog.setMessage("Uploading proof and completing job...");
         progressDialog.setCancelable(false);
 
-        // --- 3. Initialize Image Picker ---
+        // Initialize Image Picker
         imagePickerLauncher = registerForActivityResult(
                 new ActivityResultContracts.GetContent(),
                 uri -> {
@@ -211,39 +213,69 @@ public class ProviderMapActivity extends AppCompatActivity implements
         createLocationCallback();
         checkLocationPermission();
         setupUnreadMessageListener();
-        setupNotificationListener();
+        setupNotificationListener(); // The Fix
     }
 
     // ==========================================================
-    //  NEW: UPLOAD LOGIC
+    //  JOB COMPLETION LOGIC (With 5m Check)
     // ==========================================================
 
     private void completeJob() {
         if (mActiveJobId == null) return;
 
-        // Ask for photo proof
-        new AlertDialog.Builder(this)
-                .setTitle("Proof of Service Required")
-                .setMessage("Please upload a photo to mark this job as complete.")
-                .setPositiveButton("Take/Select Photo", (dialog, which) -> {
-                    // Launch Gallery
-                    imagePickerLauncher.launch("image/*");
-                })
-                .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
-                .show();
+        // Check if button is enabled (it should be handled by updateCompleteButtonState, but double check)
+        if (mCompleteJobButton.isEnabled()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Proof of Service Required")
+                    .setMessage("Please upload a photo to mark this job as complete.")
+                    .setPositiveButton("Take/Select Photo", (dialog, which) -> {
+                        imagePickerLauncher.launch("image/*");
+                    })
+                    .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
+                    .show();
+        } else {
+            Toast.makeText(this, "You are too far away! Move closer (5m) to the pickup point.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    // --- NEW: Updates button based on distance ---
+    private void updateCompleteButtonState() {
+        if (mActiveJobCard.getVisibility() != View.VISIBLE || mPickupLatLng == null || mProviderLatLng == null) {
+            mCompleteJobButton.setEnabled(false);
+            mCompleteJobButton.setAlpha(0.5f);
+            return;
+        }
+
+        float[] results = new float[1];
+        Location.distanceBetween(
+                mProviderLatLng.latitude, mProviderLatLng.longitude,
+                mPickupLatLng.latitude, mPickupLatLng.longitude,
+                results
+        );
+
+        float distanceToPickup = results[0];
+
+        if (distanceToPickup <= COMPLETION_RADIUS_METERS) {
+            // Within 5 meters -> Enabled
+            mCompleteJobButton.setEnabled(true);
+            mCompleteJobButton.setAlpha(1.0f);
+            mCompleteJobButton.setText("Mark as Complete");
+        } else {
+            // Too far -> Disabled
+            mCompleteJobButton.setEnabled(false);
+            mCompleteJobButton.setAlpha(0.5f);
+            // Optional: Show distance on button
+            mCompleteJobButton.setText(String.format(Locale.getDefault(), "Get Closer (%.1fm)", distanceToPickup));
+        }
     }
 
     private void uploadProofImage(Uri imageUri) {
         progressDialog.show();
-
-        // Create a unique filename
         String filename = "proofs/" + mActiveJobId + "_" + UUID.randomUUID().toString() + ".jpg";
         StorageReference ref = storage.getReference().child(filename);
 
-        // Upload
         ref.putFile(imageUri)
                 .addOnSuccessListener(taskSnapshot -> {
-                    // Get URL
                     ref.getDownloadUrl().addOnSuccessListener(uri -> {
                         String downloadUrl = uri.toString();
                         finishJobInFirestore(downloadUrl);
@@ -258,7 +290,7 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private void finishJobInFirestore(String imageUrl) {
         Map<String, Object> updates = new HashMap<>();
         updates.put("status", "completed");
-        updates.put("proofImageUrl", imageUrl); // Save image link
+        updates.put("proofImageUrl", imageUrl);
         updates.put("completedTimestamp", FieldValue.serverTimestamp());
 
         db.collection("service_requests").document(mActiveJobId)
@@ -275,7 +307,7 @@ public class ProviderMapActivity extends AppCompatActivity implements
     }
 
     // ==========================================================
-    //  EXISTING LOGIC
+    //  EXISTING LOGIC & MAP SETUP
     // ==========================================================
 
     private void setupViews() {
@@ -299,12 +331,30 @@ public class ProviderMapActivity extends AppCompatActivity implements
         unreadBadge = findViewById(R.id.unread_message_badge);
         unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
 
-        findViewById(R.id.notification_icon_btn).setOnClickListener(v -> startActivity(new Intent(this, NotificationsActivity.class)));
-        findViewById(R.id.profile_icon_btn).setOnClickListener(v -> startActivity(new Intent(this, ProfileActivity.class)));
-        findViewById(R.id.home_icon_btn).setOnClickListener(v -> startActivity(new Intent(this, ServiceProviderHomepage.class)));
-        findViewById(R.id.message_icon_btn).setOnClickListener(v -> startActivity(new Intent(this, ChatInboxActivity.class)));
-    }
+        findViewById(R.id.notification_icon_btn).setOnClickListener(v -> {
+            Intent intent = new Intent(this, NotificationsActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
 
+        findViewById(R.id.profile_icon_btn).setOnClickListener(v -> {
+            Intent intent = new Intent(this, ProfileActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
+
+        findViewById(R.id.home_icon_btn).setOnClickListener(v -> {
+            Intent intent = new Intent(this, ServiceProviderHomepage.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        });
+
+        findViewById(R.id.message_icon_btn).setOnClickListener(v -> {
+            Intent intent = new Intent(this, ChatInboxActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
+    }
     private void setupListeners() {
         mOnlineSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) goOnline();
@@ -313,46 +363,36 @@ public class ProviderMapActivity extends AppCompatActivity implements
 
         mCompleteJobButton.setOnClickListener(v -> completeJob());
 
-        // Follow/Unfollow Mode
         mNavigateButton.setOnClickListener(v -> toggleFollowMode());
 
         mChatCustomerButton.setOnClickListener(v -> openChatWithCustomer());
     }
 
-    private void toggleFollowMode() {
-        isCameraFollowingProvider = !isCameraFollowingProvider;
+    private void createLocationCallback() {
+        mLocationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(@NonNull LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+                Location location = locationResult.getLastLocation();
+                if (location == null) return;
 
-        if (isCameraFollowingProvider) {
-            mNavigateButton.setText("Following");
-            Toast.makeText(this, "Camera locked to your location", Toast.LENGTH_SHORT).show();
-            if (mProviderLatLng != null && mGoogleMap != null) {
-                mGoogleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(mProviderLatLng, 18f));
+                mProviderLatLng = new LatLng(location.getLatitude(), location.getLongitude());
+                updateProviderLocationInFirestore(location);
+                updateProviderMarker(mProviderLatLng);
+                mPendingRequestsAdapter.updateProviderLocation(mProviderLatLng);
+
+                if (isCameraFollowingProvider && mGoogleMap != null) {
+                    mGoogleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(mProviderLatLng, 18f));
+                }
+
+                if (mActiveJobCard.getVisibility() == View.VISIBLE && mPickupLatLng != null && mProviderToPickupLine == null) {
+                    drawProviderRoute(mProviderLatLng, mPickupLatLng);
+                }
+
+                // --- Check distance on every location update ---
+                updateCompleteButtonState();
             }
-        } else {
-            mNavigateButton.setText("Navigate");
-            Toast.makeText(this, "Camera unlocked", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void openChatWithCustomer() {
-        if (mActiveJobData == null || mCurrentUser == null) return;
-        String customerId = (String) mActiveJobData.get("customerId");
-        String requestId = mActiveJobId;
-        if (customerId == null) {
-            Toast.makeText(this, "Customer info not available.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        String currentUserId = mCurrentUser.getUid();
-        String chatRoomId;
-        if (currentUserId.compareTo(customerId) > 0) {
-            chatRoomId = currentUserId + "_" + customerId + "_" + requestId;
-        } else {
-            chatRoomId = customerId + "_" + currentUserId + "_" + requestId;
-        }
-        Intent intent = new Intent(this, ChatConversationActivity.class);
-        intent.putExtra("chatId", chatRoomId);
-        intent.putExtra("receiverName", "Customer");
-        startActivity(intent);
+        };
     }
 
     private void showActiveJobUI() {
@@ -361,7 +401,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
         mPendingRequestsList.clear();
         mPendingRequestsAdapter.notifyDataSetChanged();
 
-        // Populate Vehicle Info
         String carBrand = (String) mActiveJobData.get("carBrand");
         String carModel = (String) mActiveJobData.get("carModel");
         String carType = (String) mActiveJobData.get("carType");
@@ -400,68 +439,48 @@ public class ProviderMapActivity extends AppCompatActivity implements
             }
             drawProviderRoute(mProviderLatLng != null ? mProviderLatLng : mPickupLatLng, mPickupLatLng);
         }
+
+        updateCompleteButtonState(); // Initial check
         listenForActiveJobUpdates();
     }
 
-    // ==========================================================
-    //  STANDARD METHODS (Maps, Location, Permissions)
-    // ==========================================================
-
-    @Override
-    public void onMapReady(@NonNull GoogleMap googleMap) {
-        mGoogleMap = googleMap;
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            mGoogleMap.setMyLocationEnabled(true);
+    private void toggleFollowMode() {
+        isCameraFollowingProvider = !isCameraFollowingProvider;
+        if (isCameraFollowingProvider) {
+            mNavigateButton.setText("Following");
+            Toast.makeText(this, "Camera locked to your location", Toast.LENGTH_SHORT).show();
+            if (mProviderLatLng != null && mGoogleMap != null) {
+                mGoogleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(mProviderLatLng, 18f));
+            }
+        } else {
+            mNavigateButton.setText("Navigate");
+            Toast.makeText(this, "Camera unlocked", Toast.LENGTH_SHORT).show();
         }
-        // Unlock camera if user drags map manually
-        mGoogleMap.setOnCameraMoveStartedListener(reason -> {
-            if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
-                if (isCameraFollowingProvider) {
-                    isCameraFollowingProvider = false;
-                    mNavigateButton.setText("Navigate");
-                    Toast.makeText(ProviderMapActivity.this, "Camera unlocked", Toast.LENGTH_SHORT).show();
-                }
-            }
-        });
     }
 
-    @SuppressLint("MissingPermission")
-    private void startLocationUpdates() {
-        if (mIsLocationUpdating) return;
-        LocationRequest locationRequest = new LocationRequest.Builder(10000).setPriority(Priority.PRIORITY_HIGH_ACCURACY).build();
-        mFusedLocationClient.requestLocationUpdates(locationRequest, mLocationCallback, Looper.getMainLooper());
-        mIsLocationUpdating = true;
+    private void openChatWithCustomer() {
+        if (mActiveJobData == null || mCurrentUser == null) return;
+        String customerId = (String) mActiveJobData.get("customerId");
+        String requestId = mActiveJobId;
+        if (customerId == null) {
+            Toast.makeText(this, "Customer info not available.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String currentUserId = mCurrentUser.getUid();
+        String chatRoomId;
+        if (currentUserId.compareTo(customerId) > 0) {
+            chatRoomId = currentUserId + "_" + customerId + "_" + requestId;
+        } else {
+            chatRoomId = customerId + "_" + currentUserId + "_" + requestId;
+        }
+        Intent intent = new Intent(this, ChatConversationActivity.class);
+        intent.putExtra("chatId", chatRoomId);
+        intent.putExtra("receiverName", "Customer");
+        startActivity(intent);
     }
 
-    private void stopLocationUpdates() {
-        if (mLocationCallback != null) mFusedLocationClient.removeLocationUpdates(mLocationCallback);
-        mIsLocationUpdating = false;
-    }
+    // ... (Standard Location/Map methods - unchanged) ...
 
-    private void createLocationCallback() {
-        mLocationCallback = new LocationCallback() {
-            @Override
-            public void onLocationResult(@NonNull LocationResult locationResult) {
-                super.onLocationResult(locationResult);
-                Location location = locationResult.getLastLocation();
-                if (location == null) return;
-                mProviderLatLng = new LatLng(location.getLatitude(), location.getLongitude());
-                updateProviderLocationInFirestore(location);
-                updateProviderMarker(mProviderLatLng);
-                mPendingRequestsAdapter.updateProviderLocation(mProviderLatLng);
-
-                if (isCameraFollowingProvider && mGoogleMap != null) {
-                    mGoogleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(mProviderLatLng, 18f));
-                }
-
-                if (mActiveJobCard.getVisibility() == View.VISIBLE && mPickupLatLng != null && mProviderToPickupLine == null) {
-                    drawProviderRoute(mProviderLatLng, mPickupLatLng);
-                }
-            }
-        };
-    }
-
-    // --- Helpers ---
     private void goOnline() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(this, "Location permission required.", Toast.LENGTH_SHORT).show();
@@ -652,13 +671,36 @@ public class ProviderMapActivity extends AppCompatActivity implements
         });
     }
 
+    // ---------------------------------------------------------
+    // FIXED: Notification Badge Logic (Updated to use 'notifications' collection)
+    // ---------------------------------------------------------
     private void setupNotificationListener() {
-        if (mCurrentUser == null) return;
-        String currentUserId = mCurrentUser.getUid();
-        notificationListener = db.collection("notifications").whereEqualTo("userId", currentUserId).whereEqualTo("read", false).addSnapshotListener((snapshots, e) -> {
-            if (e != null) return;
+        if (mCurrentUser == null) return; // Changed currentUser to mCurrentUser
+        String currentUserId = mCurrentUser.getUid(); // Changed currentUser to mCurrentUser
+
+        // Logic from the fix:
+        Query badgeQuery = db.collection("notifications")
+                .whereEqualTo("userId", currentUserId)
+                .whereEqualTo("read", false);
+
+        if (notificationListener != null) {
+            notificationListener.remove();
+        }
+
+        notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
+            if (e != null) {
+                Log.e(TAG, "Notification listener error", e);
+                return;
+            }
             boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-            if (unreadNotificationBadge != null) unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+
+            if (unreadNotificationBadge != null) {
+                if (hasUnread) {
+                    unreadNotificationBadge.setVisibility(View.VISIBLE);
+                } else {
+                    unreadNotificationBadge.setVisibility(View.GONE);
+                }
+            }
         });
     }
 
@@ -705,6 +747,36 @@ public class ProviderMapActivity extends AppCompatActivity implements
                 Log.e(TAG, "Route drawing failed", e);
             }
         });
+    }
+
+    @Override
+    public void onMapReady(@NonNull GoogleMap googleMap) {
+        mGoogleMap = googleMap;
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            mGoogleMap.setMyLocationEnabled(true);
+        }
+        mGoogleMap.setOnCameraMoveStartedListener(reason -> {
+            if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
+                if (isCameraFollowingProvider) {
+                    isCameraFollowingProvider = false;
+                    mNavigateButton.setText("Navigate");
+                    Toast.makeText(ProviderMapActivity.this, "Camera unlocked", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+    }
+
+    @SuppressLint("MissingPermission")
+    private void startLocationUpdates() {
+        if (mIsLocationUpdating) return;
+        LocationRequest locationRequest = new LocationRequest.Builder(10000).setPriority(Priority.PRIORITY_HIGH_ACCURACY).build();
+        mFusedLocationClient.requestLocationUpdates(locationRequest, mLocationCallback, Looper.getMainLooper());
+        mIsLocationUpdating = true;
+    }
+
+    private void stopLocationUpdates() {
+        if (mLocationCallback != null) mFusedLocationClient.removeLocationUpdates(mLocationCallback);
+        mIsLocationUpdating = false;
     }
 
     @Override

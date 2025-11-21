@@ -1,10 +1,13 @@
 package fourthyear.roadrescue;
 
 import static android.content.ContentValues.TAG;
+import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
+import androidx.activity.result.ActivityResultLauncher; // Import this
+import androidx.activity.result.contract.ActivityResultContracts; // Import this
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.TextPaint;
@@ -18,6 +21,8 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.Toast;
 import android.text.TextWatcher;
 import android.text.Editable;
@@ -25,7 +30,6 @@ import android.text.Editable;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.google.firebase.auth.FirebaseAuthUserCollisionException;
@@ -42,17 +46,31 @@ public class Signup extends Fragment {
     public static final String TAG = "SignupSecurity";
 
     private TextInputLayout passwordInputLayout, retypePasswordInputLayout;
-
     private EditText personUsername, personEmail, personPassword, personRPassword, phoneCountryCode, phoneNumber;
     private Button signupBtn;
     private CheckBox termsAndConditionsCheck;
+    private RadioGroup roleRadioGroup;
+    private RadioButton radioCustomer, radioProvider;
     private FirebaseAuth fAuth;
     private FirebaseFirestore db;
-
-    // --- SECURITY: Brute-force protection variables ---
     private int signupAttemptCounter = 0;
     private long lastAttemptTimestamp = 0;
-    private static final long BASE_DELAY = 5000; // Start with 5 seconds
+    private static final long BASE_DELAY = 5000;
+
+    // --- 1. CREATE THE LAUNCHER ---
+    // This waits for the TermsActivity to say "RESULT_OK"
+    private final ActivityResultLauncher<Intent> termsLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    // Only NOW do we check the box
+                    if (termsAndConditionsCheck != null) {
+                        termsAndConditionsCheck.setChecked(true);
+                        termsAndConditionsCheck.setError(null);
+                    }
+                }
+            }
+    );
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -89,129 +107,138 @@ public class Signup extends Fragment {
 
         termsAndConditionsCheck = v.findViewById(R.id.check_terms_and_conditions);
 
+        roleRadioGroup = v.findViewById(R.id.role_radio_group);
+        radioCustomer = v.findViewById(R.id.radio_customer);
+        radioProvider = v.findViewById(R.id.radio_provider);
+
         setupTermsAndConditionsClickableText();
 
-        personPassword.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
+        // --- 2. INTERCEPT CHECKBOX CLICKS ---
+        // This prevents manual checking. If they click the box, we force it off
+        // and open the activity instead.
+        termsAndConditionsCheck.setOnClickListener(view -> {
+            if (termsAndConditionsCheck.isChecked()) {
+                // If they tried to check it manually, uncheck it and open terms
+                termsAndConditionsCheck.setChecked(false);
+                openTermsActivity();
+            } else {
+                // If they are unchecking it (opting out), allow it.
+                termsAndConditionsCheck.setChecked(false);
+            }
+        });
+
+        // Listeners
+        personPassword.addTextChangedListener(new SimpleTextWatcher(personPassword) {
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 passwordInputLayout.setError(null);
             }
-            @Override
-            public void afterTextChanged(Editable s) { }
         });
-
-        personRPassword.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
+        personRPassword.addTextChangedListener(new SimpleTextWatcher(personRPassword) {
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 retypePasswordInputLayout.setError(null);
             }
-            @Override
-            public void afterTextChanged(Editable s) { }
         });
-
         personUsername.addTextChangedListener(new SimpleTextWatcher(personUsername));
         personEmail.addTextChangedListener(new SimpleTextWatcher(personEmail));
         phoneNumber.addTextChangedListener(new SimpleTextWatcher(phoneNumber));
         phoneCountryCode.addTextChangedListener(new SimpleTextWatcher(phoneCountryCode));
     }
 
+    // Helper to open the activity
+    private void openTermsActivity() {
+        Intent intent = new Intent(getActivity(), TermsAndConditionsActivity.class);
+        termsLauncher.launch(intent);
+    }
+
     private void setupTermsAndConditionsClickableText() {
         String fullText = getString(R.string.sign_up_termsandcondition);
-        String clickableText = "Terms and Conditions";
+
+        // Use the Tagalog text if that's what is in your XML, otherwise use English
+        // If this doesn't match exactly, the fallback below will link the whole sentence.
+        String clickableText = "Mga Tuntunin at Kundisyon";
 
         SpannableString ss = new SpannableString(fullText);
 
         ClickableSpan clickableSpan = new ClickableSpan() {
             @Override
             public void onClick(@NonNull View widget) {
-                Intent intent = new Intent(getActivity(), TermsAndConditionsActivity.class);
-                startActivity(intent);
+                // Stop the check event from firing twice
+                widget.cancelPendingInputEvents();
+                openTermsActivity();
             }
 
             @Override
             public void updateDrawState(@NonNull TextPaint ds) {
                 super.updateDrawState(ds);
                 ds.setUnderlineText(true);
+                ds.setColor(getResources().getColor(R.color.blue));
             }
         };
 
+        // --- 3. ROBUST TEXT FINDING ---
+        // If we can't find the specific words, make the WHOLE text clickable
         int startIndex = fullText.indexOf(clickableText);
-        int endIndex = startIndex + clickableText.length();
-
         if (startIndex != -1) {
+            int endIndex = startIndex + clickableText.length();
             ss.setSpan(clickableSpan, startIndex, endIndex, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            termsAndConditionsCheck.setText(ss);
-            termsAndConditionsCheck.setMovementMethod(LinkMovementMethod.getInstance());
         } else {
-            termsAndConditionsCheck.setText(fullText);
-            Log.w(TAG, "Could not find clickable text in terms and conditions string.");
+            // Fallback: Link the entire string
+            ss.setSpan(clickableSpan, 0, fullText.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
+
+        termsAndConditionsCheck.setText(ss);
+        termsAndConditionsCheck.setMovementMethod(LinkMovementMethod.getInstance());
     }
 
     private static class SimpleTextWatcher implements TextWatcher {
         private final EditText editText;
-        SimpleTextWatcher(EditText editText) {
-            this.editText = editText;
-        }
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            editText.setError(null);
-        }
-        @Override
-        public void afterTextChanged(Editable s) { }
+        SimpleTextWatcher(EditText editText) { this.editText = editText; }
+        @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+        @Override public void onTextChanged(CharSequence s, int start, int before, int count) { editText.setError(null); }
+        @Override public void afterTextChanged(Editable s) { }
     }
 
-    /**
-     * Enhanced security method with Exponential Backoff to prevent registration flooding.
-     */
     private void attemptSignup() {
+        // ... (Your existing attemptSignup logic - unchanged) ...
         long currentTime = System.currentTimeMillis();
-
-        // 1. Calculate required delay based on previous attempts
-        // Logic: 5s * 2^n. (5s, 10s, 20s, 40s, 80s, capped at 160s)
         long requiredDelay = 0;
         if (signupAttemptCounter > 0) {
-            // We cap the power at 5 to prevent the wait time from becoming hours long too quickly
             requiredDelay = BASE_DELAY * (long) Math.pow(2, Math.min(signupAttemptCounter - 1, 5));
         }
 
-        // 2. Check if the user is currently blocked
         if (currentTime - lastAttemptTimestamp < requiredDelay) {
             long timeLeftSeconds = (requiredDelay - (currentTime - lastAttemptTimestamp)) / 1000;
             showToast("Too many attempts. Please wait " + timeLeftSeconds + " seconds.");
             return;
         }
 
-        // 3. Update counters immediately to count this attempt
         lastAttemptTimestamp = currentTime;
         signupAttemptCounter++;
 
-        // 4. Reset UI errors
         passwordInputLayout.setError(null);
         retypePasswordInputLayout.setError(null);
         personEmail.setError(null);
 
-        // 5. Validate and Proceed
         if (validateAllFields()) {
             String email = personEmail.getText().toString().trim();
             String password = personPassword.getText().toString().trim();
             String phone = "+" + phoneCountryCode.getText().toString() + phoneNumber.getText().toString();
             String username = personUsername.getText().toString().trim();
 
+            String userType = "Customer"; // Default
+            if (radioProvider.isChecked()) {
+                userType = "Service Provider";
+            }
+
             signupBtn.setEnabled(false);
             signupBtn.setText("Checking Email...");
 
-            checkIfEmailExists(email, password, phone, username);
+            checkIfEmailExists(email, password, phone, username, userType);
         }
     }
 
-    private void checkIfEmailExists(String email, String password, String phone, String username) {
+    private void checkIfEmailExists(String email, String password, String phone, String username, String userType) {
+        // ... (Your existing logic - unchanged) ...
         fAuth.fetchSignInMethodsForEmail(email)
                 .addOnCompleteListener(task -> {
                     signupBtn.setText("Creating Account...");
@@ -220,15 +247,13 @@ public class Signup extends Fragment {
 
                         if (!isNewUser) {
                             personEmail.setError("An account with this email already exists.");
-
                             showToast("An account with this email already exists.");
                             signupBtn.setEnabled(true);
                             signupBtn.setText("Sign Up");
                         } else {
-                            createFirebaseUser(email, password, phone, username);
+                            createFirebaseUser(email, password, phone, username, userType);
                         }
                     } else {
-
                         Log.e(TAG, "Error checking email existence: " + task.getException());
                         showToast("Error checking email. Please try again.");
                         signupBtn.setEnabled(true);
@@ -239,14 +264,12 @@ public class Signup extends Fragment {
 
     private boolean validateAllFields() {
         boolean isValid = true;
-
         if (!validateUsername()) isValid = false;
         if (!validateEmail()) isValid = false;
         if (!validatePassword()) isValid = false;
         if (!validatePasswordMatch()) isValid = false;
         if (!validatePhone()) isValid = false;
         if (!validateTerms()) isValid = false;
-
         return isValid;
     }
 
@@ -257,6 +280,8 @@ public class Signup extends Fragment {
         }
         return true;
     }
+
+    // ... (Keep all your other validation methods: validateUsername, validateEmail, etc.) ...
 
     private boolean validateUsername() {
         String username = personUsername.getText().toString().trim();
@@ -294,9 +319,7 @@ public class Signup extends Fragment {
 
     private boolean validatePassword() {
         String password = personPassword.getText().toString().trim();
-
         passwordInputLayout.setError(null);
-
         if (password.isEmpty()) {
             passwordInputLayout.setError("Password is required");
             return false;
@@ -316,9 +339,7 @@ public class Signup extends Fragment {
     private boolean validatePasswordMatch() {
         String password = personPassword.getText().toString().trim();
         String confirmPassword = personRPassword.getText().toString().trim();
-
         retypePasswordInputLayout.setError(null);
-
         if (!password.equals(confirmPassword)) {
             retypePasswordInputLayout.setError("Passwords do not match");
             return false;
@@ -329,42 +350,28 @@ public class Signup extends Fragment {
     private boolean validatePhone() {
         String countryCode = phoneCountryCode.getText().toString().trim();
         String number = phoneNumber.getText().toString().trim();
-
         if (countryCode.isEmpty() || number.isEmpty()) {
             phoneNumber.setError("Phone number is required");
             return false;
         }
-
         if (!Pattern.matches("^[0-9]+$", countryCode)) {
             phoneCountryCode.setError("Invalid country code");
             return false;
         }
-
         if (!Pattern.matches("^[0-9]{10,15}$", number)) {
             phoneNumber.setError("Invalid phone number format");
             return false;
         }
-
         return true;
     }
 
-    private void createFirebaseUser(String email, String password, String phone, String username) {
+    private void createFirebaseUser(String email, String password, String phone, String username, String userType) {
         fAuth.createUserWithEmailAndPassword(email, password)
-                .addOnSuccessListener(new OnSuccessListener<AuthResult>() {
-                    @Override
-                    public void onSuccess(AuthResult authResult) {
-                        handleSignupSuccess(email, phone, username);
-                    }
-                })
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        handleSignupFailure(e);
-                    }
-                });
+                .addOnSuccessListener(authResult -> handleSignupSuccess(email, phone, username, userType))
+                .addOnFailureListener(this::handleSignupFailure);
     }
 
-    private void handleSignupSuccess(String email, String phone, String username) {
+    private void handleSignupSuccess(String email, String phone, String username, String userType) {
         FirebaseUser newUser = fAuth.getCurrentUser();
         if (newUser != null) {
             String userId = newUser.getUid();
@@ -373,7 +380,7 @@ public class Signup extends Fragment {
             user.put("userId", userId);
             user.put("email", email);
             user.put("name", username);
-            user.put("userType", "user");
+            user.put("userType", userType);
             user.put("phone", phone);
             user.put("isOnline", false);
             user.put("lastSeen", FieldValue.serverTimestamp());
@@ -395,30 +402,22 @@ public class Signup extends Fragment {
 
     private void sendEmailVerification(FirebaseUser user, String email, String phone) {
         user.sendEmailVerification()
-                .addOnSuccessListener(new OnSuccessListener<Void>() {
-                    @Override
-                    public void onSuccess(Void unused) {
-                        Log.i(TAG, "Verification email sent to: " + email);
-                        showToast("Verification email sent. Please verify your email before logging in.");
-                        redirectToPhoneVerification(phone, email);
-                    }
+                .addOnSuccessListener(unused -> {
+                    Log.i(TAG, "Verification email sent to: " + email);
+                    showToast("Verification email sent. Please verify your email before logging in.");
+                    redirectToPhoneVerification(phone, email);
                 })
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        Log.e(TAG, "Email verification send failed", e);
-                        showToast("Account created but verification email failed. Please verify later.");
-                        redirectToLogin();
-                    }
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Email verification send failed", e);
+                    showToast("Account created but verification email failed. Please verify later.");
+                    redirectToLogin();
                 });
     }
 
     private void handleSignupFailure(Exception e) {
         signupBtn.setEnabled(true);
         signupBtn.setText("Sign Up");
-
         String errorMessage = "Signup failed. Please try again.";
-
         if (e instanceof FirebaseAuthUserCollisionException) {
             errorMessage = "An account with this email already exists.";
         } else if (e instanceof FirebaseAuthWeakPasswordException) {
@@ -426,7 +425,6 @@ public class Signup extends Fragment {
         } else if (e instanceof FirebaseAuthInvalidCredentialsException) {
             errorMessage = "Invalid email format.";
         }
-
         showToast(errorMessage);
         Log.e(TAG, "Signup error: " + e.getMessage());
     }

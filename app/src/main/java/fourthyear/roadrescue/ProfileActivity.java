@@ -3,7 +3,7 @@ package fourthyear.roadrescue;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
-import android.graphics.drawable.Drawable; // For Glide Listener
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
@@ -18,7 +18,7 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.Nullable; // For Glide
+import androidx.annotation.Nullable;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -27,17 +27,18 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.DataSource; // For Glide
+import com.bumptech.glide.load.DataSource;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
-import com.bumptech.glide.load.engine.GlideException; // For Glide
-import com.bumptech.glide.request.RequestListener; // For Glide
-import com.bumptech.glide.request.target.Target; // For Glide
+import com.bumptech.glide.load.engine.GlideException;
+import com.bumptech.glide.request.RequestListener;
+import com.bumptech.glide.request.target.Target;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.SetOptions;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
@@ -119,7 +120,7 @@ public class ProfileActivity extends AppCompatActivity {
 
         // Setup Listeners
         setupUnreadMessageListener();
-        setupNotificationListener();
+        setupNotificationListener(); // This now calls the fixed method below
 
         setFieldsEditable(false);
         loadUserProfile();
@@ -127,7 +128,7 @@ public class ProfileActivity extends AppCompatActivity {
 
     private void findViews() {
         profileImageView = findViewById(R.id.profile_image_view);
-        profileImageView.setBackground(null); // Ensure no background blocks image
+        profileImageView.setBackground(null);
 
         profileName = findViewById(R.id.profile_name);
         editButton = findViewById(R.id.edit_button);
@@ -179,21 +180,37 @@ public class ProfileActivity extends AppCompatActivity {
                 });
     }
 
+    // ---------------------------------------------------------
+    // FIXED: Notification Badge Logic (Updated to use 'notifications' collection)
+    // ---------------------------------------------------------
     private void setupNotificationListener() {
         if (currentUser == null) return;
         String currentUserId = currentUser.getUid();
 
-        notificationListener = db.collection("notifications")
+        // Logic from the fix:
+        Query badgeQuery = db.collection("notifications")
                 .whereEqualTo("userId", currentUserId)
-                .whereEqualTo("read", false)
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
+                .whereEqualTo("read", false);
 
-                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-                    if (unreadNotificationBadge != null) {
-                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
-                    }
-                });
+        if (notificationListener != null) {
+            notificationListener.remove();
+        }
+
+        notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
+            if (e != null) {
+                Log.e(TAG, "Notification listener error", e);
+                return;
+            }
+            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+
+            if (unreadNotificationBadge != null) {
+                if (hasUnread) {
+                    unreadNotificationBadge.setVisibility(View.VISIBLE);
+                } else {
+                    unreadNotificationBadge.setVisibility(View.GONE);
+                }
+            }
+        });
     }
 
     private void setupBottomNavigation() {
@@ -202,15 +219,21 @@ public class ProfileActivity extends AppCompatActivity {
 
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         if (notificationButton != null) {
-            notificationButton.setOnClickListener(v -> startActivity(new Intent(ProfileActivity.this, NotificationsActivity.class)));
+            notificationButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ProfileActivity.this, NotificationsActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+            });
         }
 
         ImageView messageButton = findViewById(R.id.message_icon_btn);
         if (messageButton != null) {
-            messageButton.setOnClickListener(v -> startActivity(new Intent(ProfileActivity.this, ChatInboxActivity.class)));
+            messageButton.setOnClickListener(v -> {
+                Intent intent = new Intent(ProfileActivity.this, ChatInboxActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                startActivity(intent);
+            });
         }
-
-        // Active State Styling
         ConstraintLayout profileLayout = findViewById(R.id.nav_profile_layout);
         ImageView profileIcon = findViewById(R.id.profile_icon_btn);
         TextView profileText = findViewById(R.id.profile_text);
@@ -225,8 +248,6 @@ public class ProfileActivity extends AppCompatActivity {
             profileText.setTextColor(Color.BLACK);
             profileText.setTypeface(null, Typeface.BOLD);
         }
-
-        // --- HOME BUTTON FIX ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         if (homeButton != null) {
             homeButton.setOnClickListener(v -> {

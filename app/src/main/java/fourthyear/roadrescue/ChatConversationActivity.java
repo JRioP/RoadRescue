@@ -28,9 +28,7 @@ import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 public class ChatConversationActivity extends AppCompatActivity {
@@ -46,19 +44,14 @@ public class ChatConversationActivity extends AppCompatActivity {
 
     private FirebaseFirestore db;
     private FirebaseAuth auth;
-
-    // Listeners
     private ListenerRegistration messagesListener;
     private ListenerRegistration chatStatusListener;
 
-    // --- Badge Listeners ---
     private ListenerRegistration unreadBadgeListener;
-    private ListenerRegistration notificationBadgeListener;
-
-    // --- Badge UI ---
+    private ListenerRegistration notificationBadgeListener; // Matches your class variable
     private TextView unreadBadge;
     private TextView unreadNotificationBadge;
-
+    private FirebaseUser currentUser;
     private String chatId;
     private String otherUserName;
     private boolean isChatClosed = false;
@@ -73,6 +66,7 @@ public class ChatConversationActivity extends AppCompatActivity {
 
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
+        currentUser = auth.getCurrentUser(); // ADDED: Initialized here to prevent NullPointerException
 
         if (chatId == null || chatId.isEmpty()) {
             Log.e(TAG, "Chat ID is null or empty. Finishing activity.");
@@ -86,21 +80,17 @@ public class ChatConversationActivity extends AppCompatActivity {
         setupViews();
         setupFirestoreListener();
         setupChatStatusListener();
-
-        // --- Setup Badge Listeners ---
-        setupUnreadBadgeListener();
-        setupNotificationBadgeListener();
-
         setupNavbar();
+        setupUnreadBadgeListener();
+        setupNotificationBadgeListener(); // This calls the fixed method
 
         resetUnreadCount();
     }
 
     private void resetUnreadCount() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
+        if (currentUser == null) return;
 
-        String currentUserId = user.getUid();
+        String currentUserId = currentUser.getUid();
 
         db.collection("chats").document(chatId)
                 .update("unreadCounts." + currentUserId, 0)
@@ -127,11 +117,9 @@ public class ChatConversationActivity extends AppCompatActivity {
                 });
     }
 
-    // --- Global Badge Logic ---
     private void setupUnreadBadgeListener() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
-        String currentUserId = user.getUid();
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
 
         unreadBadgeListener = db.collection("chats")
                 .whereArrayContains("participantIds", currentUserId)
@@ -155,23 +143,37 @@ public class ChatConversationActivity extends AppCompatActivity {
                 });
     }
 
+    // --- FIXED METHOD START ---
     private void setupNotificationBadgeListener() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) return;
-        String currentUserId = user.getUid();
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
 
-        notificationBadgeListener = db.collection("notifications")
+        // Fixed: Now listens to 'notifications' collection
+        Query badgeQuery = db.collection("notifications")
                 .whereEqualTo("userId", currentUserId)
-                .whereEqualTo("read", false)
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
+                .whereEqualTo("read", false);
 
-                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-                    if (unreadNotificationBadge != null) {
-                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
-                    }
-                });
+        if (notificationBadgeListener != null) {
+            notificationBadgeListener.remove();
+        }
+
+        notificationBadgeListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
+            if (e != null) {
+                Log.e(TAG, "Notification listener error", e);
+                return;
+            }
+            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+
+            if (unreadNotificationBadge != null) {
+                if (hasUnread) {
+                    unreadNotificationBadge.setVisibility(View.VISIBLE);
+                } else {
+                    unreadNotificationBadge.setVisibility(View.GONE);
+                }
+            }
+        });
     }
+    // --- FIXED METHOD END ---
 
     private void updateUiForChatStatus() {
         if (isChatClosed) {
@@ -195,27 +197,30 @@ public class ChatConversationActivity extends AppCompatActivity {
     }
 
     private void setupNavbar() {
-        // --- Init Badge Views ---
         unreadBadge = findViewById(R.id.unread_message_badge);
         unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
 
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         notificationButton.setOnClickListener(v -> {
             Intent intent = new Intent(ChatConversationActivity.this, NotificationsActivity.class);
+            // --- FIX ADDED HERE ---
+            // Prevents creating a new activity if one already exists.
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
 
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
         profileButton.setOnClickListener(v -> {
             Intent intent = new Intent(ChatConversationActivity.this, ProfileActivity.class);
+            // --- FIX ADDED HERE ---
+            // Prevents creating a new activity if one already exists.
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
 
-        // --- HOME BUTTON FIX ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         homeButton.setOnClickListener(v -> {
-            FirebaseUser user = auth.getCurrentUser();
-            if (user == null) {
+            if (currentUser == null) {
                 Intent intent = new Intent(ChatConversationActivity.this, MainActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(intent);
@@ -223,7 +228,7 @@ public class ChatConversationActivity extends AppCompatActivity {
                 return;
             }
 
-            db.collection("users").document(user.getUid()).get()
+            db.collection("users").document(currentUser.getUid()).get()
                     .addOnSuccessListener(documentSnapshot -> {
                         String userType = "Customer"; // Default
                         if (documentSnapshot.exists()) {
@@ -241,6 +246,7 @@ public class ChatConversationActivity extends AppCompatActivity {
                             intent = new Intent(ChatConversationActivity.this, homepage.class);
                         }
 
+                        // This is the correct flag for a "Home" button, it clears the stack.
                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(intent);
                         finish();
@@ -254,7 +260,7 @@ public class ChatConversationActivity extends AppCompatActivity {
                     });
         });
 
-        // --- Message Button Logic & Styling ---
+        // --- Active State Styling for Message Icon ---
         ImageView messageIcon = findViewById(R.id.message_icon_btn);
         ConstraintLayout messageLayout = findViewById(R.id.nav_message_layout);
         TextView messageText = findViewById(R.id.message_text);
@@ -273,6 +279,7 @@ public class ChatConversationActivity extends AppCompatActivity {
         if (messageIcon != null) {
             messageIcon.setOnClickListener(v -> {
                 Intent intent = new Intent(ChatConversationActivity.this, ChatInboxActivity.class);
+                // This is the correct flag for going "up" to the parent inbox screen.
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
                 startActivity(intent);
                 finish();
@@ -330,8 +337,6 @@ public class ChatConversationActivity extends AppCompatActivity {
                 .set(message)
                 .addOnSuccessListener(aVoid -> {
                     messageInput.setText("");
-
-                    // Only update chat unread counts. NO notification list update.
                     updateLastMessageAndUnreadCount(messageText);
                 })
                 .addOnFailureListener(e -> {
@@ -390,17 +395,15 @@ public class ChatConversationActivity extends AppCompatActivity {
     }
 
     private String getCurrentUserId() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user != null) {
-            return user.getUid();
+        if (currentUser != null) {
+            return currentUser.getUid();
         }
         return "default_user_id";
     }
 
     private String getCurrentUserName() {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user != null && user.getDisplayName() != null) {
-            return user.getDisplayName();
+        if (currentUser != null && currentUser.getDisplayName() != null) {
+            return currentUser.getDisplayName();
         }
         return "You";
     }

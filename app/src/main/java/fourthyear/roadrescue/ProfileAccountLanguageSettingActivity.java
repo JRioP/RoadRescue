@@ -132,10 +132,17 @@ public class ProfileAccountLanguageSettingActivity extends AppCompatActivity {
     }
 
     private void setupNavbar() {
-        navNotification.setOnClickListener(v -> startActivity(new Intent(ProfileAccountLanguageSettingActivity.this, NotificationsActivity.class)));
-        navMessage.setOnClickListener(v -> startActivity(new Intent(ProfileAccountLanguageSettingActivity.this, ChatInboxActivity.class)));
+        navNotification.setOnClickListener(v -> {
+            Intent intent = new Intent(ProfileAccountLanguageSettingActivity.this, NotificationsActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
 
-        // --- Active State: Profile Button ---
+        navMessage.setOnClickListener(v -> {
+            Intent intent = new Intent(ProfileAccountLanguageSettingActivity.this, ChatInboxActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
         navProfile.setBackgroundResource(R.drawable.rounded_white_background);
         ImageView profileIcon = findViewById(R.id.profile_icon_btn);
         TextView profileText = findViewById(R.id.profile_text);
@@ -144,14 +151,15 @@ public class ProfileAccountLanguageSettingActivity extends AppCompatActivity {
             profileText.setTextColor(Color.BLACK);
             profileText.setTypeface(null, Typeface.BOLD);
         }
-        // Navigate back to main Profile page
-        navProfile.setOnClickListener(v -> startActivity(new Intent(ProfileAccountLanguageSettingActivity.this, ProfileActivity.class)));
+        navProfile.setOnClickListener(v -> {
+            Intent intent = new Intent(ProfileAccountLanguageSettingActivity.this, ProfileActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
 
-        // --- Home Button Logic (Check User Type) ---
         navHome.setOnClickListener(v -> navigateToCorrectHomepage());
     }
 
-    // Helper method to find correct homepage
     private void navigateToCorrectHomepage() {
         FirebaseUser user = mAuth.getCurrentUser();
         if (user == null) {

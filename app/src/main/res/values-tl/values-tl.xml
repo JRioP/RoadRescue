@@ -1,75 +1,134 @@
-<?xml version="1.0" encoding="utf-8"?>
-    <resources>
-        <string name="app_name">RoadRescue</string>
-        <string name="login_text">Maligayang Pagbabalik</string>
-        <string name="sign_up_text">Magsimula</string>
-        <string name="email">Email</string>
-        <string name="password">Password</string>
-        <string name="remember">Tandaan ako</string>
-        <string name="forget_pass">Nakalimutan ang Password?</string>
-        <string name="sign_in">Mag-login</string>
-        <string name="sign_in_with">Mag-login gamit ang</string>
-        <string name="facebook">Facebook</string>
-        <string name="google">Google</string>
-        <string name="twitter">Twitter</string>
+<resources>
+    <string name="app_name">RoadRescue</string>
+    <string name="login_text">Maligayang Pagbalik</string>
+    <string name="sign_up_text">Gumawa ng Account</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="remember">Tandaan ako</string>
+    <string name="forget_pass">Nakalimutang Password?</string>
+    <string name="sign_in">Mag-sign in</string>
+    <string name="sign_in_with">Mag-sign in gamit ang</string>
+    <string name="facebook">Facebook</string>
+    <string name="google">Google</string>
+    <string name="twitter">Twitter</string>
 
-        <string name="splash_text">Ang Iyong Biyahe, Aming Prayoridad</string>
-        <string name="splash_button">Magsimula</string>
-        <string name="splash_button_texttwo">Mag-login</string>
+    <string name="splash_text">Ang Iyong Paglalakbay, Aming Prayoridad</string>
+    <string name="splash_button">Magsimula</string>
+    <string name="splash_button_texttwo">Mag-log in</string>
 
-        <string name="sign_up_username">Username</string>
-        <string name="sign_up_button">Mag-rehistro</string>
-        <string name="sign_up_texttwo">Mag-rehistro gamit ang</string>
-        <string name="sign_up_retype_password">I-type muli ang Password</string>
-        <string name="sign_up_phone_number">Numero ng Telepono</string>
-        <string name="sign_up_phone_number_country_code">+63</string>
-        <string name="sign_up_termsandcondition">Mga Tuntunin at Kundisyon</string>
 
-        <string name="verify_text">Ilagay ang 6-digit code na ipinadala sa Telepono sa</string>
-        <string name="verify_btn_text">I-verify</string>
-        <string name="verify_edit_text">___</string>
-        <string name="resend_btn_text">Ipadala muli</string>
-        <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="sign_up_username">Pangalan (Username)</string>
+    <string name="sign_up_button">Mag-sign up</string>
+    <string name="sign_up_texttwo">Mag-sign up gamit ang</string>
+    <string name="sign_up_retype_password">I-type Muli ang Password</string>
+    <string name="sign_up_phone_number">Numero ng Telepono</string>
+    <string name="sign_up_phone_number_country_code">+63</string>
+    <string name="sign_up_termsandcondition">Mga Tuntunin at Kundisyon</string>
+    <string name="password_standards_helper">Dapat may 8+ na karakter, may malaking titik, numero at simbolo.</string>
 
-        <string name="viewpager_desc">Mga pahina ng Login at Signup</string>
+    <string name="verify_text">Ilagay ang 6-digit na code na ipinadala sa Telepono sa</string>
+    <string name="verify_btn_text">I-verify</string>
+    <string name="verify_edit_text">___</string>
+    <string name="resend_btn_text">Ipadala muli</string>
+    <string name="hello_blank_fragment">Hello blank fragment</string>
 
-        <string name="forget_password_text">Nakalimutan ang Password</string>
-        <string name="forget_pass_button">Nakalimutan ang Password</string>
+    <string name="viewpager_desc">Mga pahina ng Login at Signup</string>
 
-        <string name="current_location">Kasalukuyang Lokasyon</string>
-        <string name="location">Tanauan City</string>
-        <string name="SOS_Text">SOS</string>
-        <string name="services_text">Anong serbisyo ang hinahanap mo?</string>
-        <string name="towing_text">Towing</string>
-        <string name="jump_start_text">Jump-Start</string>
-        <string name="fuel_delivery_text">Gasolina</string>
-        <string name="flat_tire_text">Ayos Gulong</string>
-        <string name="notification_text">Notipikasyon</string>
-        <string name="home_text">Home</string>
-        <string name="message_text">Mensahe</string>
-        <string name="profile_text">Profile</string>
-        <string name="recent_text">Kamakailan</string>
-        <string name="title_notification">Notipikasyon</string>
+    <string name="forget_password_text">Nakalimutang Password</string>
+    <string name="forget_pass_button">Nakalimutang Password</string>
 
-        <string name="back_button">Button para Bumalik</string>
+    <string name="current_location">Kasalukuyang Lokasyon</string>
+    <string name="location">Lungsod ng Tanauan</string>
+    <string name="SOS_Text">SOS</string>
+    <string name="services_text">Anong serbisyo ang hinahanap mo?</string>
+    <string name="towing_text">Paghatak (Towing)</string>
+    <string name="jump_start_text">Pagpaandar (Jump-Start)</string>
+    <string name="fuel_delivery_text">Paghatid ng Gasolina</string>
+    <string name="flat_tire_text">Pagkumpuni ng \n Flat Tire</string>
+    <string name="gas_station_text">Gasolinahan</string>
+    <string name="battery_text">Palitan \n Baterya</string>
+    <string name="notification_text">abiso</string>
+    <string name="home_text">bahay</string>
+    <string name="message_text">Mensahe</string>
+    <string name="profile_text">Profile</string>
+    <string name="recent_text">Kamakailan</string>
+    <string name="title_notification">Abiso</string>
 
-        <string name="item_recent_text">Pangalan ng SP</string>
-        <string name="item_location">Lokasyon</string>
 
-        <string name="notification_text_two">Mga Notipikasyon</string>
-        <string name="title_text_notification">Ngayon</string>
-        <string name="item_title_text_notification">Pamagat ng Notipikasyon</string>
-        <string name="item_notification_message_text">Dito ilalagay ang nilalaman ng mensahe ng notipikasyon.</string>
-        <string name="item_notification_time_text">10:30 AM</string>
+    <string name="back_button">Button na Pabalik</string>
 
-        <string name="towing_icon_description">Icon para sa serbisyo ng towing</string>
-        <string name="jump_start_icon_description">Icon para sa serbisyo ng jump-start</string>
-        <string name="fuel_delivery_icon_description">Icon para sa serbisyo ng paghahatid ng gasolina</string>
-        <string name="flat_tire_repair_icon_description">Icon para sa serbisyo ng pag-aayos ng flat na gulong</string>
-        <string name="service_five_icon_description">Icon para sa iba pang serbisyo sa kalsada</string>
-        <string name="location_icon_description">Icon para sa iba pang serbisyo sa kalsada</string>
+    <string name="item_recent_text">Pangalan ng SP</string>
+    <string name="item_location">Lokasyon</string>
 
-        <string name="profile_text_page">Profile</string>
-        <string name="profile_name">Juan Dela Cruz</string>
-        <string name="profile_account_settings">Mga Setting ng Account</string>
-    </resources>
+
+    <string name="notification_text_two">Mga Abiso</string>
+    <string name="title_text_notification">Ngayon</string>
+    <string name="item_title_text_notification">Pamagat ng Abiso</string>
+    <string name="item_notification_message_text">Ang nilalaman ng mensahe ng abiso ay narito.</string>
+    <string name="item_notification_time_text">10:30 AM</string>
+
+    <string name="towing_icon_description">Icon para sa serbisyo ng paghatak (towing)</string>
+    <string name="jump_start_icon_description">Icon para sa serbisyo ng pagpaandar (jump start)</string>
+    <string name="fuel_delivery_icon_description">Icon para sa serbisyo ng paghatid ng gasolina</string>
+    <string name="flat_tire_repair_icon_description">Icon para sa serbisyo ng pagkumpuni ng flat tire</string>
+    <string name="service_five_icon_description">Icon para sa iba pang serbisyo sa tabing-daan</string>
+    <string name="location_icon_description">Icon para sa iba pang serbisyo sa tabing-daan</string>
+
+    <string name="profile_text_page">Profile</string>
+    <string name="profile_name">Juan Dela Cruz</string>
+    <string name="profile_account_settings">Mga Setting ng Account</string>
+    <string name="Data_Privacy_Compliance">•\tKami ay sumusunod sa Data Privacy Act of 2012 (RA 10173) upang matiyak na ang lahat ng personal na impormasyong ibinahagi sa amin ay kinokolekta, pinoproseso, at itinatabi nang may pinakamataas na antas ng pagiging kumpidensyal.\n•\tIsang Data Protection Officer (DPO) ang itinalaga upang pangasiwaan ang pagsunod, seguridad, at proteksyon ng impormasyon ng gumagamit.\n•\tLahat ng sistema ng pagproseso ng data ay nakarehistro sa National Privacy Commission (NPC).\n•\tRegular na isinasagawa ang Privacy Impact Assessments upang suriin ang mga potensyal na panganib.\n•\tMakatuwiran at naaangkop na mga hakbang sa seguridad ang inilagay upang protektahan laban sa hindi awtorisadong pag-access, paglabag, o pagkawala ng data.\n</string>
+
+    <string name="terms_title">Mga Tuntunin at Kundisyon</string>
+    <string name="terms_last_updated">Huling na-update: Nobyembre 17, 2025</string>
+
+    <string name="terms_heading_1">1. Kasunduan sa Mga Tuntunin</string>
+    <string name="terms_body_1">
+        Ang mga Tuntunin at Kundisyon ("Mga Tuntunin") na ito ay namamahala sa iyong pag-access at paggamit ng RoadRescue mobile application ("ang Serbisyo"). Sa paglikha ng account o paggamit ng Serbisyo, sumasang-ayon ka na sumailalim sa Mga Tuntuning ito. Kung hindi ka sumasang-ayon sa Mga Tuntuning ito, huwag gamitin ang Serbisyo.
+    </string>
+
+    <string name="terms_heading_2">2. Ang Serbisyo ng RoadRescue</string>
+    <string name="terms_body_2">
+        Ang RoadRescue ay isang teknolohiyang platform na nag-uugnay sa mga gumagamit ("Mga Gumagamit") na naghahanap ng tulong sa tabing-daan sa mga independiyenteng, third-party service provider ("Mga Service Provider" o "Mga Rescuer").\n\n
+        <b>Kinikilala mo na ang RoadRescue ay isang software platform at HINDI nagbibigay ng serbisyo mismo ng tulong sa tabing-daan.</b> Ang Mga Service Provider ay mga independiyenteng kontratista, hindi empleyado o ahente ng RoadRescue.
+    </string>
+
+    <string name="terms_heading_3">3. Mga User Account at Pag-uugali</string>
+    <string name="terms_body_3">
+        Dapat kang hindi bababa sa 18 taong gulang upang magamit ang Serbisyo. Sumasang-ayon kang magbigay ng tumpak at kumpletong impormasyon kapag gumagawa ng iyong account at panatilihing updated ang impormasyong ito.\n\n
+        Ikaw ang responsable para sa lahat ng aktibidad na nagaganap sa ilalim ng iyong account. Sumasang-ayon ka na huwag:\n
+        •   Gamitin ang serbisyo para sa anumang mapanlinlang o ilegal na layunin.\n
+        •   Magsumite ng mga huwad o \'prank\' na kahilingan para sa tulong.\n
+        •   Manligalig, magbanta, o manakit sa Mga Service Provider o iba pang gumagamit.\n
+        •   Magtangkang gumawa ng reverse-engineer o makakuha ng hindi awtorisadong pag-access sa Serbisyo.
+    </string>
+
+    <string name="terms_heading_4">4. Pagtanggi sa Mga Garantiya</string>
+    <string name="terms_body_4">
+        Ang Serbisyo ay ibinibigay na "AS IS" at "AS AVAILABLE" nang walang anumang uri ng garantiya.\n\n
+        Hindi namin ginagarantiya na:\n
+        (a) Ang Serbisyo ay walang pagkakamali, ligtas, o hindi maaantala.\n
+        (b) Magiging available ang isang Service Provider upang tanggapin ang iyong kahilingan.\n
+        (c) Ang kalidad, kaligtasan, o pagiging napapanahon ng mga serbisyong ibinigay ng Third-Party Service Provider ay makakatugon sa iyong mga inaasahan.
+    </string>
+
+    <string name="terms_heading_5">5. Limitasyon ng Pananagutan</string>
+    <string name="terms_body_5">
+        Sa pinakamalawak na lawak na pinahihintulutan ng batas, ang RoadRescue at ang mga tagalikha nito (kabilang sina Jem, Joshua, at Winnely) ay hindi mananagot para sa anumang hindi direkta, incidental, espesyal, o kinahinatnang pinsala, o para sa anumang pinsalang nauugnay sa:\n\n
+        (a) Personal na pinsala, pinsala sa ari-arian, o mga hindi pagkakaunawaan na nagmumula sa iyong pakikipag-ugnayan sa isang Service Provider.\n
+        (b) Anumang pagkabigo ng app na gumana, o anumang pagkakamali o pagkaantala sa serbisyo.\n
+        (c) Ang mga aksyon, hindi pag-aksyon, o kalidad ng trabaho ng sinumang Third-Party Service Provider.\n\n
+        Ang aming kabuuang pananagutan sa iyo para sa anumang lahat ng mga paghahabol na nagmumula sa paggamit ng Serbisyo ay limitado sa halagang binayaran mo sa amin para sa Serbisyo, kung mayroon man.
+    </string>
+
+    <string name="terms_heading_6">6. Namamahalang Batas</string>
+    <string name="terms_body_6">
+        Ang Mga Tuntuning ito ay pamamahalaan at bibigyang-kahulugan alinsunod sa mga batas ng Republika ng Pilipinas, nang walang pagsasaalang-alang sa mga probisyon nito tungkol sa salungatan ng mga batas.
+    </string>
+
+    <string name="terms_heading_7">7. Mga Pagbabago sa Mga Tuntunin</string>
+    <string name="terms_body_7">
+        Inilalaan namin ang karapatang baguhin ang Mga Tuntuning ito anumang oras. Magbibigay kami ng abiso ng mga pagbabago sa pamamagitan ng pag-update ng petsa ng "Huling na-update". Ang iyong patuloy na paggamit ng Serbisyo pagkatapos ng anumang pagbabago ay bumubuo sa iyong pagtanggap sa mga bagong Tuntunin.
+    </string>
+
+</resources>
