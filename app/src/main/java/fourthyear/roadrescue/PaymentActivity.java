@@ -19,6 +19,7 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
 
 import java.util.Locale;
 
@@ -83,7 +84,7 @@ public class PaymentActivity extends AppCompatActivity {
         // Setup Nav and Badges
         setupNavbar();
         setupUnreadMessageListener();
-        setupNotificationListener();
+        setupNotificationListener(); // This now uses the fix
     }
 
     // --- Listener for Chat Badges ---
@@ -114,23 +115,38 @@ public class PaymentActivity extends AppCompatActivity {
                 });
     }
 
-    // --- Listener for Notification Badges ---
+    // ---------------------------------------------------------
+    // FIXED: Notification Badge Logic (Updated to use 'notifications' collection)
+    // ---------------------------------------------------------
     private void setupNotificationListener() {
-        FirebaseUser user = mAuth.getCurrentUser();
-        if (user == null) return;
-        String currentUserId = user.getUid();
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
 
-        notificationListener = db.collection("notifications")
+        // Logic from the fix:
+        Query badgeQuery = db.collection("notifications")
                 .whereEqualTo("userId", currentUserId)
-                .whereEqualTo("read", false)
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
+                .whereEqualTo("read", false);
 
-                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-                    if (unreadNotificationBadge != null) {
-                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
-                    }
-                });
+        if (notificationListener != null) {
+            notificationListener.remove();
+        }
+
+        notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
+            if (e != null) {
+                Log.e(TAG, "Notification listener error", e);
+                return;
+            }
+            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+
+            if (unreadNotificationBadge != null) {
+                if (hasUnread) {
+                    unreadNotificationBadge.setVisibility(View.VISIBLE);
+                } else {
+                    unreadNotificationBadge.setVisibility(View.GONE);
+                }
+            }
+        });
     }
 
     private void updateSelection(String paymentMethod) {
@@ -148,23 +164,22 @@ public class PaymentActivity extends AppCompatActivity {
     }
 
     private void setupNavbar() {
-        // Initialize Badge Views
         unreadBadge = findViewById(R.id.unread_message_badge);
         unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
 
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         notificationButton.setOnClickListener(v -> {
             Intent intent = new Intent(PaymentActivity.this, NotificationsActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
 
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
         profileButton.setOnClickListener(v -> {
             Intent intent = new Intent(PaymentActivity.this, ProfileActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
-
-        // --- HOME BUTTON FIX (Handles both User Types) ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         homeButton.setOnClickListener(v -> {
             FirebaseUser user = mAuth.getCurrentUser();
@@ -181,8 +196,6 @@ public class PaymentActivity extends AppCompatActivity {
                         String userType = "Customer"; // Default
                         if (documentSnapshot.exists()) {
                             String type = documentSnapshot.getString("userType");
-
-                            // Robust Check for "driver" or "Service Provider"
                             if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
                                 userType = "Service Provider";
                             }
@@ -201,7 +214,6 @@ public class PaymentActivity extends AppCompatActivity {
                     })
                     .addOnFailureListener(e -> {
                         Log.e(TAG, "Failed to get userType", e);
-                        // Fallback to customer homepage
                         Intent intent = new Intent(PaymentActivity.this, homepage.class);
                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(intent);
@@ -212,6 +224,7 @@ public class PaymentActivity extends AppCompatActivity {
         ImageView messageButton = findViewById(R.id.message_icon_btn);
         messageButton.setOnClickListener(v -> {
             Intent intent = new Intent(PaymentActivity.this, ChatInboxActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
     }

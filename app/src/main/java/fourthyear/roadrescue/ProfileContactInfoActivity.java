@@ -5,8 +5,8 @@ import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
-import android.graphics.Color; // Added
-import android.graphics.Typeface; // Added
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.ContactsContract;
@@ -33,7 +33,8 @@ import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.ListenerRegistration; // Added
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
 
 import java.util.HashMap;
 import java.util.List;
@@ -89,7 +90,7 @@ public class ProfileContactInfoActivity extends AppCompatActivity {
 
         // --- NEW: Setup Badge Listeners ---
         setupUnreadMessageListener();
-        setupNotificationListener();
+        setupNotificationListener(); // Uses the fix
 
         setupClickListeners(); // Includes updated Navbar logic
 
@@ -139,20 +140,37 @@ public class ProfileContactInfoActivity extends AppCompatActivity {
                 });
     }
 
+    // ---------------------------------------------------------
+    // FIXED: Notification Badge Logic (Updated to use 'notifications' collection)
+    // ---------------------------------------------------------
     private void setupNotificationListener() {
         if (currentUser == null) return;
         String currentUserId = currentUser.getUid();
 
-        notificationListener = db.collection("notifications")
+        // Logic from the fix:
+        Query badgeQuery = db.collection("notifications")
                 .whereEqualTo("userId", currentUserId)
-                .whereEqualTo("read", false)
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
-                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-                    if (unreadNotificationBadge != null) {
-                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
-                    }
-                });
+                .whereEqualTo("read", false);
+
+        if (notificationListener != null) {
+            notificationListener.remove();
+        }
+
+        notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
+            if (e != null) {
+                Log.e(TAG, "Notification listener error", e);
+                return;
+            }
+            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+
+            if (unreadNotificationBadge != null) {
+                if (hasUnread) {
+                    unreadNotificationBadge.setVisibility(View.VISIBLE);
+                } else {
+                    unreadNotificationBadge.setVisibility(View.GONE);
+                }
+            }
+        });
     }
 
     private void initializeLaunchers() {
@@ -186,9 +204,21 @@ public class ProfileContactInfoActivity extends AppCompatActivity {
         buttonAddSos.setOnClickListener(v -> checkAndRequestContactsPermission());
 
         // --- Navbar Logic ---
-        navNotification.setOnClickListener(v -> startActivity(new Intent(ProfileContactInfoActivity.this, NotificationsActivity.class)));
+        navNotification.setOnClickListener(v -> {
+            Intent intent = new Intent(ProfileContactInfoActivity.this, NotificationsActivity.class);
+            // --- FIX ADDED HERE ---
+            // Prevents creating a new activity if one already exists.
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
 
-        navMessage.setOnClickListener(v -> startActivity(new Intent(ProfileContactInfoActivity.this, ChatInboxActivity.class)));
+        navMessage.setOnClickListener(v -> {
+            Intent intent = new Intent(ProfileContactInfoActivity.this, ChatInboxActivity.class);
+            // --- FIX ADDED HERE ---
+            // Prevents creating a new activity if one already exists.
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
 
         // --- Active State: Profile Button ---
         navProfile.setBackgroundResource(R.drawable.rounded_white_background);
@@ -199,9 +229,16 @@ public class ProfileContactInfoActivity extends AppCompatActivity {
             profileText.setTextColor(Color.BLACK);
             profileText.setTypeface(null, Typeface.BOLD);
         }
-        navProfile.setOnClickListener(v -> startActivity(new Intent(ProfileContactInfoActivity.this, ProfileActivity.class)));
+        navProfile.setOnClickListener(v -> {
+            Intent intent = new Intent(ProfileContactInfoActivity.this, ProfileActivity.class);
+            // --- FIX ADDED HERE ---
+            // This is important for navigating "up" to the main profile screen.
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
 
         // --- Home Button Fix ---
+        // This button's logic is already correct as it clears the stack to go "home".
         navHome.setOnClickListener(v -> {
             if (currentUser == null) {
                 startActivity(new Intent(ProfileContactInfoActivity.this, MainActivity.class));

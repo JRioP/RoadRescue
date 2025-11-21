@@ -54,6 +54,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.GeoPoint;
 import com.google.firebase.firestore.ListenerRegistration;
 
+import com.google.firebase.firestore.Query;
 import com.google.maps.DirectionsApi;
 import com.google.maps.GeoApiContext;
 import com.google.maps.android.PolyUtil;
@@ -74,6 +75,8 @@ public class MapActivity extends AppCompatActivity
         implements OnMapReadyCallback, GoogleMap.OnMapClickListener {
 
     private static final String TAG = "MapActivity";
+    private static final String FALLBACK_DISPATCH_NUMBER = "+639171234567";
+
     private EditText destinationInput;
     private LatLng pickupLatLng;
     private LatLng destinationLatLng;
@@ -81,7 +84,7 @@ public class MapActivity extends AppCompatActivity
     private FusedLocationProviderClient fusedLocationClient;
     private ActivityResultLauncher<String> requestPermissionLauncher;
     private ActivityResultLauncher<Intent> paymentLauncher;
-
+    private FirebaseUser currentUser;
     private Button requestServiceButton;
     private Button editPickupButton;
     private Button messageButton;
@@ -95,46 +98,38 @@ public class MapActivity extends AppCompatActivity
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    // Firebase
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
     private String currentRequestId;
 
-    // Listeners
     private ListenerRegistration requestListener;
     private ListenerRegistration providerListener;
     private ListenerRegistration unreadListener;
     private ListenerRegistration notificationListener;
 
-    // Provider Details
     private String mProviderId;
     private String mProviderName;
     private String mProviderPhone;
 
-    // Map Objects
     private Marker providerMarker;
     private Marker pickupMarker;
     private Polyline mProviderToPickupLine;
     private Polyline mPickupToDestinationLine;
     private GeoApiContext mGeoApiContext = null;
 
-    // UI
     private View statusCard;
     private View searchingCard;
 
     private ImageView providerImage;
-
     private TextView providerNameText;
     private TextView providerSubtitleText;
     private TextView distanceText;
     private TextView etaText;
     private TextView requestTypeText;
 
-    // Badges
     private TextView unreadBadge;
     private TextView unreadNotificationBadge;
 
-    // Request Data
     private String selectedRequestType;
     private double calculatedAmount;
 
@@ -166,7 +161,6 @@ public class MapActivity extends AppCompatActivity
         setupPermissionLauncher();
         setupPaymentLauncher();
 
-        // --- Badge Listeners ---
         setupUnreadMessageListener();
         setupNotificationListener();
 
@@ -203,11 +197,9 @@ public class MapActivity extends AppCompatActivity
         callButton = findViewById(R.id.call_button);
         cancelRequestButton = findViewById(R.id.cancel_request_btn);
 
-        // Initialize Badges
         unreadBadge = findViewById(R.id.unread_message_badge);
         unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
 
-        // Styling for search box
         android.graphics.drawable.GradientDrawable pillShape = new android.graphics.drawable.GradientDrawable();
         pillShape.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
         pillShape.setColor(Color.WHITE);
@@ -220,69 +212,21 @@ public class MapActivity extends AppCompatActivity
         destinationInput.setSingleLine(true);
         destinationInput.setEllipsize(android.text.TextUtils.TruncateAt.END);
 
-        if (!"Towing".equals(selectedRequestType)) {
+        if ("Gas Station".equals(selectedRequestType)) {
+            destinationInput.setHint("Finding nearest gas stations...");
+            destinationInput.setEnabled(false);
+            requestServiceButton.setText("Find Nearby Gas Stations");
+            editPickupButton.setVisibility(View.GONE); // Hide pickup button for Gas Station mode
+        } else if (!"Towing".equals(selectedRequestType)) {
             destinationInput.setHint("Service will be at your pickup location.");
             destinationInput.setText("Service will be at your pickup location.");
             destinationInput.setEnabled(false);
+            requestServiceButton.setText("Request " + selectedRequestType + " Service");
         } else {
             destinationInput.setHint("Tap on the map to set your destination.");
-        }
-
-        if (selectedRequestType != null && !selectedRequestType.isEmpty()) {
             requestServiceButton.setText("Request " + selectedRequestType + " Service");
         }
     }
-
-    // ==========================================================
-    //  BADGE LISTENERS
-    // ==========================================================
-
-    private void setupUnreadMessageListener() {
-        FirebaseUser user = mAuth.getCurrentUser();
-        if (user == null) return;
-
-        unreadListener = db.collection("chats")
-                .whereArrayContains("participantIds", user.getUid())
-                .whereEqualTo("status", "active")
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
-
-                    int totalUnread = 0;
-                    if (snapshots != null) {
-                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                            Long count = doc.getLong("unreadCounts." + user.getUid());
-                            if (count != null) {
-                                totalUnread += count;
-                            }
-                        }
-                    }
-
-                    if (unreadBadge != null) {
-                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
-                    }
-                });
-    }
-
-    private void setupNotificationListener() {
-        FirebaseUser user = mAuth.getCurrentUser();
-        if (user == null) return;
-
-        notificationListener = db.collection("notifications")
-                .whereEqualTo("userId", user.getUid())
-                .whereEqualTo("read", false)
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
-
-                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-                    if (unreadNotificationBadge != null) {
-                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
-                    }
-                });
-    }
-
-    // ==========================================================
-    //  CORE MAP LOGIC
-    // ==========================================================
 
     private void listenForProviderLocation(String providerId) {
         if (providerListener != null) providerListener.remove();
@@ -305,18 +249,9 @@ public class MapActivity extends AppCompatActivity
 
                         if (providerImage != null) {
                             if (photoUrl != null && !photoUrl.isEmpty()) {
-                                Glide.with(MapActivity.this)
-                                        .load(photoUrl)
-                                        .centerCrop()
-                                        .circleCrop()
-                                        .placeholder(R.drawable.profile_icon)
-                                        .error(R.drawable.profile_icon)
-                                        .into(providerImage);
+                                Glide.with(MapActivity.this).load(photoUrl).centerCrop().circleCrop().placeholder(R.drawable.profile_icon).error(R.drawable.profile_icon).into(providerImage);
                             } else {
-                                Glide.with(MapActivity.this)
-                                        .load(R.drawable.profile_icon)
-                                        .circleCrop()
-                                        .into(providerImage);
+                                Glide.with(MapActivity.this).load(R.drawable.profile_icon).circleCrop().into(providerImage);
                             }
                         }
 
@@ -328,8 +263,59 @@ public class MapActivity extends AppCompatActivity
                 });
     }
 
+    private void setupUnreadMessageListener() {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
+        unreadListener = db.collection("chats").whereArrayContains("participantIds", user.getUid()).whereEqualTo("status", "active").addSnapshotListener((snapshots, e) -> {
+            if (e != null) return;
+            int totalUnread = 0;
+            if (snapshots != null) {
+                for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                    Long count = doc.getLong("unreadCounts." + user.getUid());
+                    if (count != null) totalUnread += count;
+                }
+            }
+            if (unreadBadge != null) unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+        });
+    }
+
+    private void setupNotificationListener() {
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
+        Query badgeQuery = db.collection("notifications")
+                .whereEqualTo("userId", currentUserId)
+                .whereEqualTo("read", false);
+
+        if (notificationListener != null) {
+            notificationListener.remove();
+        }
+
+        notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
+            if (e != null) {
+                Log.e(TAG, "Notification listener error", e);
+                return;
+            }
+            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+
+            if (unreadNotificationBadge != null) {
+                if (hasUnread) {
+                    unreadNotificationBadge.setVisibility(View.VISIBLE);
+                } else {
+                    unreadNotificationBadge.setVisibility(View.GONE);
+                }
+            }
+        });
+    }
+
     private void setupClickListeners() {
         requestServiceButton.setOnClickListener(v -> {
+            // --- SPECIAL HANDLING FOR GAS STATION ---
+            if ("Gas Station".equals(selectedRequestType)) {
+                findNearbyGasStations();
+                return; // Stop here, don't process payment/request
+            }
+            // ----------------------------------------
+
             if (!"Towing".equals(selectedRequestType)) {
                 if (pickupLatLng != null) {
                     destinationLatLng = pickupLatLng;
@@ -365,10 +351,28 @@ public class MapActivity extends AppCompatActivity
 
         cancelRequestButton.setOnClickListener(v -> cancelServiceRequest());
 
-        findViewById(R.id.notification_icon_btn).setOnClickListener(v -> startActivity(new Intent(MapActivity.this, NotificationsActivity.class)));
-        findViewById(R.id.message_icon_btn).setOnClickListener(v -> startActivity(new Intent(MapActivity.this, ChatInboxActivity.class)));
+        // --- NAVIGATION ICON FIXES START HERE ---
+
+        findViewById(R.id.notification_icon_btn).setOnClickListener(v -> {
+            Intent intent = new Intent(MapActivity.this, NotificationsActivity.class);
+            // --- FIX ADDED HERE ---
+            // Prevents creating a new activity if one already exists.
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
+
+        findViewById(R.id.message_icon_btn).setOnClickListener(v -> {
+            Intent intent = new Intent(MapActivity.this, ChatInboxActivity.class);
+            // --- FIX ADDED HERE ---
+            // Prevents creating a new activity if one already exists.
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+        });
+
+        // This back button logic is correct.
         findViewById(R.id.back_btn).setOnClickListener(v -> finish());
 
+        // This home button logic is also correct, as it resets the navigation stack.
         findViewById(R.id.home_icon_btn).setOnClickListener(v -> {
             FirebaseUser user = mAuth.getCurrentUser();
             if (user == null) {
@@ -378,36 +382,42 @@ public class MapActivity extends AppCompatActivity
                 finish();
                 return;
             }
-
-            db.collection("users").document(user.getUid()).get()
-                    .addOnSuccessListener(documentSnapshot -> {
-                        String userType = "Customer";
-                        if (documentSnapshot.exists()) {
-                            String type = documentSnapshot.getString("userType");
-                            if (type != null && (type.equalsIgnoreCase("Service Provider") || type.equalsIgnoreCase("driver"))) {
-                                userType = "Service Provider";
-                            }
-                        }
-
-                        Intent intent;
-                        if (userType.equals("Service Provider")) {
-                            intent = new Intent(MapActivity.this, ServiceProviderHomepage.class);
-                        } else {
-                            intent = new Intent(MapActivity.this, homepage.class);
-                        }
-                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                        finish();
-                    })
-                    .addOnFailureListener(e -> {
-                        Log.e(TAG, "Failed to get userType", e);
-                        Intent intent = new Intent(MapActivity.this, homepage.class);
-                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                        finish();
-                    });
+            db.collection("users").document(user.getUid()).get().addOnSuccessListener(documentSnapshot -> {
+                String userType = "Customer";
+                if (documentSnapshot.exists()) {
+                    String type = documentSnapshot.getString("userType");
+                    if (type != null && (type.equalsIgnoreCase("Service Provider") || type.equalsIgnoreCase("driver"))) {
+                        userType = "Service Provider";
+                    }
+                }
+                Intent intent;
+                if (userType.equals("Service Provider")) {
+                    intent = new Intent(MapActivity.this, ServiceProviderHomepage.class);
+                } else {
+                    intent = new Intent(MapActivity.this, homepage.class);
+                }
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                finish();
+            });
         });
     }
+
+    private void findNearbyGasStations() {
+        Uri gmmIntentUri = Uri.parse("geo:0,0?q=gas+station");
+        Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
+        mapIntent.setPackage("com.google.android.apps.maps");
+        if (mapIntent.resolveActivity(getPackageManager()) != null) {
+            startActivity(mapIntent);
+        } else {
+            // Fallback if app not installed, try browser
+            Uri browserUri = Uri.parse("https://www.google.com/maps/search/gas+station/");
+            Intent browserIntent = new Intent(Intent.ACTION_VIEW, browserUri);
+            startActivity(browserIntent);
+        }
+    }
+
+    // ... (Rest of the methods: cancelServiceRequest, findOrCreateChatRoom, setupPermissionLauncher, setupPaymentLauncher, checkUserForActiveRequest - same as before) ...
 
     private void cancelServiceRequest() {
         if (currentRequestId == null || currentRequestId.isEmpty()) {
@@ -603,6 +613,12 @@ public class MapActivity extends AppCompatActivity
             return;
         }
 
+        // --- PREVENT MAP CLICKS FOR GAS STATION ---
+        if ("Gas Station".equals(selectedRequestType)) {
+            Toast.makeText(this, "Click the button to find Gas Stations.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         if (isSettingPickup) {
             pickupLatLng = point;
             getAddressFromLatLng(point, true);
@@ -718,13 +734,48 @@ public class MapActivity extends AppCompatActivity
                                 listenForRequestUpdates(currentRequestId);
                                 lockUiForTracking();
                             })
-                            .addOnFailureListener(e -> resetUiForNewRequest());
+                            .addOnFailureListener(e -> {
+                                // 5. FALLBACK: Network failure triggers SMS
+                                sendSmsFallbackRequest(FALLBACK_DISPATCH_NUMBER, requestData);
+                                resetUiForNewRequest();
+                            });
                 })
                 .addOnFailureListener(e -> {
                     // If fetching user fails, maybe log it or try anyway
                     Log.e(TAG, "Failed to fetch user car info", e);
                     Toast.makeText(this, "Network error. Please try again.", Toast.LENGTH_SHORT).show();
                 });
+    }
+
+    // --- NEW: SMS FALLBACK METHOD ---
+    private void sendSmsFallbackRequest(String dispatchPhone, Map<String, Object> requestData) {
+        String type = (String) requestData.get("requestType");
+        Double lat = (Double) requestData.get("pickupLat");
+        Double lng = (Double) requestData.get("pickupLng");
+        String customerId = (String) requestData.get("customerId");
+
+        // Build the message with essential, machine-readable data
+        String message = String.format(Locale.getDefault(),
+                "EMERGENCY REQUEST: %s. ID:%s. LOC:%.4f,%.4f. Addr:%s. Car:%s %s",
+                type,
+                customerId,
+                lat,
+                lng,
+                (String) requestData.get("pickupAddress"),
+                (String) requestData.get("carBrand"),
+                (String) requestData.get("carModel")
+        );
+
+        Intent smsIntent = new Intent(Intent.ACTION_VIEW);
+        smsIntent.setData(Uri.parse("smsto:" + dispatchPhone));
+        smsIntent.putExtra("sms_body", message);
+
+        if (smsIntent.resolveActivity(getPackageManager()) != null) {
+            startActivity(smsIntent);
+            Toast.makeText(this, "Network failed. Sending request via SMS. Please manually confirm the message.", Toast.LENGTH_LONG).show();
+        } else {
+            Toast.makeText(this, "Network failed and no SMS app found.", Toast.LENGTH_LONG).show();
+        }
     }
 
     private double calculateServiceAmount() {
@@ -810,7 +861,10 @@ public class MapActivity extends AppCompatActivity
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             MyMap.setMyLocationEnabled(true);
             getDeviceLocation();
-            editPickupButton.setVisibility(View.VISIBLE);
+            // Only show edit pickup if not in gas station mode
+            if (!"Gas Station".equals(selectedRequestType)) {
+                editPickupButton.setVisibility(View.VISIBLE);
+            }
         } else {
             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION);
         }
@@ -895,7 +949,10 @@ public class MapActivity extends AppCompatActivity
     private void resetUiForNewRequest() {
         statusCard.setVisibility(View.GONE);
         searchingCard.setVisibility(View.GONE);
-        editPickupButton.setVisibility(View.VISIBLE);
+
+        if (!"Gas Station".equals(selectedRequestType)) {
+            editPickupButton.setVisibility(View.VISIBLE);
+        }
 
         if ("Towing".equals(selectedRequestType)) {
             destinationInput.setEnabled(true);

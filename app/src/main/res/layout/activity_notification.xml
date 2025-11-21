@@ -141,7 +141,7 @@
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent"
                     app:layout_constraintVertical_chainStyle="packed"
-                    app:srcCompat="@drawable/home" />
+                    app:srcCompat="@drawable/home_icon" />
 
                 <TextView
                     android:id="@+id/home_text"

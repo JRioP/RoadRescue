@@ -19,6 +19,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:layout_marginStart="16dp"
+            android:layout_marginTop="16dp"
             android:contentDescription="Back"
             android:padding="12dp"
             android:src="@drawable/keyboard_arrow_down"
@@ -54,6 +55,12 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/title_account_management">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingVertical="8dp">
 
         <RelativeLayout
             android:id="@+id/button_delete_account"
@@ -94,6 +101,48 @@
 
         </RelativeLayout>
 
+            <RelativeLayout
+                android:id="@+id/button_logout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/text_logout_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentStart="true"
+                    android:fontFamily="@font/poppins"
+                    android:text="Logout"
+                    android:textColor="@color/black"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/text_logout_title"
+                    android:layout_alignParentStart="true"
+                    android:fontFamily="@font/poppins"
+                    android:text="Logout your account and profile"
+                    android:textColor="@android:color/darker_gray"
+                    android:textSize="12sp" />
+
+                <ImageView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/arrow_right"
+                    app:tint="@color/grey" />
+
+            </RelativeLayout>
+
+
+
+        </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -181,7 +230,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintVertical_chainStyle="packed"
-            app:srcCompat="@drawable/home" />
+            app:srcCompat="@drawable/home_icon" />
         <TextView
             android:id="@+id/home_text"
             android:layout_width="wrap_content"

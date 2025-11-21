@@ -45,6 +45,7 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query; // Imported Query
 import com.google.firebase.firestore.SetOptions;
 
 import java.io.IOException;
@@ -110,7 +111,7 @@ public class homepage extends AppCompatActivity {
 
         // Setup Badge Listeners
         setupUnreadMessageListener();
-        setupNotificationListener();
+        setupNotificationListener(); // This now uses the fix
 
         // Delayed tasks
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
@@ -126,13 +127,11 @@ public class homepage extends AppCompatActivity {
         }, 250);
     }
 
-    // --- Redirect Logic ---
     private void checkUserTypeAndRedirect() {
         db.collection("users").document(currentUser.getUid()).get()
                 .addOnSuccessListener(documentSnapshot -> {
                     if (documentSnapshot.exists()) {
                         String type = documentSnapshot.getString("userType");
-                        // If user is a Driver/Service Provider, redirect them to THEIR homepage
                         if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
                             Log.d(TAG, "User is a Service Provider. Redirecting...");
                             Intent intent = new Intent(homepage.this, ServiceProviderHomepage.class);
@@ -145,6 +144,7 @@ public class homepage extends AppCompatActivity {
     }
 
     // --- Badge Listeners ---
+
     private void setupUnreadMessageListener() {
         if (currentUser == null) return;
         String currentUserId = currentUser.getUid();
@@ -170,20 +170,31 @@ public class homepage extends AppCompatActivity {
     private void setupNotificationListener() {
         if (currentUser == null) return;
         String currentUserId = currentUser.getUid();
-
-        notificationListener = db.collection("notifications")
+        Query badgeQuery = db.collection("notifications")
                 .whereEqualTo("userId", currentUserId)
-                .whereEqualTo("read", false)
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
-                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-                    if (unreadNotificationBadge != null) {
-                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
-                    }
-                });
+                .whereEqualTo("read", false);
+
+        if (notificationListener != null) {
+            notificationListener.remove();
+        }
+
+        notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
+            if (e != null) {
+                Log.e(TAG, "Notification listener error", e);
+                return;
+            }
+            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+
+            if (unreadNotificationBadge != null) {
+                if (hasUnread) {
+                    unreadNotificationBadge.setVisibility(View.VISIBLE);
+                } else {
+                    unreadNotificationBadge.setVisibility(View.GONE);
+                }
+            }
+        });
     }
 
-    // --- SOS Methods ---
     private void initializeLaunchers() {
         requestContactsPermissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(),
@@ -225,7 +236,6 @@ public class homepage extends AppCompatActivity {
                         Toast.makeText(this, "Sending SOS to " + name, Toast.LENGTH_SHORT).show();
                         sendSosMessage(phone);
                     } else {
-                        Toast.makeText(this, "Emergency contact has no phone number.", Toast.LENGTH_SHORT).show();
                         promptToAddContact();
                     }
                 } else {
@@ -235,7 +245,45 @@ public class homepage extends AppCompatActivity {
                 promptToAddContact();
             }
         }).addOnFailureListener(e -> {
-            Toast.makeText(this, "Error checking SOS contact", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Could not fetch contact. Please check your internet.", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    @SuppressLint("MissingPermission")
+    private void sendSosMessage(String phone) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Location permission is needed to send SOS.", Toast.LENGTH_SHORT).show();
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
+            return;
+        }
+
+        fusedLocationClient.getLastLocation().addOnSuccessListener(location -> {
+            double lat = 0.0;
+            double lng = 0.0;
+
+            if (location != null) {
+                lat = location.getLatitude();
+                lng = location.getLongitude();
+            } else {
+                Toast.makeText(this, "Could not get precise location. Sending general SOS.", Toast.LENGTH_SHORT).show();
+            }
+
+            String mapsLink = String.format(Locale.getDefault(), "http://googleusercontent.com/maps.google.com/maps?q=%.6f,%.6f", lat, lng);
+            String name = (currentUser.getDisplayName() != null) ? currentUser.getDisplayName() : "User";
+            String messageBody = "SOS! Emergency from " + name + ". My location: " + mapsLink;
+
+            Intent smsIntent = new Intent(Intent.ACTION_VIEW);
+            smsIntent.setData(Uri.parse("smsto:" + phone));
+            smsIntent.putExtra("sms_body", messageBody);
+
+            if (smsIntent.resolveActivity(getPackageManager()) != null) {
+                startActivity(smsIntent);
+            } else {
+                Toast.makeText(this, "No SMS app found.", Toast.LENGTH_LONG).show();
+            }
+
+        }).addOnFailureListener(e -> {
+            Toast.makeText(this, "Location error. Try calling directly.", Toast.LENGTH_LONG).show();
         });
     }
 
@@ -319,28 +367,6 @@ public class homepage extends AppCompatActivity {
                 .show();
     }
 
-    @SuppressLint("MissingPermission")
-    private void sendSosMessage(String phone) {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "Location permission is needed to send SOS.", Toast.LENGTH_SHORT).show();
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST_CODE);
-            return;
-        }
-        fusedLocationClient.getLastLocation().addOnSuccessListener(location -> {
-            if (location == null) {
-                Toast.makeText(this, "Could not get location.", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            double lat = location.getLatitude();
-            double lng = location.getLongitude();
-            String mapsLink = "http://maps.google.com/maps?q=loc:" + lat + "," + lng;
-            String message = "SOS! Emergency from " + (currentUser.getDisplayName() != null ? currentUser.getDisplayName() : "user") + ". Location: " + mapsLink;
-            Intent smsIntent = new Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + phone));
-            smsIntent.putExtra("sms_body", message);
-            startActivity(smsIntent);
-        });
-    }
-
     private void createNewSession(FirebaseUser user) {
         String newSessionId = UUID.randomUUID().toString();
         SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
@@ -352,7 +378,6 @@ public class homepage extends AppCompatActivity {
     private void setupUIComponents() {
         locationTextView = findViewById(R.id.textView7);
 
-        // Initialize Badges
         unreadBadge = findViewById(R.id.unread_message_badge);
         unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
 
@@ -361,7 +386,6 @@ public class homepage extends AppCompatActivity {
             sosButton.setOnClickListener(v -> onSosButtonClick());
         }
 
-        // Navigation Buttons
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         if (notificationButton != null) {
             notificationButton.setOnClickListener(v -> startActivity(new Intent(homepage.this, NotificationsActivity.class)));
@@ -377,7 +401,6 @@ public class homepage extends AppCompatActivity {
             messageButton.setOnClickListener(v -> startActivity(new Intent(homepage.this, ChatInboxActivity.class)));
         }
 
-        // --- HOME BUTTON ACTIVE STATE ---
         ConstraintLayout homeLayout = findViewById(R.id.nav_home_layout);
         ImageView homeIcon = findViewById(R.id.home_icon_btn);
         TextView homeText = findViewById(R.id.home_text);
@@ -397,7 +420,6 @@ public class homepage extends AppCompatActivity {
             homeText.setTypeface(null, Typeface.BOLD);
         }
 
-        // Request Buttons setup
         setupRequestButton(R.id.towing_btn, "Towing");
         setupRequestButton(R.id.jump_start_btn, "Jump-Start");
         setupRequestButton(R.id.fuel_delivery_btn, "Fuel Delivery");
@@ -406,18 +428,15 @@ public class homepage extends AppCompatActivity {
         setupRequestButton(R.id.gas_station_btn, "Gas Station");
     }
 
-    // --- MODIFIED: Calls checkVehicleAndProceed instead of direct start ---
     private void setupRequestButton(int id, String type) {
         ConstraintLayout btn = findViewById(id);
         if (btn != null) {
             btn.setOnClickListener(v -> {
-                // Check if vehicle profile is set before proceeding
                 checkVehicleAndProceed(type);
             });
         }
     }
 
-    // --- NEW: Helper function to check Car Profile ---
     private void checkVehicleAndProceed(String serviceType) {
         if (currentUser == null) return;
 
@@ -430,12 +449,10 @@ public class homepage extends AppCompatActivity {
                 if (carType != null && !carType.trim().isEmpty() &&
                         carModel != null && !carModel.trim().isEmpty()) {
 
-                    // Success! Go to Map
                     Intent intent = new Intent(homepage.this, MapActivity.class);
                     intent.putExtra("REQUEST_TYPE", serviceType);
                     startActivity(intent);
                 } else {
-                    // Failure! Show Warning
                     showMissingProfileDialog();
                 }
             }
@@ -444,7 +461,6 @@ public class homepage extends AppCompatActivity {
         });
     }
 
-    // --- NEW: Dialog to warn user ---
     private void showMissingProfileDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("Vehicle Profile Incomplete")
@@ -455,7 +471,6 @@ public class homepage extends AppCompatActivity {
                 .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss())
                 .show();
     }
-    // -----------------------------------------------------------------
 
     private void checkSingleSessionConstraint() {
         userDocRef.get().addOnCompleteListener(task -> {
@@ -547,21 +562,31 @@ public class homepage extends AppCompatActivity {
             return;
 
         fusedLocationClient.getLastLocation().addOnSuccessListener(this, location -> {
-            if (location != null && locationTextView != null) {
-                Geocoder geocoder = new Geocoder(homepage.this, Locale.getDefault());
-                try {
-                    List<Address> addresses = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
-                    if (addresses != null && !addresses.isEmpty()) {
-                        String cityName = addresses.get(0).getLocality();
-                        locationTextView.setText(cityName != null ? cityName : addresses.get(0).getSubAdminArea());
-                    } else {
-                        locationTextView.setText("Address Not Found");
+            if (location != null) {
+                new Thread(() -> {
+                    Geocoder geocoder = new Geocoder(homepage.this, Locale.getDefault());
+                    String addressText = "Address Not Found";
+
+                    try {
+                        List<Address> addresses = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
+                        if (addresses != null && !addresses.isEmpty()) {
+                            String cityName = addresses.get(0).getLocality();
+                            addressText = cityName != null ? cityName : addresses.get(0).getSubAdminArea();
+                        }
+                    } catch (IOException e) {
+                        addressText = "Can't get address";
                     }
-                } catch (IOException e) {
-                    locationTextView.setText("Can't get address");
-                }
-            } else if (locationTextView != null) {
-                locationTextView.setText("Location N/A");
+
+                    // 2. Update the UI back on the Main Thread
+                    String finalAddressText = addressText;
+                    runOnUiThread(() -> {
+                        if (locationTextView != null) {
+                            locationTextView.setText(finalAddressText);
+                        }
+                    });
+                }).start();
+            } else {
+                if (locationTextView != null) locationTextView.setText("Location N/A");
             }
         });
     }

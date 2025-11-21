@@ -71,7 +71,7 @@ public class ChatInboxActivity extends AppCompatActivity {
 
         // --- Setup Badge Listeners ---
         setupUnreadMessageListener();
-        setupNotificationListener();
+        setupNotificationListener(); // This now calls the fixed method below
 
         setupNavbar();
     }
@@ -118,21 +118,36 @@ public class ChatInboxActivity extends AppCompatActivity {
                 });
     }
 
-    // --- Listener for Unread Notifications Badge ---
+    // ---------------------------------------------------------
+    // FIXED: Notification Badge Logic (Now uses 'notifications' collection)
+    // ---------------------------------------------------------
     private void setupNotificationListener() {
         if (currentUserId == null) return;
 
-        notificationListener = db.collection("notifications")
+        // Logic from the fix:
+        Query badgeQuery = db.collection("notifications")
                 .whereEqualTo("userId", currentUserId)
-                .whereEqualTo("read", false)
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
+                .whereEqualTo("read", false);
 
-                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-                    if (unreadNotificationBadge != null) {
-                        unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
-                    }
-                });
+        if (notificationListener != null) {
+            notificationListener.remove();
+        }
+
+        notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
+            if (e != null) {
+                Log.e(TAG, "Notification listener error", e);
+                return;
+            }
+            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+
+            if (unreadNotificationBadge != null) {
+                if (hasUnread) {
+                    unreadNotificationBadge.setVisibility(View.VISIBLE);
+                } else {
+                    unreadNotificationBadge.setVisibility(View.GONE);
+                }
+            }
+        });
     }
 
     private void initializeRecyclerView() {
@@ -195,16 +210,17 @@ public class ChatInboxActivity extends AppCompatActivity {
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         notificationButton.setOnClickListener(v -> {
             Intent intent = new Intent(ChatInboxActivity.this, NotificationsActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
 
         ImageView profileButton = findViewById(R.id.profile_icon_btn);
         profileButton.setOnClickListener(v -> {
             Intent intent = new Intent(ChatInboxActivity.this, ProfileActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
 
-        // --- HOME BUTTON FIX ---
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         homeButton.setOnClickListener(v -> {
             FirebaseUser user = auth.getCurrentUser();
@@ -245,13 +261,12 @@ public class ChatInboxActivity extends AppCompatActivity {
                         finish();
                     });
         });
-
-        // --- MESSAGE BUTTON (Active State Styling) ---
         ConstraintLayout messageLayout = findViewById(R.id.nav_message_layout);
         ImageView messageIcon = findViewById(R.id.message_icon_btn);
         TextView messageText = findViewById(R.id.message_text);
 
         if (messageLayout != null) {
+            // This is correct: the current page's button should not be clickable.
             messageLayout.setClickable(false);
             messageLayout.setFocusable(false);
             messageLayout.setBackgroundResource(R.drawable.rounded_white_background);
