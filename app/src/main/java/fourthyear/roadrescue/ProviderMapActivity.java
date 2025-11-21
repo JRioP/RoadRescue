@@ -16,6 +16,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
@@ -62,6 +63,7 @@ import com.google.firebase.firestore.GeoPoint;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.SetOptions; // Added SetOptions
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.maps.DirectionsApi;
@@ -71,6 +73,7 @@ import com.google.maps.model.DirectionsResult;
 import com.google.maps.model.TravelMode;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -87,9 +90,9 @@ public class ProviderMapActivity extends AppCompatActivity implements
 
     private static final String TAG = "ProviderMapActivity";
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1002;
-
-    // --- NEW: Distance Threshold (5 Meters) ---
     private static final float COMPLETION_RADIUS_METERS = 5.0f;
+
+    private long lastClickTime = 0;
 
     private GoogleMap mGoogleMap;
     private FusedLocationProviderClient mFusedLocationClient;
@@ -115,8 +118,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private SwitchMaterial mOnlineSwitch;
     private TextView mStatusTextView;
     private RecyclerView mPendingRequestsRecyclerView;
-
-    // Active Job Card UI
     private CardView mActiveJobCard;
     private TextView mActiveJobTitle;
     private TextView mActiveJobVehicleText;
@@ -128,28 +129,21 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private Button mNavigateButton;
     private Button mChatCustomerButton;
 
-    // Badges
     private TextView unreadBadge;
     private TextView unreadNotificationBadge;
 
     private PendingRequestsAdapter mPendingRequestsAdapter;
     private final List<Map<String, Object>> mPendingRequestsList = new ArrayList<>();
     private Map<String, Object> mActiveJobData;
-    private String mActiveJobId;
-
-    // Map Data
-    private LatLng mPickupLatLng; // Job Pickup Location
-    private LatLng mProviderLatLng; // Driver Current Location
+    private String mActiveJobId; // This corresponds to requestId
+    private LatLng mPickupLatLng;
+    private LatLng mProviderLatLng;
     private Marker mProviderMarker;
     private Marker mPickupMarker;
     private Marker mDestinationMarker;
-    private Marker mPreviewMarker;
-    private Marker mPreviewDestinationMarker;
 
     private GeoApiContext mGeoApiContext = null;
     private Polyline mProviderToPickupLine;
-    private Polyline mPreviewRouteLine;
-    private Polyline mCustomerRouteLine;
     private Geocoder mGeocoder;
     private final ExecutorService mExecutor = Executors.newSingleThreadExecutor();
     private final Handler mHandler = new Handler(Looper.getMainLooper());
@@ -165,14 +159,12 @@ public class ProviderMapActivity extends AppCompatActivity implements
         mCurrentUser = auth.getCurrentUser();
         mGeocoder = new Geocoder(this, Locale.getDefault());
 
-        // Initialize Storage
         storage = FirebaseStorage.getInstance("gs://roadrescue-b46e9.firebasestorage.app");
 
         progressDialog = new ProgressDialog(this);
         progressDialog.setMessage("Uploading proof and completing job...");
         progressDialog.setCancelable(false);
 
-        // Initialize Image Picker
         imagePickerLauncher = registerForActivityResult(
                 new ActivityResultContracts.GetContent(),
                 uri -> {
@@ -213,17 +205,99 @@ public class ProviderMapActivity extends AppCompatActivity implements
         createLocationCallback();
         checkLocationPermission();
         setupUnreadMessageListener();
-        setupNotificationListener(); // The Fix
+        setupNotificationListener();
     }
 
-    // ==========================================================
-    //  JOB COMPLETION LOGIC (With 5m Check)
-    // ==========================================================
+    private boolean isSafeClick() {
+        if (SystemClock.elapsedRealtime() - lastClickTime < 500) {
+            return false;
+        }
+        lastClickTime = SystemClock.elapsedRealtime();
+        return true;
+    }
+
+    private void setupViews() {
+        mOnlineSwitch = findViewById(R.id.online_switch);
+        mStatusTextView = findViewById(R.id.status_text_view);
+        mPendingRequestsRecyclerView = findViewById(R.id.pending_requests_recycler_view);
+
+        mActiveJobCard = findViewById(R.id.active_job_card);
+        mActiveJobTitle = findViewById(R.id.active_job_title);
+        mActiveJobVehicleText = findViewById(R.id.active_job_vehicle_text);
+        mChatCustomerButton = findViewById(R.id.chat_customer_button);
+
+        mActiveJobPickupText = findViewById(R.id.active_job_pickup_text);
+        mActiveJobDestText = findViewById(R.id.active_job_destination_text);
+        mActiveJobDistanceText = findViewById(R.id.active_job_distance_text);
+        mCompleteJobButton = findViewById(R.id.complete_job_button);
+        mNavigateButton = findViewById(R.id.navigate_button);
+
+        if (mOnlineSwitch != null) mOnlineSwitch.bringToFront();
+        if (mStatusTextView != null) mStatusTextView.bringToFront();
+        if (mActiveJobCard != null) mActiveJobCard.bringToFront();
+        if (mNavigateButton != null) mNavigateButton.bringToFront();
+        if (mPendingRequestsRecyclerView != null) mPendingRequestsRecyclerView.bringToFront();
+    }
+
+    private void setupNavbar() {
+        unreadBadge = findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+
+        findViewById(R.id.notification_icon_btn).setOnClickListener(v -> {
+            if (!isSafeClick()) return;
+            Intent intent = new Intent(this, NotificationsActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+            overridePendingTransition(0, 0);
+        });
+
+        findViewById(R.id.profile_icon_btn).setOnClickListener(v -> {
+            if (!isSafeClick()) return;
+            Intent intent = new Intent(this, ProfileActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+            overridePendingTransition(0, 0);
+        });
+
+        findViewById(R.id.home_icon_btn).setOnClickListener(v -> {
+            if (!isSafeClick()) return;
+            Intent intent = new Intent(this, ServiceProviderHomepage.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+            overridePendingTransition(0, 0);
+            finish();
+        });
+
+        findViewById(R.id.message_icon_btn).setOnClickListener(v -> {
+            if (!isSafeClick()) return;
+            Intent intent = new Intent(this, ChatInboxActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+            overridePendingTransition(0, 0);
+        });
+    }
+
+    private void setupListeners() {
+        mOnlineSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) goOnline();
+            else goOffline();
+        });
+
+        mCompleteJobButton.setOnClickListener(v -> {
+            if (isSafeClick()) completeJob();
+        });
+
+        mNavigateButton.setOnClickListener(v -> {
+            if (isSafeClick()) toggleFollowMode();
+        });
+
+        mChatCustomerButton.setOnClickListener(v -> {
+            if (isSafeClick()) openChatWithCustomer();
+        });
+    }
 
     private void completeJob() {
         if (mActiveJobId == null) return;
-
-        // Check if button is enabled (it should be handled by updateCompleteButtonState, but double check)
         if (mCompleteJobButton.isEnabled()) {
             new AlertDialog.Builder(this)
                     .setTitle("Proof of Service Required")
@@ -238,7 +312,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
         }
     }
 
-    // --- NEW: Updates button based on distance ---
     private void updateCompleteButtonState() {
         if (mActiveJobCard.getVisibility() != View.VISIBLE || mPickupLatLng == null || mProviderLatLng == null) {
             mCompleteJobButton.setEnabled(false);
@@ -256,15 +329,12 @@ public class ProviderMapActivity extends AppCompatActivity implements
         float distanceToPickup = results[0];
 
         if (distanceToPickup <= COMPLETION_RADIUS_METERS) {
-            // Within 5 meters -> Enabled
             mCompleteJobButton.setEnabled(true);
             mCompleteJobButton.setAlpha(1.0f);
             mCompleteJobButton.setText("Mark as Complete");
         } else {
-            // Too far -> Disabled
             mCompleteJobButton.setEnabled(false);
             mCompleteJobButton.setAlpha(0.5f);
-            // Optional: Show distance on button
             mCompleteJobButton.setText(String.format(Locale.getDefault(), "Get Closer (%.1fm)", distanceToPickup));
         }
     }
@@ -296,6 +366,9 @@ public class ProviderMapActivity extends AppCompatActivity implements
         db.collection("service_requests").document(mActiveJobId)
                 .update(updates)
                 .addOnSuccessListener(aVoid -> {
+                    // --- FIX: CLOSE CHAT FOR THIS SPECIFIC REQUEST ID ---
+                    closeChatSession();
+
                     progressDialog.dismiss();
                     Toast.makeText(this, "Job completed successfully!", Toast.LENGTH_LONG).show();
                     showPendingJobsUI();
@@ -306,66 +379,30 @@ public class ProviderMapActivity extends AppCompatActivity implements
                 });
     }
 
-    // ==========================================================
-    //  EXISTING LOGIC & MAP SETUP
-    // ==========================================================
+    // --- UPDATED: CLOSE SPECIFIC CHAT SESSION ---
+    private void closeChatSession() {
+        if (mActiveJobData == null || mCurrentUser == null || mActiveJobId == null) return;
 
-    private void setupViews() {
-        mOnlineSwitch = findViewById(R.id.online_switch);
-        mStatusTextView = findViewById(R.id.status_text_view);
-        mPendingRequestsRecyclerView = findViewById(R.id.pending_requests_recycler_view);
+        String customerId = (String) mActiveJobData.get("customerId");
+        String currentUserId = mCurrentUser.getUid();
 
-        mActiveJobCard = findViewById(R.id.active_job_card);
-        mActiveJobTitle = findViewById(R.id.active_job_title);
-        mActiveJobVehicleText = findViewById(R.id.active_job_vehicle_text);
-        mChatCustomerButton = findViewById(R.id.chat_customer_button);
+        if (customerId == null) return;
 
-        mActiveJobPickupText = findViewById(R.id.active_job_pickup_text);
-        mActiveJobDestText = findViewById(R.id.active_job_destination_text);
-        mActiveJobDistanceText = findViewById(R.id.active_job_distance_text);
-        mCompleteJobButton = findViewById(R.id.complete_job_button);
-        mNavigateButton = findViewById(R.id.navigate_button);
-    }
+        // Use logic: requestId_User1_User2 (Sorted)
+        String chatRoomId;
+        if (currentUserId.compareTo(customerId) > 0) {
+            chatRoomId = mActiveJobId + "_" + currentUserId + "_" + customerId;
+        } else {
+            chatRoomId = mActiveJobId + "_" + customerId + "_" + currentUserId;
+        }
 
-    private void setupNavbar() {
-        unreadBadge = findViewById(R.id.unread_message_badge);
-        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("status", "closed");
 
-        findViewById(R.id.notification_icon_btn).setOnClickListener(v -> {
-            Intent intent = new Intent(this, NotificationsActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-            startActivity(intent);
-        });
-
-        findViewById(R.id.profile_icon_btn).setOnClickListener(v -> {
-            Intent intent = new Intent(this, ProfileActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-            startActivity(intent);
-        });
-
-        findViewById(R.id.home_icon_btn).setOnClickListener(v -> {
-            Intent intent = new Intent(this, ServiceProviderHomepage.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-        });
-
-        findViewById(R.id.message_icon_btn).setOnClickListener(v -> {
-            Intent intent = new Intent(this, ChatInboxActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-            startActivity(intent);
-        });
-    }
-    private void setupListeners() {
-        mOnlineSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) goOnline();
-            else goOffline();
-        });
-
-        mCompleteJobButton.setOnClickListener(v -> completeJob());
-
-        mNavigateButton.setOnClickListener(v -> toggleFollowMode());
-
-        mChatCustomerButton.setOnClickListener(v -> openChatWithCustomer());
+        db.collection("chats").document(chatRoomId)
+                .set(updates, SetOptions.merge()) // Use Merge to safely update
+                .addOnSuccessListener(aVoid -> Log.d(TAG, "Chat session closed successfully"))
+                .addOnFailureListener(e -> Log.e(TAG, "Failed to close chat session", e));
     }
 
     private void createLocationCallback() {
@@ -381,15 +418,32 @@ public class ProviderMapActivity extends AppCompatActivity implements
                 updateProviderMarker(mProviderLatLng);
                 mPendingRequestsAdapter.updateProviderLocation(mProviderLatLng);
 
+                // --- FIX: FOLLOW FACING DIRECTION ---
                 if (isCameraFollowingProvider && mGoogleMap != null) {
-                    mGoogleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(mProviderLatLng, 18f));
+
+                    // 1. Create a Camera Builder
+                    com.google.android.gms.maps.model.CameraPosition.Builder builder =
+                            new com.google.android.gms.maps.model.CameraPosition.Builder()
+                                    .target(mProviderLatLng)
+                                    .zoom(17f) // Zoom level (17 is good for driving)
+                                    .tilt(45f); // Optional: Tilted view for 3D effect
+
+                    // 2. Only update bearing if the location actually has one (user is moving)
+                    if (location.hasBearing()) {
+                        builder.bearing(location.getBearing());
+                    } else {
+                        // Keep current bearing if stopped so map doesn't snap to North
+                        builder.bearing(mGoogleMap.getCameraPosition().bearing);
+                    }
+
+                    // 3. Animate
+                    mGoogleMap.animateCamera(CameraUpdateFactory.newCameraPosition(builder.build()));
                 }
+                // ------------------------------------
 
                 if (mActiveJobCard.getVisibility() == View.VISIBLE && mPickupLatLng != null && mProviderToPickupLine == null) {
                     drawProviderRoute(mProviderLatLng, mPickupLatLng);
                 }
-
-                // --- Check distance on every location update ---
                 updateCompleteButtonState();
             }
         };
@@ -440,7 +494,7 @@ public class ProviderMapActivity extends AppCompatActivity implements
             drawProviderRoute(mProviderLatLng != null ? mProviderLatLng : mPickupLatLng, mPickupLatLng);
         }
 
-        updateCompleteButtonState(); // Initial check
+        updateCompleteButtonState();
         listenForActiveJobUpdates();
     }
 
@@ -450,7 +504,7 @@ public class ProviderMapActivity extends AppCompatActivity implements
             mNavigateButton.setText("Following");
             Toast.makeText(this, "Camera locked to your location", Toast.LENGTH_SHORT).show();
             if (mProviderLatLng != null && mGoogleMap != null) {
-                mGoogleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(mProviderLatLng, 18f));
+                mGoogleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(mProviderLatLng, 12f));
             }
         } else {
             mNavigateButton.setText("Navigate");
@@ -458,28 +512,86 @@ public class ProviderMapActivity extends AppCompatActivity implements
         }
     }
 
+    // --- UPDATED: OPEN CHAT WITH CUSTOMER (NEW UNIQUE ID LOGIC) ---
     private void openChatWithCustomer() {
-        if (mActiveJobData == null || mCurrentUser == null) return;
+        if (mActiveJobData == null || mCurrentUser == null || mActiveJobId == null) {
+            Toast.makeText(this, "Job details missing.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         String customerId = (String) mActiveJobData.get("customerId");
-        String requestId = mActiveJobId;
         if (customerId == null) {
             Toast.makeText(this, "Customer info not available.", Toast.LENGTH_SHORT).show();
             return;
         }
-        String currentUserId = mCurrentUser.getUid();
-        String chatRoomId;
-        if (currentUserId.compareTo(customerId) > 0) {
-            chatRoomId = currentUserId + "_" + customerId + "_" + requestId;
-        } else {
-            chatRoomId = customerId + "_" + currentUserId + "_" + requestId;
-        }
-        Intent intent = new Intent(this, ChatConversationActivity.class);
-        intent.putExtra("chatId", chatRoomId);
-        intent.putExtra("receiverName", "Customer");
-        startActivity(intent);
+
+        // 1. Fetch Customer Name AND Current User (Provider) Name
+        DocumentReference customerRef = db.collection("users").document(customerId);
+
+        customerRef.get().addOnSuccessListener(customerDoc -> {
+                    String customerName = (customerDoc.exists() && customerDoc.getString("name") != null) ?
+                            customerDoc.getString("name") : "Customer";
+
+                    mProviderDocRef.get().addOnSuccessListener(providerDoc -> {
+                        String providerName = (providerDoc.exists() && providerDoc.getString("name") != null) ?
+                                providerDoc.getString("name") : "Service Provider";
+
+                        String currentUserId = mCurrentUser.getUid();
+                        String chatRoomId;
+
+                        // 2. Generate Unique ID based on Request ID
+                        if (currentUserId.compareTo(customerId) > 0) {
+                            chatRoomId = mActiveJobId + "_" + currentUserId + "_" + customerId;
+                        } else {
+                            chatRoomId = mActiveJobId + "_" + customerId + "_" + currentUserId;
+                        }
+
+                        // 3. Create/Find Chat Room
+                        DocumentReference chatRef = db.collection("chats").document(chatRoomId);
+
+                        String finalCustomerName = customerName;
+                        String finalProviderName = providerName;
+
+                        chatRef.get().addOnSuccessListener(chatDoc -> {
+                            if (!chatDoc.exists()) {
+                                Map<String, Object> chatData = new HashMap<>();
+                                chatData.put("chatId", chatRoomId);
+                                chatData.put("requestId", mActiveJobId); // IMPORTANT
+                                chatData.put("participantIds", Arrays.asList(currentUserId, customerId));
+                                chatData.put("lastMessage", "Provider has connected.");
+                                chatData.put("lastMessageTimestamp", FieldValue.serverTimestamp());
+                                chatData.put("status", "active");
+
+                                Map<String, String> names = new HashMap<>();
+                                names.put(currentUserId, finalProviderName);
+                                names.put(customerId, finalCustomerName);
+                                chatData.put("participantNames", names);
+
+                                Map<String, Integer> unreadCounts = new HashMap<>();
+                                unreadCounts.put(currentUserId, 0);
+                                unreadCounts.put(customerId, 0);
+                                chatData.put("unreadCounts", unreadCounts);
+
+                                chatRef.set(chatData).addOnSuccessListener(aVoid -> {
+                                    launchChatActivity(chatRoomId, finalCustomerName, customerId);
+                                });
+                            } else {
+                                chatRef.update("status", "active"); // Reopen if previously closed
+                                launchChatActivity(chatRoomId, finalCustomerName, customerId);
+                            }
+                        });
+                    });
+                })
+                .addOnFailureListener(e -> Toast.makeText(this, "Network error fetching details", Toast.LENGTH_SHORT).show());
     }
 
-    // ... (Standard Location/Map methods - unchanged) ...
+    private void launchChatActivity(String chatId, String receiverName, String receiverId) {
+        Intent intent = new Intent(ProviderMapActivity.this, ChatConversationActivity.class);
+        intent.putExtra("chatId", chatId);
+        intent.putExtra("receiverName", receiverName);
+        intent.putExtra("receiverId", receiverId);
+        startActivity(intent);
+    }
 
     private void goOnline() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -527,7 +639,7 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private void showCorrectUI(UIState state) {
         mPendingRequestsRecyclerView.setVisibility(state == UIState.SHOWING_PENDING_LIST ? View.VISIBLE : View.GONE);
         mActiveJobCard.setVisibility(state == UIState.SHOWING_ACTIVE_JOB ? View.VISIBLE : View.GONE);
-        mStatusTextView.setVisibility(state == UIState.OFFLINE ? View.VISIBLE : View.GONE);
+        mStatusTextView.setVisibility(View.VISIBLE);
     }
 
     private void showPendingJobsUI() {
@@ -559,7 +671,6 @@ public class ProviderMapActivity extends AppCompatActivity implements
                     showPendingJobsUI();
                 });
     }
-
     @Override
     public void onItemClick(Map<String, Object> requestData) {
         Double pickupLat = (Double) requestData.get("pickupLat");
@@ -658,27 +769,25 @@ public class ProviderMapActivity extends AppCompatActivity implements
     private void setupUnreadMessageListener() {
         if (mCurrentUser == null) return;
         String currentUserId = mCurrentUser.getUid();
-        unreadListener = db.collection("chats").whereArrayContains("participantIds", currentUserId).whereEqualTo("status", "active").addSnapshotListener((snapshots, e) -> {
-            if (e != null) return;
-            int totalUnread = 0;
-            if (snapshots != null) {
-                for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                    Long count = doc.getLong("unreadCounts." + currentUserId);
-                    if (count != null) totalUnread += count;
-                }
-            }
-            if (unreadBadge != null) unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
-        });
+        unreadListener = db.collection("chats")
+                .whereArrayContains("participantIds", currentUserId)
+                .whereEqualTo("status", "active") // ONLY count active chats
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            if (count != null) totalUnread += count;
+                        }
+                    }
+                    if (unreadBadge != null) unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                });
     }
 
-    // ---------------------------------------------------------
-    // FIXED: Notification Badge Logic (Updated to use 'notifications' collection)
-    // ---------------------------------------------------------
     private void setupNotificationListener() {
-        if (mCurrentUser == null) return; // Changed currentUser to mCurrentUser
-        String currentUserId = mCurrentUser.getUid(); // Changed currentUser to mCurrentUser
-
-        // Logic from the fix:
+        if (mCurrentUser == null) return;
+        String currentUserId = mCurrentUser.getUid();
         Query badgeQuery = db.collection("notifications")
                 .whereEqualTo("userId", currentUserId)
                 .whereEqualTo("read", false);

@@ -171,6 +171,7 @@
 
                 <RelativeLayout style="@style/ReceiptRow">
                     <TextView
+                        android:id="@+id/label_destination_address"
                         style="@style/ReceiptLabel"
                         android:text="To:" />
                     <TextView

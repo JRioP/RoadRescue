@@ -6,6 +6,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
+import android.os.SystemClock; // Added for timer
 import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
@@ -42,13 +43,16 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
     private static final String TAG = "SPHomepageActivity";
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1001;
 
+    // --- ANTI-SPAM CLICK VARIABLE ---
+    private long lastClickTime = 0;
+    // --------------------------------
+
     private FirebaseFirestore db;
     private FirebaseAuth auth;
     private FirebaseUser currentUser;
     private RecyclerView requestsRecyclerView;
     private PendingRequestsAdapter requestsAdapter;
 
-    // UI Elements
     private FloatingActionButton btnGoToMap;
     private TextView titleText;
 
@@ -88,12 +92,21 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         checkLocationPermission();
         updateLocation();
 
-        // Setup Listeners
         setupUnreadMessageListener();
-        setupNotificationListener(); // Uses the fix
+        setupNotificationListener();
 
         fetchDriverServicesAndListen();
     }
+
+    // --- NEW HELPER METHOD TO PREVENT DOUBLE CLICKS ---
+    private boolean isSafeClick() {
+        if (SystemClock.elapsedRealtime() - lastClickTime < 500) { // 500ms delay
+            return false;
+        }
+        lastClickTime = SystemClock.elapsedRealtime();
+        return true;
+    }
+    // --------------------------------------------------
 
     private void setupViews() {
         titleText = findViewById(R.id.title_text);
@@ -103,6 +116,8 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         btnGoToMap.setVisibility(View.VISIBLE);
 
         btnGoToMap.setOnClickListener(v -> {
+            if (!isSafeClick()) return; // Block double clicks
+
             if (!activeJobsList.isEmpty()) {
                 redirectToActiveJob(activeJobsList.get(0));
             } else {
@@ -110,6 +125,68 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
             }
         });
     }
+
+    private void setupUIComponents() {
+        unreadBadge = findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+
+        // 1. NOTIFICATIONS
+        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
+        ConstraintLayout navNotification = findViewById(R.id.nav_notification_layout);
+        View.OnClickListener notifListener = v -> {
+            if (!isSafeClick()) return; // Block rapid clicks
+            Intent intent = new Intent(ServiceProviderHomepage.this, NotificationsActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+            overridePendingTransition(0, 0);
+        };
+        if (notificationButton != null) notificationButton.setOnClickListener(notifListener);
+        if (navNotification != null) navNotification.setOnClickListener(notifListener);
+
+        // 2. PROFILE
+        ImageView profileButton = findViewById(R.id.profile_icon_btn);
+        ConstraintLayout navProfile = findViewById(R.id.nav_profile_layout);
+        View.OnClickListener profileListener = v -> {
+            if (!isSafeClick()) return;
+            Intent intent = new Intent(ServiceProviderHomepage.this, ProfileActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+            overridePendingTransition(0, 0);
+        };
+        if (profileButton != null) profileButton.setOnClickListener(profileListener);
+        if (navProfile != null) navProfile.setOnClickListener(profileListener);
+
+        // 3. HOME (Current Page)
+        ConstraintLayout homeLayout = findViewById(R.id.nav_home_layout);
+        ImageView homeIcon = findViewById(R.id.home_icon_btn);
+        TextView homeText = findViewById(R.id.home_text);
+
+        if (homeLayout != null) {
+            homeLayout.setClickable(false); // Disable click since we are already here
+            homeLayout.setFocusable(false);
+            homeLayout.setBackgroundResource(R.drawable.rounded_white_background);
+        }
+        if (homeIcon != null) homeIcon.setColorFilter(Color.BLACK);
+        if (homeText != null) {
+            homeText.setTextColor(Color.BLACK);
+            homeText.setTypeface(null, Typeface.BOLD);
+        }
+
+        // 4. MESSAGES
+        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        ConstraintLayout navMessage = findViewById(R.id.nav_message_layout);
+        View.OnClickListener messageListener = v -> {
+            if (!isSafeClick()) return;
+            Intent intent = new Intent(ServiceProviderHomepage.this, ChatInboxActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+            startActivity(intent);
+            overridePendingTransition(0, 0);
+        };
+        if (messageButton != null) messageButton.setOnClickListener(messageListener);
+        if (navMessage != null) navMessage.setOnClickListener(messageListener);
+    }
+
+    // --- REST OF YOUR EXISTING CODE (Unchanged) ---
 
     private void fetchDriverServicesAndListen() {
         if (currentUser == null) return;
@@ -131,7 +208,6 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         if (currentUser == null) return;
         String myUserId = currentUser.getUid();
 
-        // 1. Listen for Active Jobs
         if (activeJobListener != null) activeJobListener.remove();
         activeJobListener = db.collection("service_requests")
                 .whereEqualTo("providerId", myUserId)
@@ -150,7 +226,6 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
                     mergeAndDisplayRequests();
                 });
 
-        // 2. Listen for Pending Jobs
         if (pendingListener != null) pendingListener.remove();
         pendingListener = db.collection("service_requests")
                 .whereEqualTo("status", "pending")
@@ -163,7 +238,6 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
                             Map<String, Object> data = new HashMap<>(doc.getData());
                             String requestType = (String) data.get("requestType");
 
-                            // Filter based on driver services
                             if (requestType != null && driverServices.contains(requestType)) {
                                 data.put("requestId", doc.getId());
                                 pendingJobsList.add(data);
@@ -191,6 +265,8 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
 
     @Override
     public void onAcceptClick(String requestId, Map<String, Object> requestData) {
+        if (!isSafeClick()) return; // Prevent double-tap acceptance
+
         if (currentUser == null) return;
         if (!activeJobsList.isEmpty()) {
             Toast.makeText(this, "Complete your current job first!", Toast.LENGTH_LONG).show();
@@ -210,23 +286,18 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
                 .update(updates)
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(this, "Request accepted!", Toast.LENGTH_SHORT).show();
-
-                    // --- START FIX: SEND NOTIFICATION TO CUSTOMER ---
                     String customerId = (String) requestData.get("customerId");
                     if (customerId != null) {
                         Map<String, Object> notification = new HashMap<>();
                         notification.put("userId", customerId);
                         notification.put("title", "Request Accepted!");
                         notification.put("message", "A provider is on the way.");
-                        notification.put("read", false); // Triggers the light!
+                        notification.put("read", false);
                         notification.put("requestId", requestId);
                         notification.put("timestamp", FieldValue.serverTimestamp());
                         notification.put("type", "status_update");
-
                         db.collection("notifications").add(notification);
                     }
-                    // --- END FIX ---
-
                     redirectToActiveJob(requestData);
                 })
                 .addOnFailureListener(e -> Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
@@ -234,6 +305,7 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
 
     @Override
     public void onItemClick(Map<String, Object> requestData) {
+        if (!isSafeClick()) return;
         String requestId = (String) requestData.get("requestId");
         markRequestAsRead(requestId);
         redirectToActiveJob(requestData);
@@ -321,9 +393,6 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
                 });
     }
 
-    // ---------------------------------------------------------
-    // FIXED: Notification Badge Listener
-    // ---------------------------------------------------------
     private void setupNotificationListener() {
         if (currentUser == null) return;
         String currentUserId = currentUser.getUid();
@@ -353,35 +422,6 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         });
     }
 
-    private void setupUIComponents() {
-        unreadBadge = findViewById(R.id.unread_message_badge);
-        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
-        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        if (notificationButton != null) {
-            notificationButton.setOnClickListener(v -> startActivity(new Intent(ServiceProviderHomepage.this, NotificationsActivity.class)));
-        }
-        ImageView profileButton = findViewById(R.id.profile_icon_btn);
-        if (profileButton != null) {
-            profileButton.setOnClickListener(v -> startActivity(new Intent(ServiceProviderHomepage.this, ProfileActivity.class)));
-        }
-        ConstraintLayout homeLayout = findViewById(R.id.nav_home_layout);
-        ImageView homeIcon = findViewById(R.id.home_icon_btn);
-        TextView homeText = findViewById(R.id.home_text);
-        if (homeLayout != null) {
-            homeLayout.setClickable(false);
-            homeLayout.setFocusable(false);
-            homeLayout.setBackgroundResource(R.drawable.rounded_white_background);
-        }
-        if (homeIcon != null) homeIcon.setColorFilter(Color.BLACK);
-        if (homeText != null) {
-            homeText.setTextColor(Color.BLACK);
-            homeText.setTypeface(null, Typeface.BOLD);
-        }
-        ImageView messageButton = findViewById(R.id.message_icon_btn);
-        if (messageButton != null) {
-            messageButton.setOnClickListener(v -> startActivity(new Intent(ServiceProviderHomepage.this, ChatInboxActivity.class)));
-        }
-    }
     @Override
     protected void onDestroy() {
         super.onDestroy();

@@ -26,9 +26,13 @@ import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.SetOptions;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class ChatConversationActivity extends AppCompatActivity {
@@ -48,12 +52,14 @@ public class ChatConversationActivity extends AppCompatActivity {
     private ListenerRegistration chatStatusListener;
 
     private ListenerRegistration unreadBadgeListener;
-    private ListenerRegistration notificationBadgeListener; // Matches your class variable
+    private ListenerRegistration notificationBadgeListener;
     private TextView unreadBadge;
     private TextView unreadNotificationBadge;
+
     private FirebaseUser currentUser;
     private String chatId;
     private String otherUserName;
+    private String receiverId; // The ID of the person we are chatting with
     private boolean isChatClosed = false;
 
     @Override
@@ -61,18 +67,37 @@ public class ChatConversationActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat_conversation);
 
+        // 1. Get Data from Intent
         chatId = getIntent().getStringExtra("chatId");
         otherUserName = getIntent().getStringExtra("receiverName");
+        receiverId = getIntent().getStringExtra("receiverId");
 
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
-        currentUser = auth.getCurrentUser(); // ADDED: Initialized here to prevent NullPointerException
+        currentUser = auth.getCurrentUser();
+
+        if (currentUser == null) {
+            finish();
+            return;
+        }
 
         if (chatId == null || chatId.isEmpty()) {
-            Log.e(TAG, "Chat ID is null or empty. Finishing activity.");
             Toast.makeText(this, "Error: Could not open chat.", Toast.LENGTH_SHORT).show();
             finish();
             return;
+        }
+
+        // 2. FIX: Safer logic to calculate Receiver ID for 3-part Chat IDs (RequestId_User1_User2)
+        if (receiverId == null) {
+            String currentUid = currentUser.getUid();
+            String[] parts = chatId.split("_");
+            // Iterate through parts: if it's not me, and looks like a User ID (length check helps avoid Request IDs if short), assume it's receiver.
+            for (String part : parts) {
+                if (!part.equals(currentUid) && part.length() > 15) { // Simple length check to differentiate from some short request IDs
+                    receiverId = part;
+                    break;
+                }
+            }
         }
 
         setupToolbar();
@@ -82,16 +107,35 @@ public class ChatConversationActivity extends AppCompatActivity {
         setupChatStatusListener();
         setupNavbar();
         setupUnreadBadgeListener();
-        setupNotificationBadgeListener(); // This calls the fixed method
+        setupNotificationBadgeListener();
 
         resetUnreadCount();
+
+        // 3. Force fetch the correct Full Name
+        loadReceiverDetails();
+    }
+
+    // Fetches real name from DB to avoid "RoadRescue User"
+    private void loadReceiverDetails() {
+        if (receiverId == null || receiverId.isEmpty()) return;
+
+        db.collection("users").document(receiverId).get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        String fullName = documentSnapshot.getString("name");
+                        if (fullName != null && !fullName.isEmpty()) {
+                            otherUserName = fullName; // Update local variable
+                            if (userNameText != null) {
+                                userNameText.setText(fullName); // Update UI
+                            }
+                        }
+                    }
+                });
     }
 
     private void resetUnreadCount() {
         if (currentUser == null) return;
-
         String currentUserId = currentUser.getUid();
-
         db.collection("chats").document(chatId)
                 .update("unreadCounts." + currentUserId, 0)
                 .addOnFailureListener(e -> Log.e(TAG, "Failed to reset unread count", e));
@@ -100,80 +144,15 @@ public class ChatConversationActivity extends AppCompatActivity {
     private void setupChatStatusListener() {
         chatStatusListener = db.collection("chats").document(chatId)
                 .addSnapshotListener((snapshot, e) -> {
-                    if (e != null) {
-                        Log.w(TAG, "Listen for chat status failed.", e);
-                        return;
-                    }
-
+                    if (e != null) return;
                     if (snapshot != null && snapshot.exists()) {
                         String status = snapshot.getString("status");
-                        if ("closed".equals(status) || "archived".equals(status)) {
-                            isChatClosed = true;
-                        } else {
-                            isChatClosed = false;
-                        }
+                        // Check if status is "closed"
+                        isChatClosed = "closed".equals(status) || "archived".equals(status);
                         updateUiForChatStatus();
                     }
                 });
     }
-
-    private void setupUnreadBadgeListener() {
-        if (currentUser == null) return;
-        String currentUserId = currentUser.getUid();
-
-        unreadBadgeListener = db.collection("chats")
-                .whereArrayContains("participantIds", currentUserId)
-                .whereEqualTo("status", "active")
-                .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
-
-                    int totalUnread = 0;
-                    if (snapshots != null) {
-                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                            Long count = doc.getLong("unreadCounts." + currentUserId);
-                            if (count != null) {
-                                totalUnread += count;
-                            }
-                        }
-                    }
-
-                    if (unreadBadge != null) {
-                        unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
-                    }
-                });
-    }
-
-    // --- FIXED METHOD START ---
-    private void setupNotificationBadgeListener() {
-        if (currentUser == null) return;
-        String currentUserId = currentUser.getUid();
-
-        // Fixed: Now listens to 'notifications' collection
-        Query badgeQuery = db.collection("notifications")
-                .whereEqualTo("userId", currentUserId)
-                .whereEqualTo("read", false);
-
-        if (notificationBadgeListener != null) {
-            notificationBadgeListener.remove();
-        }
-
-        notificationBadgeListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
-            if (e != null) {
-                Log.e(TAG, "Notification listener error", e);
-                return;
-            }
-            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-
-            if (unreadNotificationBadge != null) {
-                if (hasUnread) {
-                    unreadNotificationBadge.setVisibility(View.VISIBLE);
-                } else {
-                    unreadNotificationBadge.setVisibility(View.GONE);
-                }
-            }
-        });
-    }
-    // --- FIXED METHOD END ---
 
     private void updateUiForChatStatus() {
         if (isChatClosed) {
@@ -182,7 +161,7 @@ public class ChatConversationActivity extends AppCompatActivity {
             messageInput.setBackgroundResource(android.R.color.transparent);
             sendButton.setEnabled(false);
             sendButton.setVisibility(View.INVISIBLE);
-            if (userNameText != null) {
+            if (userNameText != null && otherUserName != null) {
                 userNameText.setText(otherUserName + " (Closed)");
             }
         } else {
@@ -200,97 +179,87 @@ public class ChatConversationActivity extends AppCompatActivity {
         unreadBadge = findViewById(R.id.unread_message_badge);
         unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
 
-        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
-        notificationButton.setOnClickListener(v -> {
-            Intent intent = new Intent(ChatConversationActivity.this, NotificationsActivity.class);
-            // --- FIX ADDED HERE ---
-            // Prevents creating a new activity if one already exists.
+        findViewById(R.id.notification_icon_btn).setOnClickListener(v -> {
+            Intent intent = new Intent(this, NotificationsActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
-
-        ImageView profileButton = findViewById(R.id.profile_icon_btn);
-        profileButton.setOnClickListener(v -> {
-            Intent intent = new Intent(ChatConversationActivity.this, ProfileActivity.class);
-            // --- FIX ADDED HERE ---
-            // Prevents creating a new activity if one already exists.
+        findViewById(R.id.profile_icon_btn).setOnClickListener(v -> {
+            Intent intent = new Intent(this, ProfileActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
-
-        ImageView homeButton = findViewById(R.id.home_icon_btn);
-        homeButton.setOnClickListener(v -> {
+        findViewById(R.id.home_icon_btn).setOnClickListener(v -> {
             if (currentUser == null) {
-                Intent intent = new Intent(ChatConversationActivity.this, MainActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(new Intent(this, MainActivity.class)); finish(); return;
+            }
+            db.collection("users").document(currentUser.getUid()).get().addOnSuccessListener(doc -> {
+                Intent intent;
+                String type = doc.getString("userType");
+                if (type != null && (type.equalsIgnoreCase("Service Provider") || type.equalsIgnoreCase("driver"))) {
+                    intent = new Intent(this, ServiceProviderHomepage.class);
+                } else {
+                    intent = new Intent(this, homepage.class);
+                }
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
                 finish();
-                return;
-            }
-
-            db.collection("users").document(currentUser.getUid()).get()
-                    .addOnSuccessListener(documentSnapshot -> {
-                        String userType = "Customer"; // Default
-                        if (documentSnapshot.exists()) {
-                            String type = documentSnapshot.getString("userType");
-
-                            if (type != null && (type.trim().equalsIgnoreCase("Service Provider") || type.trim().equalsIgnoreCase("driver"))) {
-                                userType = "Service Provider";
-                            }
-                        }
-
-                        Intent intent;
-                        if (userType.equals("Service Provider")) {
-                            intent = new Intent(ChatConversationActivity.this, ServiceProviderHomepage.class);
-                        } else {
-                            intent = new Intent(ChatConversationActivity.this, homepage.class);
-                        }
-
-                        // This is the correct flag for a "Home" button, it clears the stack.
-                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                        finish();
-                    })
-                    .addOnFailureListener(e -> {
-                        Log.e(TAG, "Failed to get userType", e);
-                        Intent intent = new Intent(ChatConversationActivity.this, homepage.class);
-                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                        finish();
-                    });
+            });
         });
 
-        // --- Active State Styling for Message Icon ---
         ImageView messageIcon = findViewById(R.id.message_icon_btn);
         ConstraintLayout messageLayout = findViewById(R.id.nav_message_layout);
         TextView messageText = findViewById(R.id.message_text);
-
-        if (messageLayout != null) {
-            messageLayout.setBackgroundResource(R.drawable.rounded_white_background);
-        }
+        if (messageLayout != null) messageLayout.setBackgroundResource(R.drawable.rounded_white_background);
         if (messageIcon != null) {
             messageIcon.setColorFilter(Color.BLACK);
-        }
-        if (messageText != null) {
-            messageText.setTextColor(Color.BLACK);
-            messageText.setTypeface(null, Typeface.BOLD);
-        }
-
-        if (messageIcon != null) {
             messageIcon.setOnClickListener(v -> {
-                Intent intent = new Intent(ChatConversationActivity.this, ChatInboxActivity.class);
-                // This is the correct flag for going "up" to the parent inbox screen.
+                Intent intent = new Intent(this, ChatInboxActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
                 startActivity(intent);
                 finish();
             });
         }
+        if (messageText != null) {
+            messageText.setTextColor(Color.BLACK);
+            messageText.setTypeface(null, Typeface.BOLD);
+        }
+    }
+
+    private void setupUnreadBadgeListener() {
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
+        unreadBadgeListener = db.collection("chats")
+                .whereArrayContains("participantIds", currentUserId)
+                .whereEqualTo("status", "active")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            if (count != null) totalUnread += count;
+                        }
+                    }
+                    if (unreadBadge != null) unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                });
+    }
+
+    private void setupNotificationBadgeListener() {
+        if (currentUser == null) return;
+        String currentUserId = currentUser.getUid();
+        Query badgeQuery = db.collection("notifications").whereEqualTo("userId", currentUserId).whereEqualTo("read", false);
+        if (notificationBadgeListener != null) notificationBadgeListener.remove();
+        notificationBadgeListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
+            if (e != null) return;
+            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
+            if (unreadNotificationBadge != null) unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+        });
     }
 
     private void setupToolbar() {
         ImageView backButton = findViewById(R.id.backButton);
         backButton.setOnClickListener(v -> finish());
-
         userNameText = findViewById(R.id.userNameText);
         userNameText.setText(otherUserName != null ? otherUserName : "Chat");
     }
@@ -299,7 +268,6 @@ public class ChatConversationActivity extends AppCompatActivity {
         messageList = new ArrayList<>();
         messagesRecyclerView = findViewById(R.id.messagesRecyclerView);
         messageAdapter = new MessageAdapter(messageList, getCurrentUserId());
-
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         layoutManager.setStackFromEnd(true);
         messagesRecyclerView.setLayoutManager(layoutManager);
@@ -309,20 +277,17 @@ public class ChatConversationActivity extends AppCompatActivity {
     private void setupViews() {
         messageInput = findViewById(R.id.messageInput);
         sendButton = findViewById(R.id.sendButton);
-
         sendButton.setOnClickListener(v -> sendMessage());
     }
 
     private void sendMessage() {
+        // 4. PREVENT SENDING IF CLOSED
         if (isChatClosed) {
-            Toast.makeText(this, "This session is closed. You cannot send messages.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "This session is closed.", Toast.LENGTH_SHORT).show();
             return;
         }
-
         String messageText = messageInput.getText().toString().trim();
-        if (TextUtils.isEmpty(messageText)) {
-            return;
-        }
+        if (TextUtils.isEmpty(messageText)) return;
 
         String messageId = UUID.randomUUID().toString();
         String currentUserId = getCurrentUserId();
@@ -339,32 +304,44 @@ public class ChatConversationActivity extends AppCompatActivity {
                     messageInput.setText("");
                     updateLastMessageAndUnreadCount(messageText);
                 })
-                .addOnFailureListener(e -> {
-                    Log.e(TAG, "Error sending message: ", e);
-                });
+                .addOnFailureListener(e -> Log.e(TAG, "Error sending message: ", e));
     }
 
     private void updateLastMessageAndUnreadCount(String lastMessage) {
-        db.collection("chats").document(chatId).get().addOnSuccessListener(doc -> {
-            if (doc.exists()) {
-                List<String> participants = (List<String>) doc.get("participantIds");
-                if (participants != null) {
-                    String currentUserId = getCurrentUserId();
+        // 5. CRITICAL FIX: Do not update 'status' or metadata if the chat is supposedly closed.
+        if (isChatClosed) return;
 
-                    for (String id : participants) {
-                        if (!id.equals(currentUserId)) {
-                            db.collection("chats").document(chatId)
-                                    .update(
-                                            "unreadCounts." + id, FieldValue.increment(1),
-                                            "lastMessage", lastMessage,
-                                            "lastMessageTimestamp", Timestamp.now()
-                                    )
-                                    .addOnFailureListener(e -> Log.e(TAG, "Failed to update chat meta", e));
-                        }
-                    }
-                }
+        Map<String, Object> baseUpdates = new HashMap<>();
+        baseUpdates.put("lastMessage", lastMessage);
+        baseUpdates.put("lastMessageTimestamp", FieldValue.serverTimestamp());
+        // Only set active if we are sure it's not closed. Since we checked isChatClosed above,
+        // this implies we are reactivating or keeping it active.
+        baseUpdates.put("status", "active");
+
+        if (receiverId != null && !receiverId.isEmpty()) {
+            baseUpdates.put("participantIds", Arrays.asList(getCurrentUserId(), receiverId));
+
+            // 6. Name Preservation: Only overwrite if we have a Valid Real Name
+            if (otherUserName != null &&
+                    !otherUserName.equals("Chat") &&
+                    !otherUserName.equals("RoadRescue User")) {
+
+                Map<String, String> names = new HashMap<>();
+                names.put(getCurrentUserId(), getCurrentUserName());
+                names.put(receiverId, otherUserName);
+                baseUpdates.put("participantNames", names);
             }
-        });
+        }
+
+        db.collection("chats").document(chatId)
+                .set(baseUpdates, SetOptions.merge())
+                .addOnSuccessListener(aVoid -> {
+                    if (receiverId != null) {
+                        db.collection("chats").document(chatId)
+                                .update("unreadCounts." + receiverId, FieldValue.increment(1));
+                    }
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "Failed to update chat meta", e));
     }
 
     private void setupFirestoreListener() {
@@ -372,22 +349,14 @@ public class ChatConversationActivity extends AppCompatActivity {
                 .collection("messages")
                 .orderBy("timestamp", Query.Direction.ASCENDING)
                 .addSnapshotListener((value, error) -> {
-                    if (error != null) {
-                        Log.w(TAG, "Listen failed.", error);
-                        return;
-                    }
-
-                    if (value == null) {
-                        return;
-                    }
-
+                    if (error != null) return;
+                    if (value == null) return;
                     messageList.clear();
                     for (com.google.firebase.firestore.QueryDocumentSnapshot doc : value) {
                         MessageModel message = doc.toObject(MessageModel.class);
                         messageList.add(message);
                     }
                     messageAdapter.notifyDataSetChanged();
-
                     if (messageList.size() > 0) {
                         messagesRecyclerView.scrollToPosition(messageList.size() - 1);
                     }
@@ -395,33 +364,19 @@ public class ChatConversationActivity extends AppCompatActivity {
     }
 
     private String getCurrentUserId() {
-        if (currentUser != null) {
-            return currentUser.getUid();
-        }
-        return "default_user_id";
+        return currentUser != null ? currentUser.getUid() : "default_user_id";
     }
 
     private String getCurrentUserName() {
-        if (currentUser != null && currentUser.getDisplayName() != null) {
-            return currentUser.getDisplayName();
-        }
-        return "You";
+        return (currentUser != null && currentUser.getDisplayName() != null) ? currentUser.getDisplayName() : "You";
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (messagesListener != null) {
-            messagesListener.remove();
-        }
-        if (chatStatusListener != null) {
-            chatStatusListener.remove();
-        }
-        if (unreadBadgeListener != null) {
-            unreadBadgeListener.remove();
-        }
-        if (notificationBadgeListener != null) {
-            notificationBadgeListener.remove();
-        }
+        if (messagesListener != null) messagesListener.remove();
+        if (chatStatusListener != null) chatStatusListener.remove();
+        if (unreadBadgeListener != null) unreadBadgeListener.remove();
+        if (notificationBadgeListener != null) notificationBadgeListener.remove();
     }
 }

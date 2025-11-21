@@ -1,1 +1,55 @@
-
+{
+  "project_info": {
+    "project_number": "918948992882",
+    "project_id": "roadrescue-b46e9",
+    "storage_bucket": "roadrescue-b46e9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:918948992882:android:57f83c8397b4b7339d6feb",
+        "android_client_info": {
+          "package_name": "fourthyear.roadrescue"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "918948992882-dk8s8fbsk4ot734mg9ldp928618lehah.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "fourthyear.roadrescue",
+            "certificate_hash": "85ae8d22d5e69018c56ffd1097f6017d2fd780d8"
+          }
+        },
+        {
+          "client_id": "918948992882-ugmibjb5itrdfv0uvckgndl88t01dq7p.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "fourthyear.roadrescue",
+            "certificate_hash": "dd938703e1d723c9d88c9989bf672c223ec1d86a"
+          }
+        },
+        {
+          "client_id": "918948992882-74974ae6l90bidgfupr8fvt7p1d4t8be.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCcGrhKEwhmwIp1M3k2of4P9VnCeLq9aOY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "918948992882-74974ae6l90bidgfupr8fvt7p1d4t8be.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

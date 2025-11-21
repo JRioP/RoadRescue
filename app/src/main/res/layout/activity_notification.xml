@@ -15,45 +15,58 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent">
 
-        <ImageView
-            android:id="@+id/back_btn"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="16dp"
-            android:layout_marginTop="16dp"
-            android:contentDescription="Back"
-            android:padding="12dp"
-            android:src="@drawable/keyboard_arrow_down"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:tint="@android:color/black" />
-
-        <TextView
-            android:id="@+id/headerTitle"
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/toolbar"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/poppins"
-            android:gravity="center_horizontal"
-            android:text="Notifications"
-            android:textColor="@android:color/black"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            app:layout_constraintBottom_toBottomOf="@+id/back_btn"
+            android:layout_height="56dp"
+            android:background="?attr/colorPrimary"
+            android:paddingHorizontal="16dp"
             app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="@+id/back_btn" />
+            app:layout_constraintTop_toTopOf="parent">
+
+            <!-- Back Button -->
+            <ImageView
+                android:id="@+id/backButton"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:contentDescription="Back"
+                android:src="@drawable/keyboard_arrow_down"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:tint="@android:color/white" />
+
+            <!-- Title -->
+            <TextView
+                android:id="@+id/headerTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="12dp"
+                android:text="Notifications"
+                android:textColor="@android:color/white"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintHorizontal_bias="0.5"
+                app:layout_constraintStart_toEndOf="@id/backButton"
+                app:layout_constraintTop_toTopOf="parent" />
+
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/notificationsRecyclerView"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_marginTop="10dp"
             android:clipToPadding="false"
             android:paddingBottom="8dp"
             app:layout_constraintBottom_toTopOf="@+id/bottomNav"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/headerTitle" />
+            app:layout_constraintTop_toBottomOf="@+id/toolbar" />
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/bottomNav"

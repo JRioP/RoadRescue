@@ -53,8 +53,8 @@ import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.GeoPoint;
 import com.google.firebase.firestore.ListenerRegistration;
-
 import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.SetOptions; // Added for SetOptions
 import com.google.maps.DirectionsApi;
 import com.google.maps.GeoApiContext;
 import com.google.maps.android.PolyUtil;
@@ -84,7 +84,6 @@ public class MapActivity extends AppCompatActivity
     private FusedLocationProviderClient fusedLocationClient;
     private ActivityResultLauncher<String> requestPermissionLauncher;
     private ActivityResultLauncher<Intent> paymentLauncher;
-    private FirebaseUser currentUser;
     private Button requestServiceButton;
     private Button editPickupButton;
     private Button messageButton;
@@ -100,7 +99,7 @@ public class MapActivity extends AppCompatActivity
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
-    private String currentRequestId;
+    private String currentRequestId; // Important: this is now part of the Chat ID
 
     private ListenerRegistration requestListener;
     private ListenerRegistration providerListener;
@@ -216,7 +215,7 @@ public class MapActivity extends AppCompatActivity
             destinationInput.setHint("Finding nearest gas stations...");
             destinationInput.setEnabled(false);
             requestServiceButton.setText("Find Nearby Gas Stations");
-            editPickupButton.setVisibility(View.GONE); // Hide pickup button for Gas Station mode
+            editPickupButton.setVisibility(View.GONE);
         } else if (!"Towing".equals(selectedRequestType)) {
             destinationInput.setHint("Service will be at your pickup location.");
             destinationInput.setText("Service will be at your pickup location.");
@@ -266,55 +265,46 @@ public class MapActivity extends AppCompatActivity
     private void setupUnreadMessageListener() {
         FirebaseUser user = mAuth.getCurrentUser();
         if (user == null) return;
-        unreadListener = db.collection("chats").whereArrayContains("participantIds", user.getUid()).whereEqualTo("status", "active").addSnapshotListener((snapshots, e) -> {
-            if (e != null) return;
-            int totalUnread = 0;
-            if (snapshots != null) {
-                for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                    Long count = doc.getLong("unreadCounts." + user.getUid());
-                    if (count != null) totalUnread += count;
-                }
-            }
-            if (unreadBadge != null) unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
-        });
+        unreadListener = db.collection("chats")
+                .whereArrayContains("participantIds", user.getUid())
+                .whereEqualTo("status", "active") // Only count unread for ACTIVE chats
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) return;
+                    int totalUnread = 0;
+                    if (snapshots != null) {
+                        for (DocumentSnapshot doc : snapshots.getDocuments()) {
+                            Long count = doc.getLong("unreadCounts." + user.getUid());
+                            if (count != null) totalUnread += count;
+                        }
+                    }
+                    if (unreadBadge != null) unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                });
     }
 
     private void setupNotificationListener() {
-        if (currentUser == null) return;
-        String currentUserId = currentUser.getUid();
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) return;
+        String currentUserId = user.getUid();
         Query badgeQuery = db.collection("notifications")
                 .whereEqualTo("userId", currentUserId)
                 .whereEqualTo("read", false);
 
-        if (notificationListener != null) {
-            notificationListener.remove();
-        }
+        if (notificationListener != null) notificationListener.remove();
 
         notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
-            if (e != null) {
-                Log.e(TAG, "Notification listener error", e);
-                return;
-            }
+            if (e != null) return;
             boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-
-            if (unreadNotificationBadge != null) {
-                if (hasUnread) {
-                    unreadNotificationBadge.setVisibility(View.VISIBLE);
-                } else {
-                    unreadNotificationBadge.setVisibility(View.GONE);
-                }
-            }
+            if (unreadNotificationBadge != null)
+                unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
         });
     }
 
     private void setupClickListeners() {
         requestServiceButton.setOnClickListener(v -> {
-            // --- SPECIAL HANDLING FOR GAS STATION ---
             if ("Gas Station".equals(selectedRequestType)) {
                 findNearbyGasStations();
-                return; // Stop here, don't process payment/request
+                return;
             }
-            // ----------------------------------------
 
             if (!"Towing".equals(selectedRequestType)) {
                 if (pickupLatLng != null) {
@@ -351,28 +341,20 @@ public class MapActivity extends AppCompatActivity
 
         cancelRequestButton.setOnClickListener(v -> cancelServiceRequest());
 
-        // --- NAVIGATION ICON FIXES START HERE ---
-
         findViewById(R.id.notification_icon_btn).setOnClickListener(v -> {
             Intent intent = new Intent(MapActivity.this, NotificationsActivity.class);
-            // --- FIX ADDED HERE ---
-            // Prevents creating a new activity if one already exists.
             intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
 
         findViewById(R.id.message_icon_btn).setOnClickListener(v -> {
             Intent intent = new Intent(MapActivity.this, ChatInboxActivity.class);
-            // --- FIX ADDED HERE ---
-            // Prevents creating a new activity if one already exists.
             intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
             startActivity(intent);
         });
 
-        // This back button logic is correct.
         findViewById(R.id.back_btn).setOnClickListener(v -> finish());
 
-        // This home button logic is also correct, as it resets the navigation stack.
         findViewById(R.id.home_icon_btn).setOnClickListener(v -> {
             FirebaseUser user = mAuth.getCurrentUser();
             if (user == null) {
@@ -410,14 +392,11 @@ public class MapActivity extends AppCompatActivity
         if (mapIntent.resolveActivity(getPackageManager()) != null) {
             startActivity(mapIntent);
         } else {
-            // Fallback if app not installed, try browser
             Uri browserUri = Uri.parse("https://www.google.com/maps/search/gas+station/");
             Intent browserIntent = new Intent(Intent.ACTION_VIEW, browserUri);
             startActivity(browserIntent);
         }
     }
-
-    // ... (Rest of the methods: cancelServiceRequest, findOrCreateChatRoom, setupPermissionLauncher, setupPaymentLauncher, checkUserForActiveRequest - same as before) ...
 
     private void cancelServiceRequest() {
         if (currentRequestId == null || currentRequestId.isEmpty()) {
@@ -425,6 +404,7 @@ public class MapActivity extends AppCompatActivity
             return;
         }
 
+        // FIX: Close chat BEFORE resetting UI (requires currentRequestId)
         if (mProviderId != null) {
             closeChatSession(mProviderId, currentRequestId);
         }
@@ -444,57 +424,52 @@ public class MapActivity extends AppCompatActivity
                 });
     }
 
+    // --- FIX: FULL FIX FOR CHAT CREATION (USES REQUEST ID) ---
     private void findOrCreateChatRoom() {
-        if (mProviderId == null || mProviderName == null) {
-            Toast.makeText(this, "Provider details not available yet.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        if (currentRequestId == null) {
-            Toast.makeText(this, "No active service request found.", Toast.LENGTH_SHORT).show();
+        if (mProviderId == null || mProviderName == null || currentRequestId == null) {
+            Toast.makeText(this, "Service request details are not ready.", Toast.LENGTH_SHORT).show();
             return;
         }
 
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) {
-            Toast.makeText(this, "You must be logged in to chat.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "You must be logged in.", Toast.LENGTH_SHORT).show();
             return;
         }
-
         String currentUserId = currentUser.getUid();
 
         db.collection("users").document(currentUserId).get().addOnSuccessListener(userDoc -> {
             String currentUserName = userDoc.getString("name");
-            if (currentUserName == null || currentUserName.isEmpty()) {
-                currentUserName = "Customer";
-            }
+            if (currentUserName == null) currentUserName = "Customer";
 
+            // UNIQUE CHAT ID LOGIC: RequestID + ID1 + ID2
             String chatRoomId;
-
             if (currentUserId.compareTo(mProviderId) > 0) {
-                chatRoomId = currentUserId + "_" + mProviderId + "_" + currentRequestId;
+                chatRoomId = currentRequestId + "_" + currentUserId + "_" + mProviderId;
             } else {
-                chatRoomId = mProviderId + "_" + currentUserId + "_" + currentRequestId;
+                chatRoomId = currentRequestId + "_" + mProviderId + "_" + currentUserId;
             }
 
             DocumentReference chatRef = db.collection("chats").document(chatRoomId);
             String finalCurrentUserName = currentUserName;
-            String finalCurrentUserName1 = currentUserName;
+            String finalChatRoomId = chatRoomId;
+
             chatRef.get().addOnCompleteListener(task -> {
                 if (task.isSuccessful()) {
                     DocumentSnapshot document = task.getResult();
-                    if (!document.exists()) {
 
+                    if (!document.exists()) {
                         Map<String, Object> chatData = new HashMap<>();
-                        chatData.put("chatId", chatRoomId);
+                        chatData.put("chatId", finalChatRoomId);
+                        chatData.put("requestId", currentRequestId); // Link chat to this request
                         chatData.put("participantIds", Arrays.asList(currentUserId, mProviderId));
-                        chatData.put("lastMessage", "Chat started");
+                        chatData.put("lastMessage", "Service started.");
                         chatData.put("lastMessageTimestamp", FieldValue.serverTimestamp());
                         chatData.put("status", "active");
-                        chatData.put("requestId", currentRequestId);
 
+                        // Store initial names
                         Map<String, String> names = new HashMap<>();
-                        names.put(currentUserId, finalCurrentUserName1);
+                        names.put(currentUserId, finalCurrentUserName);
                         names.put(mProviderId, mProviderName);
                         chatData.put("participantNames", names);
 
@@ -503,30 +478,24 @@ public class MapActivity extends AppCompatActivity
                         unreadCounts.put(mProviderId, 0);
                         chatData.put("unreadCounts", unreadCounts);
 
-                        chatData.put("requestRef", currentRequestId);
-
                         chatRef.set(chatData).addOnSuccessListener(aVoid -> {
-                            Log.d(TAG, "New chat room created: " + chatRoomId);
-                            startChatActivity(chatRoomId);
+                            startChatActivity(finalChatRoomId);
                         });
                     } else {
-                        Log.d(TAG, "Joining existing chat room: " + chatRoomId);
-                        startChatActivity(chatRoomId);
+                        // Just open the existing chat
+                        startChatActivity(finalChatRoomId);
                     }
-                } else {
-                    Log.e(TAG, "Error finding chat room", task.getException());
                 }
             });
-
-        }).addOnFailureListener(e -> {
-            Toast.makeText(this, "Failed to get your user details to start chat.", Toast.LENGTH_SHORT).show();
         });
     }
+    // ---------------------------------------------------------
 
     private void startChatActivity(String chatRoomId) {
         Intent intent = new Intent(this, ChatConversationActivity.class);
         intent.putExtra("chatId", chatRoomId);
         intent.putExtra("receiverName", mProviderName);
+        intent.putExtra("receiverId", mProviderId);
         startActivity(intent);
     }
 
@@ -537,7 +506,7 @@ public class MapActivity extends AppCompatActivity
                     if (isGranted) {
                         enableMyLocation();
                     } else {
-                        Toast.makeText(this, "Location permission is required to find your position.", Toast.LENGTH_LONG).show();
+                        Toast.makeText(this, "Location permission is required.", Toast.LENGTH_LONG).show();
                         editPickupButton.setVisibility(View.VISIBLE);
                     }
                 });
@@ -612,8 +581,6 @@ public class MapActivity extends AppCompatActivity
             Toast.makeText(this, "A service request is already in progress.", Toast.LENGTH_SHORT).show();
             return;
         }
-
-        // --- PREVENT MAP CLICKS FOR GAS STATION ---
         if ("Gas Station".equals(selectedRequestType)) {
             Toast.makeText(this, "Click the button to find Gas Stations.", Toast.LENGTH_SHORT).show();
             return;
@@ -684,7 +651,6 @@ public class MapActivity extends AppCompatActivity
         });
     }
 
-    // --- UPDATED: Now fetches car details first ---
     @SuppressLint("DefaultLocale")
     private void sendServiceRequest(String paymentMethod) {
         FirebaseUser currentUser = mAuth.getCurrentUser();
@@ -692,7 +658,6 @@ public class MapActivity extends AppCompatActivity
 
         String userId = currentUser.getUid();
 
-        // 1. FETCH USER CAR DETAILS FIRST
         db.collection("users").document(userId).get()
                 .addOnSuccessListener(documentSnapshot -> {
                     String carBrand = null;
@@ -705,7 +670,6 @@ public class MapActivity extends AppCompatActivity
                         carType = documentSnapshot.getString("carType");
                     }
 
-                    // 2. PREPARE REQUEST DATA
                     Map<String, Object> requestData = new HashMap<>();
                     requestData.put("customerId", userId);
                     requestData.put("pickupLat", pickupLatLng.latitude);
@@ -720,14 +684,12 @@ public class MapActivity extends AppCompatActivity
                     requestData.put("paymentMethod", paymentMethod);
                     requestData.put("amount", calculatedAmount);
 
-                    // 3. ADD CAR INFO TO REQUEST
                     requestData.put("carBrand", carBrand);
                     requestData.put("carModel", carModel);
                     requestData.put("carType", carType);
 
                     showSearchingUI();
 
-                    // 4. SEND REQUEST
                     db.collection("service_requests").add(requestData)
                             .addOnSuccessListener(documentReference -> {
                                 currentRequestId = documentReference.getId();
@@ -735,26 +697,22 @@ public class MapActivity extends AppCompatActivity
                                 lockUiForTracking();
                             })
                             .addOnFailureListener(e -> {
-                                // 5. FALLBACK: Network failure triggers SMS
                                 sendSmsFallbackRequest(FALLBACK_DISPATCH_NUMBER, requestData);
                                 resetUiForNewRequest();
                             });
                 })
                 .addOnFailureListener(e -> {
-                    // If fetching user fails, maybe log it or try anyway
                     Log.e(TAG, "Failed to fetch user car info", e);
                     Toast.makeText(this, "Network error. Please try again.", Toast.LENGTH_SHORT).show();
                 });
     }
 
-    // --- NEW: SMS FALLBACK METHOD ---
     private void sendSmsFallbackRequest(String dispatchPhone, Map<String, Object> requestData) {
         String type = (String) requestData.get("requestType");
         Double lat = (Double) requestData.get("pickupLat");
         Double lng = (Double) requestData.get("pickupLng");
         String customerId = (String) requestData.get("customerId");
 
-        // Build the message with essential, machine-readable data
         String message = String.format(Locale.getDefault(),
                 "EMERGENCY REQUEST: %s. ID:%s. LOC:%.4f,%.4f. Addr:%s. Car:%s %s",
                 type,
@@ -787,15 +745,25 @@ public class MapActivity extends AppCompatActivity
 
         switch (selectedRequestType) {
             case "Towing":
-                baseFee = 500.0; perKmCharge = 50.0; break;
+                baseFee = 500.0;
+                perKmCharge = 50.0;
+                break;
             case "Fuel Delivery":
-                baseFee = 250.0; perKmCharge = 0.0; break;
+                baseFee = 250.0;
+                perKmCharge = 0.0;
+                break;
             case "Flat Tire Repair":
-                baseFee = 300.0; perKmCharge = 10.0; break;
+                baseFee = 300.0;
+                perKmCharge = 10.0;
+                break;
             case "Replace Battery":
-                baseFee = 350.0; perKmCharge = 10.0; break;
+                baseFee = 350.0;
+                perKmCharge = 10.0;
+                break;
             default:
-                baseFee = 150.0; perKmCharge = 5.0; break;
+                baseFee = 150.0;
+                perKmCharge = 5.0;
+                break;
         }
         return Math.round((baseFee + (distanceInKm * perKmCharge)) * 100.0) / 100.0;
     }
@@ -861,7 +829,6 @@ public class MapActivity extends AppCompatActivity
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             MyMap.setMyLocationEnabled(true);
             getDeviceLocation();
-            // Only show edit pickup if not in gas station mode
             if (!"Gas Station".equals(selectedRequestType)) {
                 editPickupButton.setVisibility(View.VISIBLE);
             }
@@ -921,17 +888,19 @@ public class MapActivity extends AppCompatActivity
                             listenForProviderLocation(mProviderId);
                         }
                     } else if ("completed".equals(status)) {
-
+                        // --- FIX: Close Chat Session ON COMPLETION ---
                         String providerId = snapshot.getString("providerId");
                         if (providerId != null) {
-                            closeChatSession(providerId, snapshot.getId());
+                            closeChatSession(providerId, requestId);
                         }
+                        // ---------------------------------------------
 
                         Intent intent = new Intent(MapActivity.this, PaymentReceiptActivity.class);
                         intent.putExtra("REFERENCE_ID", snapshot.getId());
                         intent.putExtra("AMOUNT_PAID", String.format(Locale.getDefault(), "PHP %.2f", snapshot.getDouble("amount")));
                         com.google.firebase.Timestamp ts = snapshot.getTimestamp("timestamp");
-                        if (ts != null) intent.putExtra("PAYMENT_DATE", new SimpleDateFormat("MMM dd, yyyy - hh:mm a", Locale.getDefault()).format(ts.toDate()));
+                        if (ts != null)
+                            intent.putExtra("PAYMENT_DATE", new SimpleDateFormat("MMM dd, yyyy - hh:mm a", Locale.getDefault()).format(ts.toDate()));
                         intent.putExtra("PAYMENT_METHOD", snapshot.getString("paymentMethod"));
                         intent.putExtra("REQUEST_TYPE", snapshot.getString("requestType"));
                         intent.putExtra("PICKUP_ADDRESS", snapshot.getString("pickupAddress"));
@@ -1073,23 +1042,25 @@ public class MapActivity extends AppCompatActivity
         etaText.setText(String.format(Locale.getDefault(), "~ %d min", timeInMinutes));
     }
 
+    // --- FIX: CLOSING THE SPECIFIC CHAT FOR THIS REQUEST ---
     private void closeChatSession(String providerId, String requestId) {
         if (providerId == null || requestId == null || mAuth.getCurrentUser() == null) return;
 
         String currentUserId = mAuth.getCurrentUser().getUid();
         String chatRoomId;
 
+        // MUST MATCH THE GENERATION LOGIC IN findOrCreateChatRoom
         if (currentUserId.compareTo(providerId) > 0) {
-            chatRoomId = currentUserId + "_" + providerId + "_" + requestId;
+            chatRoomId = requestId + "_" + currentUserId + "_" + providerId;
         } else {
-            chatRoomId = providerId + "_" + currentUserId + "_" + requestId;
+            chatRoomId = requestId + "_" + providerId + "_" + currentUserId;
         }
 
         Map<String, Object> updates = new HashMap<>();
         updates.put("status", "closed");
 
         db.collection("chats").document(chatRoomId)
-                .update(updates)
+                .set(updates, SetOptions.merge()) // Use set/merge in case doc doesn't exist (unlikely but safe)
                 .addOnSuccessListener(aVoid -> Log.d(TAG, "Chat session closed."))
                 .addOnFailureListener(e -> Log.w(TAG, "Chat session not found or update failed."));
     }

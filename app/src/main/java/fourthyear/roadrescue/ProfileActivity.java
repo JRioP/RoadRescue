@@ -120,7 +120,7 @@ public class ProfileActivity extends AppCompatActivity {
 
         // Setup Listeners
         setupUnreadMessageListener();
-        setupNotificationListener(); // This now calls the fixed method below
+        setupNotificationListener();
 
         setFieldsEditable(false);
         loadUserProfile();
@@ -180,14 +180,10 @@ public class ProfileActivity extends AppCompatActivity {
                 });
     }
 
-    // ---------------------------------------------------------
-    // FIXED: Notification Badge Logic (Updated to use 'notifications' collection)
-    // ---------------------------------------------------------
     private void setupNotificationListener() {
         if (currentUser == null) return;
         String currentUserId = currentUser.getUid();
 
-        // Logic from the fix:
         Query badgeQuery = db.collection("notifications")
                 .whereEqualTo("userId", currentUserId)
                 .whereEqualTo("read", false);
@@ -220,6 +216,7 @@ public class ProfileActivity extends AppCompatActivity {
         ImageView notificationButton = findViewById(R.id.notification_icon_btn);
         if (notificationButton != null) {
             notificationButton.setOnClickListener(v -> {
+                // --- FIX: Added Intent Flag ---
                 Intent intent = new Intent(ProfileActivity.this, NotificationsActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                 startActivity(intent);
@@ -229,6 +226,7 @@ public class ProfileActivity extends AppCompatActivity {
         ImageView messageButton = findViewById(R.id.message_icon_btn);
         if (messageButton != null) {
             messageButton.setOnClickListener(v -> {
+                // --- FIX: Added Intent Flag ---
                 Intent intent = new Intent(ProfileActivity.this, ChatInboxActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                 startActivity(intent);
