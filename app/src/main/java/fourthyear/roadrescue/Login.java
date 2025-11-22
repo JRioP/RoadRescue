@@ -63,7 +63,7 @@ public class Login extends Fragment {
         db = FirebaseFirestore.getInstance();
 
         if (getActivity() != null) {
-            sharedPreferences = getActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            sharedPreferences = requireContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         }
     }
 
@@ -71,8 +71,10 @@ public class Login extends Fragment {
         super.onStart();
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser != null) {
-            showLoading(true);
-            checkUserTypeAndRedirect(currentUser);
+            if (isAdded()) {
+                showLoading(true);
+                checkUserTypeAndRedirect(currentUser);
+            }
         }
     }
 
@@ -101,7 +103,8 @@ public class Login extends Fragment {
         setupInputListeners();
 
         forgotPassword.setOnClickListener(v -> {
-            Intent intent = new Intent(getActivity(), ForgotPassword.class);
+            // Use requireActivity() to ensure the fragment is attached
+            Intent intent = new Intent(requireActivity(), ForgotPassword.class);
             startActivity(intent);
         });
 
@@ -111,6 +114,8 @@ public class Login extends Fragment {
     }
 
     private void showLoading(boolean isLoading) {
+        if (!isAdded()) return; // Prevent calling views after fragment detachment
+
         if (isLoading) {
             if (loadingOverlay != null) loadingOverlay.setVisibility(View.VISIBLE);
             loginButton.setEnabled(false);
@@ -123,8 +128,10 @@ public class Login extends Fragment {
             if (passwordEditText != null) passwordEditText.setEnabled(true);
         }
     }
-    // Find this method in your code
+
     private void authenticateUser() {
+        if (!isAdded()) return;
+
         if (isLockedOut()) {
             return;
         }
@@ -141,7 +148,7 @@ public class Login extends Fragment {
 
         handler.postDelayed(() -> {
             mAuth.signInWithEmailAndPassword(email, password)
-                    .addOnCompleteListener(getActivity(), task -> {
+                    .addOnCompleteListener(requireActivity(), task -> {
                         if (task.isSuccessful()) {
                             resetSecurityCounters();
                             handleRememberMe(email);
@@ -156,10 +163,9 @@ public class Login extends Fragment {
                     });
         }, uiDelay);
     }
-
     private boolean isLockedOut() {
         if (getActivity() == null) return false;
-        SharedPreferences securePrefs = getActivity().getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences securePrefs = requireContext().getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE);
 
         long lockoutTimestamp = securePrefs.getLong(KEY_LOCKOUT_TIME, 0);
         long currentTime = System.currentTimeMillis();
@@ -167,7 +173,7 @@ public class Login extends Fragment {
         if (lockoutTimestamp > 0) {
             if (currentTime < lockoutTimestamp) {
                 long remainingSeconds = (lockoutTimestamp - currentTime) / 1000;
-                Toast.makeText(getActivity(), "Too many failed attempts. Try again in " + remainingSeconds + "s", Toast.LENGTH_LONG).show();
+                Toast.makeText(requireContext(), "Too many failed attempts. Try again in " + remainingSeconds + "s", Toast.LENGTH_LONG).show();
                 return true;
             } else {
                 resetSecurityCounters();
@@ -179,14 +185,14 @@ public class Login extends Fragment {
 
     private int getFailedAttempts() {
         if (getActivity() == null) return 0;
-        SharedPreferences securePrefs = getActivity().getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences securePrefs = requireContext().getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE);
         return securePrefs.getInt(KEY_FAILED_ATTEMPTS, 0);
     }
 
     private void handleLoginFailure(Exception exception) {
         if (getActivity() == null) return;
 
-        SharedPreferences securePrefs = getActivity().getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences securePrefs = requireContext().getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = securePrefs.edit();
 
         int currentAttempts = securePrefs.getInt(KEY_FAILED_ATTEMPTS, 0) + 1;
@@ -198,22 +204,19 @@ public class Login extends Fragment {
             editor.putLong(KEY_LOCKOUT_TIME, unlockTime);
             editor.apply();
 
-            Toast.makeText(getActivity(), "Too many attempts. Account locked for 5 minutes.", Toast.LENGTH_LONG).show();
+            Toast.makeText(requireContext(), "Too many attempts. Account locked for 5 minutes.", Toast.LENGTH_LONG).show();
         } else {
             editor.apply();
-
-            // SECURITY: Generic Error Message to prevent Enumeration
-            // We Log the real error for the developer, but show a generic one to the user
             if (exception != null) {
                 Log.e("LoginSecurity", "Auth Error: " + exception.getMessage());
             }
-            Toast.makeText(getActivity(), "Invalid email or password.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Invalid email or password.", Toast.LENGTH_SHORT).show();
         }
     }
 
     private void resetSecurityCounters() {
         if (getActivity() == null) return;
-        SharedPreferences securePrefs = getActivity().getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences securePrefs = requireContext().getSharedPreferences(SECURITY_PREFS, Context.MODE_PRIVATE);
         securePrefs.edit().clear().apply();
     }
 
@@ -238,7 +241,7 @@ public class Login extends Fragment {
         updates.put("lastLoginTimestamp", System.currentTimeMillis());
 
         if (getActivity() != null) {
-            SharedPreferences prefs = getActivity().getSharedPreferences("AppPrefs", Context.MODE_PRIVATE);
+            SharedPreferences prefs = requireContext().getSharedPreferences("AppPrefs", Context.MODE_PRIVATE);
             prefs.edit().putString("currentSessionId", newSessionId).apply();
         }
 
@@ -265,7 +268,9 @@ public class Login extends Fragment {
                         switch (userType.toLowerCase()) {
                             case "service provider":
                             case "driver":
-                                intent = new Intent(getActivity(), ServiceProviderHomepage.class);
+                                // FIX 1: Must target an Activity, not ServiceProviderHomeFragment.class
+                                // Replace 'ServiceProviderActivity.class' with your actual SP Activity name
+                                intent = new Intent(requireActivity(), NavigationActivity.class); // Placeholder
                                 break;
 
                             case "customer":
@@ -300,18 +305,18 @@ public class Login extends Fragment {
 
         if (isEmailVerified || isPhoneVerified) {
             if (showLoginToast) {
-                Toast.makeText(getActivity(), "Login successful!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(requireContext(), "Login successful!", Toast.LENGTH_SHORT).show();
             }
-            Intent intent = new Intent(getActivity(), homepage.class);
+            Intent intent = new Intent(requireActivity(), NavigationActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
-            getActivity().overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
-            getActivity().finish();
+            requireActivity().overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
+            requireActivity().finish();
         } else {
             if (showLoginToast) {
-                Toast.makeText(getActivity(), "Please verify your email or phone", Toast.LENGTH_LONG).show();
+                Toast.makeText(requireContext(), "Please verify your email or phone", Toast.LENGTH_LONG).show();
             }
-            Intent intent = new Intent(getActivity(), NonVerifiedHomepage.class);
+            Intent intent = new Intent(requireActivity(), NonVerifiedHomepage.class);
             intent.putExtra("email", user.getEmail());
             startActivity(intent);
         }

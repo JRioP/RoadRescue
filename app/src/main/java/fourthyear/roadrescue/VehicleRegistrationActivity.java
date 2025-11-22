@@ -180,9 +180,9 @@ public class VehicleRegistrationActivity extends AppCompatActivity {
 
                     Intent intent;
                     if (userType.equals("Service Provider")) {
-                        intent = new Intent(VehicleRegistrationActivity.this, ServiceProviderHomepage.class);
+                        intent = new Intent(VehicleRegistrationActivity.this, ServiceProviderHomeFragment.class);
                     } else {
-                        intent = new Intent(VehicleRegistrationActivity.this, homepage.class);
+                        intent = new Intent(VehicleRegistrationActivity.this, HomepageFragment.class);
                     }
 
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -190,7 +190,7 @@ public class VehicleRegistrationActivity extends AppCompatActivity {
                     finish();
                 })
                 .addOnFailureListener(e -> {
-                    Intent intent = new Intent(VehicleRegistrationActivity.this, homepage.class);
+                    Intent intent = new Intent(VehicleRegistrationActivity.this, HomepageFragment.class);
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                     startActivity(intent);
                     finish();

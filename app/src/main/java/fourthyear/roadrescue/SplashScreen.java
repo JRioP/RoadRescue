@@ -52,23 +52,17 @@ public class SplashScreen extends AppCompatActivity {
                     if (documentSnapshot.exists()) {
                         String userType = documentSnapshot.getString("userType");
                         if (userType == null) {
-                            setupButtonListeners(); // Fallback
+                            setupButtonListeners();
                             return;
                         }
-
-                        Intent intent;
-                        String typeLower = userType.toLowerCase();
-
-                        if (typeLower.contains("driver") || typeLower.contains("provider")) {
-                            intent = new Intent(SplashScreen.this, ServiceProviderHomepage.class);
-                        } else {
-                            intent = new Intent(SplashScreen.this, homepage.class);
-                        }
+                        Intent intent = new Intent(SplashScreen.this, NavigationActivity.class);
 
                         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                         startActivity(intent);
                         overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
                         finish();
+                        // --- FIX END ---
+
                     } else {
                         setupButtonListeners();
                     }
@@ -78,6 +72,7 @@ public class SplashScreen extends AppCompatActivity {
                     setupButtonListeners();
                 });
     }
+
     private void setupFirebaseAppCheck() {
         try {
             FirebaseAppCheck appCheck = FirebaseAppCheck.getInstance();

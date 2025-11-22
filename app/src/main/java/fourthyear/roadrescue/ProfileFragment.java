@@ -7,7 +7,9 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
@@ -18,13 +20,15 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentTransaction;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.DataSource;
@@ -49,9 +53,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class ProfileActivity extends AppCompatActivity {
+public class ProfileFragment extends Fragment {
 
-    private static final String TAG = "ProfileActivity";
+    private static final String TAG = "ProfileFragment";
 
     private FirebaseStorage storage;
     private StorageReference storageRef;
@@ -61,7 +65,18 @@ public class ProfileActivity extends AppCompatActivity {
     private DocumentReference userDocRef;
 
     private ImageView profileImageView;
-    private ActivityResultLauncher<PickVisualMediaRequest> pickMediaLauncher;
+
+    // Result launcher must be registered unconditionally in the class body
+    private final ActivityResultLauncher<PickVisualMediaRequest> pickMediaLauncher =
+            registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
+                if (uri != null) {
+                    // Ensure fragment is attached before loading
+                    if (isAdded()) {
+                        Glide.with(this).load(uri).circleCrop().into(profileImageView);
+                        uploadImageToFirebase(uri);
+                    }
+                }
+            });
 
     private TextView profileName;
     private ImageView editButton;
@@ -86,10 +101,20 @@ public class ProfileActivity extends AppCompatActivity {
     private TextView unreadBadge;
     private TextView unreadNotificationBadge;
 
+    public ProfileFragment() {
+        // Required empty public constructor
+    }
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_profile);
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
+                             Bundle savedInstanceState) {
+        // Inflate the layout for this fragment
+        return inflater.inflate(R.layout.activity_profile, container, false);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
 
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
@@ -105,18 +130,17 @@ public class ProfileActivity extends AppCompatActivity {
         }
 
         if (currentUser == null) {
-            Toast.makeText(this, "No user signed in.", Toast.LENGTH_SHORT).show();
-            finish();
+            Toast.makeText(requireContext(), "No user signed in.", Toast.LENGTH_SHORT).show();
+            if (getActivity() != null) getActivity().finish();
             return;
         }
 
         userDocRef = db.collection("users").document(currentUser.getUid());
 
-        findViews();
-        setupBottomNavigation();
-        setupClickListeners();
+        findViews(view);
+        setupBottomNavigation(view);
+        setupClickListeners(view);
         setupSpinners();
-        setupImagePicker();
 
         // Setup Listeners
         setupUnreadMessageListener();
@@ -126,31 +150,31 @@ public class ProfileActivity extends AppCompatActivity {
         loadUserProfile();
     }
 
-    private void findViews() {
-        profileImageView = findViewById(R.id.profile_image_view);
+    private void findViews(View view) {
+        profileImageView = view.findViewById(R.id.profile_image_view);
         profileImageView.setBackground(null);
 
-        profileName = findViewById(R.id.profile_name);
-        editButton = findViewById(R.id.edit_button);
+        profileName = view.findViewById(R.id.profile_name);
+        editButton = view.findViewById(R.id.edit_button);
 
-        editFullName = findViewById(R.id.edit_username);
-        editEmail = findViewById(R.id.edit_email);
-        editPhone = findViewById(R.id.edit_phone);
+        editFullName = view.findViewById(R.id.edit_username);
+        editEmail = view.findViewById(R.id.edit_email);
+        editPhone = view.findViewById(R.id.edit_phone);
 
-        spinnerGender = findViewById(R.id.edit_gender);
-        spinnerCarType = findViewById(R.id.edit_car_type);
-        spinnerCarBrand = findViewById(R.id.edit_car_brand);
-        spinnerCarModel = findViewById(R.id.edit_car_model);
-        spinnerCarYear = findViewById(R.id.edit_car_year);
+        spinnerGender = view.findViewById(R.id.edit_gender);
+        spinnerCarType = view.findViewById(R.id.edit_car_type);
+        spinnerCarBrand = view.findViewById(R.id.edit_car_brand);
+        spinnerCarModel = view.findViewById(R.id.edit_car_model);
+        spinnerCarYear = view.findViewById(R.id.edit_car_year);
 
-        layoutServicesProvided = findViewById(R.id.layout_services_provided);
-        cbTowing = findViewById(R.id.cb_towing);
-        cbFuel = findViewById(R.id.cb_fuel);
-        cbTire = findViewById(R.id.cb_tire);
-        cbBattery = findViewById(R.id.cb_battery);
-        cbJumpstart = findViewById(R.id.cb_jumpstart);
+        layoutServicesProvided = view.findViewById(R.id.layout_services_provided);
+        cbTowing = view.findViewById(R.id.cb_towing);
+        cbFuel = view.findViewById(R.id.cb_fuel);
+        cbTire = view.findViewById(R.id.cb_tire);
+        cbBattery = view.findViewById(R.id.cb_battery);
+        cbJumpstart = view.findViewById(R.id.cb_jumpstart);
 
-        accountSettingsButton = findViewById(R.id.btn_account_settings);
+        accountSettingsButton = view.findViewById(R.id.btn_account_settings);
     }
 
     // --- Badge Listener Logic ---
@@ -209,32 +233,29 @@ public class ProfileActivity extends AppCompatActivity {
         });
     }
 
-    private void setupBottomNavigation() {
-        unreadBadge = findViewById(R.id.unread_message_badge);
-        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+    private void setupBottomNavigation(View view) {
+        unreadBadge = view.findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = view.findViewById(R.id.unread_notification_badge);
 
-        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
+        ImageView notificationButton = view.findViewById(R.id.notification_icon_btn);
         if (notificationButton != null) {
             notificationButton.setOnClickListener(v -> {
-                // --- FIX: Added Intent Flag ---
-                Intent intent = new Intent(ProfileActivity.this, NotificationsActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-                startActivity(intent);
+                // CHANGED: Use loadFragment instead of startActivity
+                loadFragment(new NotificationsFragment());
             });
         }
 
-        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        ImageView messageButton = view.findViewById(R.id.message_icon_btn);
         if (messageButton != null) {
             messageButton.setOnClickListener(v -> {
-                // --- FIX: Added Intent Flag ---
-                Intent intent = new Intent(ProfileActivity.this, ChatInboxActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-                startActivity(intent);
+                // CHANGED: Use loadFragment instead of startActivity
+                loadFragment(new ChatInboxFragment());
             });
         }
-        ConstraintLayout profileLayout = findViewById(R.id.nav_profile_layout);
-        ImageView profileIcon = findViewById(R.id.profile_icon_btn);
-        TextView profileText = findViewById(R.id.profile_text);
+
+        ConstraintLayout profileLayout = view.findViewById(R.id.nav_profile_layout);
+        ImageView profileIcon = view.findViewById(R.id.profile_icon_btn);
+        TextView profileText = view.findViewById(R.id.profile_text);
 
         if (profileLayout != null) {
             profileLayout.setClickable(false);
@@ -246,12 +267,13 @@ public class ProfileActivity extends AppCompatActivity {
             profileText.setTextColor(Color.BLACK);
             profileText.setTypeface(null, Typeface.BOLD);
         }
-        ImageView homeButton = findViewById(R.id.home_icon_btn);
+
+        ImageView homeButton = view.findViewById(R.id.home_icon_btn);
         if (homeButton != null) {
             homeButton.setOnClickListener(v -> {
                 if (currentUser == null) {
-                    startActivity(new Intent(ProfileActivity.this, MainActivity.class));
-                    finish();
+                    startActivity(new Intent(requireContext(), MainActivity.class));
+                    if (getActivity() != null) getActivity().finish();
                     return;
                 }
 
@@ -267,17 +289,16 @@ public class ProfileActivity extends AppCompatActivity {
 
                             Intent intent;
                             if (userType.equals("Service Provider")) {
-                                intent = new Intent(ProfileActivity.this, ServiceProviderHomepage.class);
+                                intent = new Intent(requireContext(), ServiceProviderHomeFragment.class);
                             } else {
-                                intent = new Intent(ProfileActivity.this, homepage.class);
+                                intent = new Intent(requireContext(), MainActivity.class);
                             }
-
                             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                             startActivity(intent);
                         })
                         .addOnFailureListener(e -> {
                             Log.e(TAG, "Failed to get userType", e);
-                            Intent intent = new Intent(ProfileActivity.this, homepage.class);
+                            Intent intent = new Intent(requireContext(), MainActivity.class);
                             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                             startActivity(intent);
                         });
@@ -285,14 +306,22 @@ public class ProfileActivity extends AppCompatActivity {
         }
     }
 
-    private void setupClickListeners() {
+    private void setupClickListeners(View view) {
         profileImageView.setOnClickListener(v -> {
             if (isEditMode) launchImagePicker();
-            else Toast.makeText(ProfileActivity.this, "Press the edit button to change your photo", Toast.LENGTH_SHORT).show();
+            else Toast.makeText(requireContext(), "Press the edit button to change your photo", Toast.LENGTH_SHORT).show();
         });
         editButton.setOnClickListener(v -> toggleEditMode());
-        findViewById(R.id.back_button).setOnClickListener(v -> finish());
-        accountSettingsButton.setOnClickListener(v -> startActivity(new Intent(ProfileActivity.this, ProfileAccountSettingsActivity.class)));
+
+        view.findViewById(R.id.back_button).setOnClickListener(v -> {
+            if (getActivity() != null) getActivity().onBackPressed();
+        });
+
+        // FIX: Replaced Intent with loadFragment for the Account Settings
+        accountSettingsButton.setOnClickListener(v ->
+                loadFragment(new ProfileAccountSettingsFragment())
+        );
+
         spinnerCarBrand.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -302,20 +331,32 @@ public class ProfileActivity extends AppCompatActivity {
         });
     }
 
+    // Helper method to switch fragments safely
+    private void loadFragment(Fragment fragment) {
+        if (getParentFragmentManager() != null) {
+            getParentFragmentManager().beginTransaction()
+                    .replace(R.id.fragment_container, fragment)
+                    .addToBackStack(null)
+                    .setTransition(FragmentTransaction.TRANSIT_FRAGMENT_OPEN)
+                    .commit();
+        }
+    }
+
     private void setupSpinners() {
-        // Same Adapter Logic as before
+        if (getContext() == null) return;
+
         String[] genders = {"Prefer not to say", "Male", "Female", "Other"};
-        genderAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, genders);
+        genderAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, genders);
         genderAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerGender.setAdapter(genderAdapter);
 
         String[] carTypes = {"Sedan", "SUV", "Hatchback", "Coupe", "Convertible", "Truck", "Van", "Motorcycle", "Other"};
-        carTypeAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, carTypes);
+        carTypeAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, carTypes);
         carTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCarType.setAdapter(carTypeAdapter);
 
         String[] carBrands = {"Toyota", "Honda", "Mitsubishi", "Ford", "Nissan", "Hyundai", "Kia", "Suzuki", "Chevrolet", "Other"};
-        carBrandAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, carBrands);
+        carBrandAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, carBrands);
         carBrandAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCarBrand.setAdapter(carBrandAdapter);
 
@@ -323,21 +364,21 @@ public class ProfileActivity extends AppCompatActivity {
         int currentYear = Calendar.getInstance().get(Calendar.YEAR);
         years.add("Year");
         for (int i = currentYear; i >= 1980; i--) { years.add(Integer.toString(i)); }
-        carYearAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, years);
+        carYearAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, years);
         carYearAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerCarYear.setAdapter(carYearAdapter);
 
         // Init brand adapters
-        toyotaAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Vios", "Corolla", "Camry", "Fortuner", "Hilux", "Other"});
-        hondaAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Civic", "City", "HR-V", "CR-V", "Brio", "Other"});
-        mitsubishiAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Montero Sport", "Mirage", "Xpander", "Strada", "Other"});
-        fordAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Ranger", "Everest", "Territory", "Other"});
-        nissanAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Navara", "Terra", "Almera", "Kicks", "Other"});
-        hyundaiAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Tucson", "Creta", "Stargazer", "Other"});
-        kiaAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Seltos", "Stonic", "Soluto", "Other"});
-        suzukiAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"S-Presso", "Jimny", "Ertiga", "Dzire", "Other"});
-        chevroletAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Tracker", "Trailblazer", "Other"});
-        otherAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Other"});
+        toyotaAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, new String[]{"Vios", "Corolla", "Camry", "Fortuner", "Hilux", "Other"});
+        hondaAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, new String[]{"Civic", "City", "HR-V", "CR-V", "Brio", "Other"});
+        mitsubishiAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, new String[]{"Montero Sport", "Mirage", "Xpander", "Strada", "Other"});
+        fordAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, new String[]{"Ranger", "Everest", "Territory", "Other"});
+        nissanAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, new String[]{"Navara", "Terra", "Almera", "Kicks", "Other"});
+        hyundaiAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, new String[]{"Tucson", "Creta", "Stargazer", "Other"});
+        kiaAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, new String[]{"Seltos", "Stonic", "Soluto", "Other"});
+        suzukiAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, new String[]{"S-Presso", "Jimny", "Ertiga", "Dzire", "Other"});
+        chevroletAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, new String[]{"Tracker", "Trailblazer", "Other"});
+        otherAdapter = new ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_item, new String[]{"Other"});
 
         // Set drop downs
         toyotaAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -370,22 +411,13 @@ public class ProfileActivity extends AppCompatActivity {
         }
     }
 
-    private void setupImagePicker() {
-        pickMediaLauncher = registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
-            if (uri != null) {
-                Glide.with(ProfileActivity.this).load(uri).circleCrop().into(profileImageView);
-                uploadImageToFirebase(uri);
-            }
-        });
-    }
-
     private void launchImagePicker() {
         pickMediaLauncher.launch(new PickVisualMediaRequest.Builder().setMediaType(PickVisualMedia.ImageOnly.INSTANCE).build());
     }
 
     private void uploadImageToFirebase(Uri imageUri) {
-        Toast.makeText(this, "Uploading photo...", Toast.LENGTH_SHORT).show();
-        if (storageRef == null) { Toast.makeText(this, "Storage not initialized", Toast.LENGTH_SHORT).show(); return; }
+        Toast.makeText(requireContext(), "Uploading photo...", Toast.LENGTH_SHORT).show();
+        if (storageRef == null) { Toast.makeText(requireContext(), "Storage not initialized", Toast.LENGTH_SHORT).show(); return; }
 
         StorageReference profileImageRef = storageRef.child("profile_images/" + currentUser.getUid() + ".jpg");
         profileImageRef.putFile(imageUri)
@@ -396,11 +428,11 @@ public class ProfileActivity extends AppCompatActivity {
                         })
                         .addOnFailureListener(e -> {
                             Log.e(TAG, "Failed to get download URL", e);
-                            Toast.makeText(this, "Failed to get image URL", Toast.LENGTH_SHORT).show();
+                            if (isAdded()) Toast.makeText(requireContext(), "Failed to get image URL", Toast.LENGTH_SHORT).show();
                         }))
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Image upload failed", e);
-                    Toast.makeText(this, "Image upload failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    if (isAdded()) Toast.makeText(requireContext(), "Image upload failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
     }
 
@@ -410,30 +442,34 @@ public class ProfileActivity extends AppCompatActivity {
 
         userDocRef.set(data, SetOptions.merge())
                 .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Profile picture updated!", Toast.LENGTH_SHORT).show();
+                    if (isAdded()) {
+                        Toast.makeText(requireContext(), "Profile picture updated!", Toast.LENGTH_SHORT).show();
 
-                    // FORCE REFRESH
-                    Glide.with(ProfileActivity.this)
-                            .load(imageUrl)
-                            .circleCrop()
-                            .diskCacheStrategy(DiskCacheStrategy.NONE)
-                            .skipMemoryCache(true)
-                            .error(android.R.drawable.stat_notify_error)
-                            .listener(new RequestListener<Drawable>() {
-                                @Override
-                                public boolean onLoadFailed(@Nullable GlideException e, Object model, Target<Drawable> target, boolean isFirstResource) {
-                                    Log.e(TAG, "GLIDE LOAD FAILED: " + e.getMessage());
-                                    return false;
-                                }
-                                @Override
-                                public boolean onResourceReady(Drawable resource, Object model, Target<Drawable> target, DataSource dataSource, boolean isFirstResource) {
-                                    Log.d(TAG, "GLIDE LOAD SUCCESS");
-                                    return false;
-                                }
-                            })
-                            .into(profileImageView);
+                        // FORCE REFRESH
+                        Glide.with(this)
+                                .load(imageUrl)
+                                .circleCrop()
+                                .diskCacheStrategy(DiskCacheStrategy.NONE)
+                                .skipMemoryCache(true)
+                                .error(android.R.drawable.stat_notify_error)
+                                .listener(new RequestListener<Drawable>() {
+                                    @Override
+                                    public boolean onLoadFailed(@Nullable GlideException e, Object model, Target<Drawable> target, boolean isFirstResource) {
+                                        Log.e(TAG, "GLIDE LOAD FAILED: " + e.getMessage());
+                                        return false;
+                                    }
+                                    @Override
+                                    public boolean onResourceReady(Drawable resource, Object model, Target<Drawable> target, DataSource dataSource, boolean isFirstResource) {
+                                        Log.d(TAG, "GLIDE LOAD SUCCESS");
+                                        return false;
+                                    }
+                                })
+                                .into(profileImageView);
+                    }
                 })
-                .addOnFailureListener(e -> Toast.makeText(this, "Failed to save profile picture", Toast.LENGTH_SHORT).show());
+                .addOnFailureListener(e -> {
+                    if (isAdded()) Toast.makeText(requireContext(), "Failed to save profile picture", Toast.LENGTH_SHORT).show();
+                });
     }
 
     private void toggleEditMode() {
@@ -441,7 +477,7 @@ public class ProfileActivity extends AppCompatActivity {
         if (isEditMode) {
             setFieldsEditable(true);
             editButton.setImageResource(R.drawable.save_icon);
-            Toast.makeText(this, "Edit mode enabled", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Edit mode enabled", Toast.LENGTH_SHORT).show();
             editFullName.requestFocus();
         } else {
             setFieldsEditable(false);
@@ -513,8 +549,8 @@ public class ProfileActivity extends AppCompatActivity {
                     else if (firstName != null && !firstName.isEmpty()) displayedName = firstName + " " + (lastName != null ? lastName : "");
 
                     // Glide Load
-                    if (imageUrl != null && !imageUrl.isEmpty()) {
-                        Glide.with(ProfileActivity.this)
+                    if (imageUrl != null && !imageUrl.isEmpty() && isAdded()) {
+                        Glide.with(this)
                                 .load(imageUrl)
                                 .circleCrop()
                                 .error(android.R.drawable.stat_notify_error)
@@ -541,7 +577,7 @@ public class ProfileActivity extends AppCompatActivity {
                 }
             } else {
                 Log.e(TAG, "Error loading user data", task.getException());
-                Toast.makeText(this, "Error loading profile.", Toast.LENGTH_SHORT).show();
+                if (isAdded()) Toast.makeText(requireContext(), "Error loading profile.", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -589,19 +625,23 @@ public class ProfileActivity extends AppCompatActivity {
 
         userDocRef.set(updates, SetOptions.merge())
                 .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Profile Saved!", Toast.LENGTH_SHORT).show();
-                    profileName.setText(newFullName);
+                    if (isAdded()) {
+                        Toast.makeText(requireContext(), "Profile Saved!", Toast.LENGTH_SHORT).show();
+                        profileName.setText(newFullName);
+                    }
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Error updating user profile", e);
-                    Toast.makeText(this, "Error saving profile.", Toast.LENGTH_SHORT).show();
-                    loadUserProfile();
+                    if (isAdded()) {
+                        Toast.makeText(requireContext(), "Error saving profile.", Toast.LENGTH_SHORT).show();
+                        loadUserProfile();
+                    }
                 });
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
+    public void onDestroyView() {
+        super.onDestroyView();
         if (unreadListener != null) unreadListener.remove();
         if (notificationListener != null) notificationListener.remove();
     }

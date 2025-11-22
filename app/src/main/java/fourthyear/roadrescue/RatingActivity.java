@@ -152,9 +152,9 @@ public class RatingActivity extends AppCompatActivity {
             String type = doc.getString("userType");
 
             if (type != null && (type.equalsIgnoreCase("Service Provider") || type.equalsIgnoreCase("driver"))) {
-                intent = new Intent(RatingActivity.this, ServiceProviderHomepage.class);
+                intent = new Intent(RatingActivity.this, ServiceProviderHomeFragment.class);
             } else {
-                intent = new Intent(RatingActivity.this, homepage.class);
+                intent = new Intent(RatingActivity.this, HomepageFragment.class);
             }
 
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);

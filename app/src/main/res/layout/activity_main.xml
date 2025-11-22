@@ -13,7 +13,6 @@
         android:id="@+id/tabs"
         android:layout_width="409dp"
         android:layout_height="60dp"
-        android:layout_marginBottom="20dp"
         android:background="@color/GhostWhite"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -52,5 +51,4 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
     </androidx.viewpager.widget.ViewPager>
-
 </androidx.constraintlayout.widget.ConstraintLayout>

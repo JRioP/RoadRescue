@@ -5,14 +5,18 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AppCompatActivity;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.fragment.app.Fragment;
 
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.AuthCredential;
@@ -29,9 +33,9 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ProfileChangePasswordActivity extends AppCompatActivity {
+public class ProfileChangePasswordFragment extends Fragment {
 
-    private static final String TAG = "ChangePassword";
+    private static final String TAG = "ChangePasswordFrag";
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
@@ -47,34 +51,48 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
     private TextView unreadBadge;
     private TextView unreadNotificationBadge;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_profile_change_password);
+    public ProfileChangePasswordFragment() {
+        // Required empty public constructor
+    }
 
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
+    }
 
-        // Init Badge Views
-        unreadBadge = findViewById(R.id.unread_message_badge);
-        unreadNotificationBadge = findViewById(R.id.unread_notification_badge);
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                             Bundle savedInstanceState) {
+        // Ensure XML matches your layout file name
+        return inflater.inflate(R.layout.activity_profile_change_password, container, false);
+    }
 
-        setupNavbar();
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
 
+        // Init Views
+        unreadBadge = view.findViewById(R.id.unread_message_badge);
+        unreadNotificationBadge = view.findViewById(R.id.unread_notification_badge);
+        TextView forgotPasswordTextView = view.findViewById(R.id.text_forgot_password);
+        ImageView backButton = view.findViewById(R.id.back_button);
+
+        etCurrentPassword = view.findViewById(R.id.input_current_password);
+        etNewPassword = view.findViewById(R.id.input_new_password);
+        etRetypePassword = view.findViewById(R.id.input_retype_password);
+        btnSavePassword = view.findViewById(R.id.button_save_password);
+
+        // Setup Listeners
+        setupNavbar(view);
         setupBadgeListeners();
-        setupNotificationListener(); // UPDATED: Calls the fixed method
-
-        TextView forgotPasswordTextView = findViewById(R.id.text_forgot_password);
-        ImageView backButton = findViewById(R.id.back_button);
+        setupNotificationListener();
 
         forgotPasswordTextView.setOnClickListener(v -> sendResetEmail());
-        backButton.setOnClickListener(v -> finish());
 
-        etCurrentPassword = findViewById(R.id.input_current_password);
-        etNewPassword = findViewById(R.id.input_new_password);
-        etRetypePassword = findViewById(R.id.input_retype_password);
-
-        btnSavePassword = findViewById(R.id.button_save_password);
+        // Use dispatcher for back navigation
+        backButton.setOnClickListener(v -> requireActivity().getOnBackPressedDispatcher().onBackPressed());
 
         btnSavePassword.setOnClickListener(v -> validateAndChangePassword());
     }
@@ -85,19 +103,19 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
         String retypePass = etRetypePassword.getText().toString().trim();
 
         if (currentPass.isEmpty() || newPass.isEmpty() || retypePass.isEmpty()) {
-            Toast.makeText(this, "All fields are required.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "All fields are required.", Toast.LENGTH_SHORT).show();
             return;
         }
 
         if (newPass.length() < 8) {
-            Toast.makeText(this, "Password must be at least 8 characters.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "Password must be at least 8 characters.", Toast.LENGTH_SHORT).show();
             return;
         }
 
         // Check: New Password != Current Password
         if (newPass.equals(currentPass)) {
             etNewPassword.setError("New password cannot be the same as current password.");
-            Toast.makeText(this, "New password must be different.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "New password must be different.", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -108,7 +126,7 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
 
         FirebaseUser user = mAuth.getCurrentUser();
         if (user == null || user.getEmail() == null) {
-            Toast.makeText(this, "User not logged in or email not found.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "User not logged in or email not found.", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -117,12 +135,13 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
 
         user.reauthenticate(credential)
                 .addOnCompleteListener(task -> {
+                    if (!isAdded()) return; // Check if fragment is still attached
                     if (task.isSuccessful()) {
                         // 2. Check History
                         checkPasswordHistoryAndUpdate(user, newPass);
                     } else {
                         etCurrentPassword.setError("Incorrect current password.");
-                        Toast.makeText(ProfileChangePasswordActivity.this, "Authentication failed: Incorrect current password.", Toast.LENGTH_LONG).show();
+                        Toast.makeText(requireContext(), "Authentication failed: Incorrect current password.", Toast.LENGTH_LONG).show();
                     }
                 });
     }
@@ -133,6 +152,8 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
         DocumentReference userDoc = db.collection("users").document(user.getUid());
 
         userDoc.get().addOnSuccessListener(documentSnapshot -> {
+            if (!isAdded()) return;
+
             if (documentSnapshot.exists()) {
                 List<String> passwordHistory = (List<String>) documentSnapshot.get("passwordHistory");
                 if (passwordHistory == null) {
@@ -140,7 +161,7 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
                 }
 
                 if (passwordHistory.contains(newPasswordHash)) {
-                    Toast.makeText(this, "You cannot reuse your current or previous 5 passwords.", Toast.LENGTH_LONG).show();
+                    Toast.makeText(requireContext(), "You cannot reuse your current or previous 5 passwords.", Toast.LENGTH_LONG).show();
                     etNewPassword.setError("Used recently");
                     return;
                 }
@@ -150,13 +171,15 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
                 performFirebasePasswordUpdate(user, newPassword, newPasswordHash, new ArrayList<>());
             }
         }).addOnFailureListener(e -> {
-            Toast.makeText(this, "Failed to check password history.", Toast.LENGTH_SHORT).show();
+            if (isAdded()) Toast.makeText(requireContext(), "Failed to check password history.", Toast.LENGTH_SHORT).show();
         });
     }
 
     private void performFirebasePasswordUpdate(FirebaseUser user, String newPassword, String newPasswordHash, List<String> history) {
         user.updatePassword(newPassword)
                 .addOnCompleteListener(task -> {
+                    if (!isAdded()) return;
+
                     if (task.isSuccessful()) {
                         history.add(newPasswordHash);
                         if (history.size() > 5) {
@@ -166,12 +189,16 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
                         db.collection("users").document(user.getUid())
                                 .update("passwordHistory", history)
                                 .addOnSuccessListener(aVoid -> {
-                                    Toast.makeText(ProfileChangePasswordActivity.this, "Password updated successfully.", Toast.LENGTH_SHORT).show();
-                                    finish();
+                                    if (isAdded()) {
+                                        Toast.makeText(requireContext(), "Password updated successfully.", Toast.LENGTH_SHORT).show();
+                                        requireActivity().getOnBackPressedDispatcher().onBackPressed();
+                                    }
                                 });
 
                     } else {
-                        Toast.makeText(ProfileChangePasswordActivity.this, "Update failed: " + task.getException().getMessage(), Toast.LENGTH_LONG).show();
+                        if (task.getException() != null) {
+                            Toast.makeText(requireContext(), "Update failed: " + task.getException().getMessage(), Toast.LENGTH_LONG).show();
+                        }
                     }
                 });
     }
@@ -197,23 +224,26 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
         FirebaseUser currentUser = mAuth.getCurrentUser();
 
         if (currentUser == null) {
-            Toast.makeText(this, "No user is currently logged in.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "No user is currently logged in.", Toast.LENGTH_SHORT).show();
             return;
         }
 
         String emailAddress = currentUser.getEmail();
 
         if (emailAddress == null || emailAddress.isEmpty()) {
-            Toast.makeText(this, "User email not found.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(requireContext(), "User email not found.", Toast.LENGTH_SHORT).show();
             return;
         }
 
         mAuth.sendPasswordResetEmail(emailAddress)
                 .addOnCompleteListener(task -> {
+                    if (!isAdded()) return;
                     if (task.isSuccessful()) {
-                        Toast.makeText(ProfileChangePasswordActivity.this, "Password reset email sent to " + emailAddress, Toast.LENGTH_LONG).show();
+                        Toast.makeText(requireContext(), "Password reset email sent to " + emailAddress, Toast.LENGTH_LONG).show();
                     } else {
-                        Toast.makeText(ProfileChangePasswordActivity.this, "Failed to send reset email. " + task.getException().getMessage(), Toast.LENGTH_LONG).show();
+                        if (task.getException() != null) {
+                            Toast.makeText(requireContext(), "Failed to send reset email. " + task.getException().getMessage(), Toast.LENGTH_LONG).show();
+                        }
                     }
                 });
     }
@@ -228,7 +258,7 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
                 .whereArrayContains("participantIds", currentUserId)
                 .whereEqualTo("status", "active")
                 .addSnapshotListener((snapshots, e) -> {
-                    if (e != null) return;
+                    if (e != null || !isAdded()) return;
                     int totalUnread = 0;
                     if (snapshots != null) {
                         for (DocumentSnapshot doc : snapshots.getDocuments()) {
@@ -242,15 +272,11 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
                 });
     }
 
-    // ---------------------------------------------------------
-    // FIXED: Notification Badge Logic (Updated to use 'notifications' collection)
-    // ---------------------------------------------------------
     private void setupNotificationListener() {
-        FirebaseUser currentUser = mAuth.getCurrentUser(); // Fixed: Define currentUser
+        FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) return;
         String currentUserId = currentUser.getUid();
 
-        // Logic from the fix:
         Query badgeQuery = db.collection("notifications")
                 .whereEqualTo("userId", currentUserId)
                 .whereEqualTo("read", false);
@@ -260,46 +286,35 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
         }
 
         notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
-            if (e != null) {
+            if (e != null || !isAdded()) {
                 Log.e(TAG, "Notification listener error", e);
                 return;
             }
             boolean hasUnread = snapshots != null && !snapshots.isEmpty();
 
             if (unreadNotificationBadge != null) {
-                if (hasUnread) {
-                    unreadNotificationBadge.setVisibility(View.VISIBLE);
-                } else {
-                    unreadNotificationBadge.setVisibility(View.GONE);
-                }
+                unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
             }
         });
     }
 
-    private void setupNavbar() {
-        ImageView notificationButton = findViewById(R.id.notification_icon_btn);
+    private void setupNavbar(View view) {
+        ImageView notificationButton = view.findViewById(R.id.notification_icon_btn);
         if (notificationButton != null) {
             notificationButton.setOnClickListener(v -> {
-                Intent intent = new Intent(ProfileChangePasswordActivity.this, NotificationsActivity.class);
-                // --- FIX ADDED HERE ---
-                // Prevents creating a new activity if one already exists.
-                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                Intent intent = new Intent(requireContext(), NotificationsFragment.class);
                 startActivity(intent);
             });
         }
 
-        ConstraintLayout profileLayout = findViewById(R.id.nav_profile_layout);
-        ImageView profileIcon = findViewById(R.id.profile_icon_btn);
-        TextView profileText = findViewById(R.id.profile_text);
+        ConstraintLayout profileLayout = view.findViewById(R.id.nav_profile_layout);
+        ImageView profileIcon = view.findViewById(R.id.profile_icon_btn);
+        TextView profileText = view.findViewById(R.id.profile_text);
 
-        // --- Active State Styling for Profile Icon ---
         if (profileLayout != null) {
             profileLayout.setBackgroundResource(R.drawable.rounded_white_background);
             profileLayout.setOnClickListener(v -> {
-                Intent intent = new Intent(ProfileChangePasswordActivity.this, ProfileActivity.class);
-                // --- FIX ADDED HERE ---
-                // This is important for navigating "up" to the main profile screen.
-                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                Intent intent = new Intent(requireContext(), ProfileFragment.class);
                 startActivity(intent);
             });
         }
@@ -309,22 +324,21 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
             profileText.setTypeface(null, Typeface.BOLD);
         }
 
-        // --- HOME BUTTON ---
-        // This logic is already correct as it clears the stack to go "home".
-        ImageView homeButton = findViewById(R.id.home_icon_btn);
+        ImageView homeButton = view.findViewById(R.id.home_icon_btn);
         if (homeButton != null) {
             homeButton.setOnClickListener(v -> {
                 FirebaseUser user = mAuth.getCurrentUser();
                 if (user == null) {
-                    Intent intent = new Intent(ProfileChangePasswordActivity.this, MainActivity.class);
+                    Intent intent = new Intent(requireContext(), MainActivity.class);
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                     startActivity(intent);
-                    finish();
+                    requireActivity().finish();
                     return;
                 }
 
                 db.collection("users").document(user.getUid()).get()
                         .addOnSuccessListener(documentSnapshot -> {
+                            if (!isAdded()) return;
                             String userType = "Customer";
                             if (documentSnapshot.exists()) {
                                 String type = documentSnapshot.getString("userType");
@@ -335,32 +349,29 @@ public class ProfileChangePasswordActivity extends AppCompatActivity {
 
                             Intent intent;
                             if (userType.equals("Service Provider")) {
-                                intent = new Intent(ProfileChangePasswordActivity.this, ServiceProviderHomepage.class);
+                                intent = new Intent(requireContext(), ServiceProviderHomeFragment.class);
                             } else {
-                                intent = new Intent(ProfileChangePasswordActivity.this, homepage.class);
+                                intent = new Intent(requireContext(), MainActivity.class); // Or HomepageFragment
                             }
                             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                             startActivity(intent);
-                            finish();
+                            requireActivity().finish();
                         });
             });
         }
 
-        ImageView messageButton = findViewById(R.id.message_icon_btn);
+        ImageView messageButton = view.findViewById(R.id.message_icon_btn);
         if (messageButton != null) {
             messageButton.setOnClickListener(v -> {
-                Intent intent = new Intent(ProfileChangePasswordActivity.this, ChatInboxActivity.class);
-                // --- FIX ADDED HERE ---
-                // Prevents creating a new activity if one already exists.
-                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                Intent intent = new Intent(requireContext(), ChatInboxFragment.class);
                 startActivity(intent);
             });
         }
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
+    public void onDestroyView() {
+        super.onDestroyView();
         if (unreadListener != null) unreadListener.remove();
         if (notificationListener != null) notificationListener.remove();
     }

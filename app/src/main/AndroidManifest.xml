@@ -20,86 +20,31 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.RoadRescue"
         tools:targetApi="31">
+
         <activity
-            android:name=".RatingActivity"
-            android:exported="false" />
-        <activity
-            android:name=".VehicleRegistrationActivity"
-            android:exported="false" />
-        <activity
-            android:name=".TermsAndConditionsActivity"
-            android:exported="false" />
-        <activity
-            android:name=".PaymentReceiptActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ServiceProviderHomepage"
-            android:exported="false" />
-        <activity
-            android:name=".ProfileSetupActivity"
-            android:exported="false" />
-        <activity
-            android:name=".PaymentActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ProfileAccountDeleteSettingsActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ProfileAccountManagementSettingActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ProfileAccountLanguageSettingActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ProfileContactInfoActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ProfileChangePasswordActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ProfileAccountSettingsActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ProfileActivity"
-            android:exported="false" />
+            android:name=".NavigationActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"/>
+
         <activity
             android:name=".SplashScreen"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".ProviderMapActivity"
-            android:exported="false" />
-        <activity
-            android:name=".MapActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ChatConversationActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
-        <activity
-            android:name=".ChatInboxActivity"
-            android:exported="false" />
-        <activity android:name=".NotificationsActivity" />
-        <activity
-            android:name=".NonVerifiedHomepage"
-            android:exported="false" />
-        <activity
-            android:name=".ForgotPassword"
-            android:exported="false" />
-        <activity
-            android:name=".homepage"
-            android:exported="false" />
-        <activity
-            android:name=".VerifyPhone"
-            android:exported="false" />
-        <activity
-            android:name=".MainActivity"
-            android:exported="false" />
+
+        <activity android:name=".MainActivity" android:exported="false" />
+        <activity android:name=".ForgotPassword" android:exported="false" />
+        <activity android:name=".VerifyPhone" android:exported="false" />
+        <activity android:name=".VehicleRegistrationActivity" android:exported="false" />
+        <activity android:name=".TermsAndConditionsActivity" android:exported="false" />
+        <activity android:name=".ProfileSetupActivity" android:exported="false" />
+        <activity android:name=".NonVerifiedHomepage" android:exported="false" />
+
+        <activity android:name=".RatingActivity" android:exported="false" />
 
         <meta-data
             android:name="com.google.android.geo.API_KEY"
