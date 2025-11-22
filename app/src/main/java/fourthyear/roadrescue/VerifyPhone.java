@@ -2,7 +2,7 @@ package fourthyear.roadrescue;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.CountDownTimer; // --- ADDED ---
+import android.os.CountDownTimer;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
@@ -30,24 +30,20 @@ import java.util.concurrent.TimeUnit;
 public class VerifyPhone extends AppCompatActivity {
 
     EditText digitNumberOne, digitNumberTwo, digitNumberThree, digitNumberFour, digitNumberFive, digitNumberSix;
-
     Button verifyBtn;
     TextView resendBtn;
     TextView didNotReceiveText;
     TextView phoneNumberText;
     ImageView backButton;
     TextView timerText;
-
     FirebaseAuth fAuth;
     PhoneAuthProvider.ForceResendingToken token;
     String verificationId;
-
     String phone;
-
     PhoneAuthProvider.OnVerificationStateChangedCallbacks mCallbacks;
-
     private CountDownTimer countDownTimer;
     private static final long COUNTDOWN_IN_MILLIS = 60000;
+    private boolean isVerificationCompleted = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -105,7 +101,7 @@ public class VerifyPhone extends AppCompatActivity {
                 super.onCodeSent(s, forceResendingToken);
                 verificationId = s;
                 token = forceResendingToken;
-
+                isVerificationCompleted = false;
                 startTimer();
                 Toast.makeText(VerifyPhone.this, "OTP Sent to " + phone, Toast.LENGTH_SHORT).show();
             }
@@ -113,17 +109,22 @@ public class VerifyPhone extends AppCompatActivity {
             @Override
             public void onCodeAutoRetrievalTimeOut(@NonNull String s) {
                 super.onCodeAutoRetrievalTimeOut(s);
-                Toast.makeText(VerifyPhone.this, "OTP Auto-retrieval timed out.", Toast.LENGTH_LONG).show();
+                if (!isVerificationCompleted) {
+                    Toast.makeText(VerifyPhone.this, "OTP Auto-retrieval timed out.", Toast.LENGTH_LONG).show();
+                }
             }
 
             @Override
             public void onVerificationCompleted(@NonNull PhoneAuthCredential credential) {
+                // --- FIX STEP 2: Set flag on completion ---
+                isVerificationCompleted = true;
                 stopTimer();
                 verifyAuthentication(credential);
             }
 
             @Override
             public void onVerificationFailed(@NonNull FirebaseException e) {
+                isVerificationCompleted = true;
                 stopTimer();
                 Toast.makeText(VerifyPhone.this, "OTP Verification Failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 Log.e("VerifyPhone", "Verification Failed: " + e.getMessage());
@@ -170,7 +171,6 @@ public class VerifyPhone extends AppCompatActivity {
             countDownTimer.cancel();
             countDownTimer = null;
         }
-        // Hide all timer-related UI
         timerText.setVisibility(View.GONE);
         resendBtn.setVisibility(View.GONE);
         didNotReceiveText.setVisibility(View.GONE);
@@ -178,7 +178,7 @@ public class VerifyPhone extends AppCompatActivity {
 
     public void sendOTP(String phoneNumber) {
         PhoneAuthProvider.getInstance().verifyPhoneNumber(phoneNumber,
-                60, // Timeout duration
+                60,
                 TimeUnit.SECONDS,
                 this,
                 mCallbacks);
@@ -186,11 +186,11 @@ public class VerifyPhone extends AppCompatActivity {
 
     public void resendOTP(String phoneNumber) {
         PhoneAuthProvider.getInstance().verifyPhoneNumber(phoneNumber,
-                60, // Timeout duration
+                60,
                 TimeUnit.SECONDS,
                 this,
                 mCallbacks,
-                token); // Use the forceResendingToken for resending
+                token);
         Toast.makeText(VerifyPhone.this, "Resending OTP to " + phoneNumber, Toast.LENGTH_SHORT).show();
 
         startTimer();
@@ -249,7 +249,8 @@ public class VerifyPhone extends AppCompatActivity {
             currentUser.linkWithCredential(credential).addOnSuccessListener(new OnSuccessListener<AuthResult>() {
                 @Override
                 public void onSuccess(AuthResult authResult) {
-                    stopTimer(); // --- MODIFIED --- (Stop timer on success)
+                    isVerificationCompleted = true;
+                    stopTimer();
 
                     Toast.makeText(VerifyPhone.this, "Phone Verified!", Toast.LENGTH_SHORT).show();
 
@@ -261,6 +262,7 @@ public class VerifyPhone extends AppCompatActivity {
             }).addOnFailureListener(new OnFailureListener() {
                 @Override
                 public void onFailure(@NonNull Exception e) {
+                    isVerificationCompleted = true;
                     Toast.makeText(VerifyPhone.this, "Failed to link phone: " + e.getMessage(), Toast.LENGTH_LONG).show();
                     Log.e("VerifyPhone", "Failed to link phone: " + e.getMessage());
                 }

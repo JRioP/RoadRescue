@@ -1,5 +1,7 @@
 package fourthyear.roadrescue;
 
+import android.content.Context;
+import android.media.MediaPlayer;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.ContentResolver;
@@ -104,11 +106,9 @@ public class homepage extends AppCompatActivity {
         initializeLaunchers();
         setupUIComponents();
 
-        // --- INITIALIZE LIST AND ADAPTER ---
         recentItemModels = new ArrayList<>();
         setupRecyclerView();
-        loadRecentRequests(); // Calls Firestore
-        // -----------------------------------
+        loadRecentRequests();
 
         setupUnreadMessageListener();
         setupNotificationListener();
@@ -195,7 +195,16 @@ public class homepage extends AppCompatActivity {
                             if (count != null) totalUnread += count;
                         }
                     }
-                    if (unreadBadge != null) unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                    if (unreadBadge != null) {
+                        if (totalUnread > 0) {
+                            if (unreadBadge.getVisibility() == View.GONE) {
+                                playNotificationSound(this);
+                            }
+                            unreadBadge.setVisibility(View.VISIBLE);
+                        } else {
+                            unreadBadge.setVisibility(View.GONE);
+                        }
+                    }
                 });
     }
 
@@ -206,7 +215,15 @@ public class homepage extends AppCompatActivity {
                 .whereEqualTo("read", false)
                 .addSnapshotListener((snapshots, e) -> {
                     if (unreadNotificationBadge != null) {
-                        unreadNotificationBadge.setVisibility((snapshots != null && !snapshots.isEmpty()) ? View.VISIBLE : View.GONE);
+                        boolean hasUnread = (snapshots != null && !snapshots.isEmpty());
+                        if (hasUnread) {
+                            if (unreadNotificationBadge.getVisibility() == View.GONE) {
+                                playNotificationSound(this);
+                            }
+                            unreadNotificationBadge.setVisibility(View.VISIBLE);
+                        } else {
+                            unreadNotificationBadge.setVisibility(View.GONE);
+                        }
                     }
                 });
     }
@@ -407,6 +424,16 @@ public class homepage extends AppCompatActivity {
                 }).start();
             }
         });
+    }
+
+    private void playNotificationSound(Context context) {
+        try {
+            MediaPlayer player = MediaPlayer.create(context, R.raw.notification_pop); // Use your sound file's name
+            player.setOnCompletionListener(mp -> mp.release());
+            player.start();
+        } catch (Exception e) {
+            Log.e(TAG, "Error playing notification sound", e);
+        }
     }
 
     @Override

@@ -178,7 +178,8 @@
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent">
+            app:layout_constraintStart_toStartOf="parent"
+            tools:visibility="visible">
 
             <View
                 android:id="@+id/drag_handle"
@@ -209,6 +210,30 @@
                 android:textStyle="bold"
                 app:layout_constraintStart_toEndOf="@id/provider_image"
                 app:layout_constraintTop_toTopOf="@id/provider_image" />
+
+            <ImageView
+                android:id="@+id/rating_star"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="8dp"
+                android:src="@android:drawable/btn_star_big_on"
+                app:tint="#FFD700"
+                app:layout_constraintBottom_toBottomOf="@+id/provider_name"
+                app:layout_constraintStart_toEndOf="@+id/provider_name"
+                app:layout_constraintTop_toTopOf="@+id/provider_name" />
+
+            <TextView
+                android:id="@+id/rating_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="4.5"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                app:layout_constraintBottom_toBottomOf="@+id/rating_star"
+                app:layout_constraintStart_toEndOf="@+id/rating_star"
+                app:layout_constraintTop_toTopOf="@+id/rating_star" />
 
             <TextView
                 android:id="@+id/provider_subtitle"

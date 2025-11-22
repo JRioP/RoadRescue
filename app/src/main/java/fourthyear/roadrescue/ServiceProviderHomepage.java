@@ -86,17 +86,35 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
             return;
         }
 
+        // One-time setups
         setupUIComponents();
         setupViews();
         setupRecyclerView();
         checkLocationPermission();
         updateLocation();
+    }
 
+    // --- FIX: Attach listeners when the activity becomes visible ---
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // Start listening for data changes every time the activity comes to the foreground
         setupUnreadMessageListener();
         setupNotificationListener();
-
         fetchDriverServicesAndListen();
     }
+
+    // --- FIX: Detach listeners when the activity is no longer visible ---
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Remove all listeners to prevent memory leaks and unnecessary background work
+        if (pendingListener != null) pendingListener.remove();
+        if (activeJobListener != null) activeJobListener.remove();
+        if (unreadListener != null) unreadListener.remove();
+        if (notificationListener != null) notificationListener.remove();
+    }
+
 
     // --- NEW HELPER METHOD TO PREVENT DOUBLE CLICKS ---
     private boolean isSafeClick() {
@@ -186,21 +204,25 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
         if (navMessage != null) navMessage.setOnClickListener(messageListener);
     }
 
-    // --- REST OF YOUR EXISTING CODE (Unchanged) ---
-
     private void fetchDriverServicesAndListen() {
         if (currentUser == null) return;
         db.collection("users").document(currentUser.getUid()).get()
                 .addOnSuccessListener(documentSnapshot -> {
+                    driverServices.clear(); // Clear old services before fetching new ones
                     if (documentSnapshot.exists()) {
                         Object servicesObj = documentSnapshot.get("servicesProvided");
                         if (servicesObj instanceof List) {
-                            driverServices = (List<String>) servicesObj;
-                        } else {
-                            driverServices = new ArrayList<>();
+                            List<String> rawServices = (List<String>) servicesObj;
+                            // --- FIX: Process services to be lowercase and trimmed for robust matching ---
+                            for (String service : rawServices) {
+                                if (service != null) {
+                                    driverServices.add(service.toLowerCase().trim());
+                                }
+                            }
                         }
-                        listenForRequests();
                     }
+                    // Always listen for requests, even if the provider has no services defined
+                    listenForRequests();
                 });
     }
 
@@ -236,11 +258,15 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
                     if (value != null) {
                         for (QueryDocumentSnapshot doc : value) {
                             Map<String, Object> data = new HashMap<>(doc.getData());
-                            String requestType = (String) data.get("requestType");
+                            String rawRequestType = (String) data.get("requestType");
 
-                            if (requestType != null && driverServices.contains(requestType)) {
-                                data.put("requestId", doc.getId());
-                                pendingJobsList.add(data);
+                            // --- FIX: Process incoming requestType for case-insensitive and trimmed matching ---
+                            if (rawRequestType != null) {
+                                String processedRequestType = rawRequestType.toLowerCase().trim();
+                                if (driverServices.contains(processedRequestType)) {
+                                    data.put("requestId", doc.getId());
+                                    pendingJobsList.add(data);
+                                }
                             }
                         }
                     }
@@ -376,16 +402,18 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
 
     private void setupUnreadMessageListener() {
         if (currentUser == null) return;
-        String currentUserId = currentUser.getUid();
+        // Ensure previous listener is detached before creating a new one
+        if (unreadListener != null) unreadListener.remove();
+
         unreadListener = db.collection("chats")
-                .whereArrayContains("participantIds", currentUserId)
+                .whereArrayContains("participantIds", currentUser.getUid())
                 .whereEqualTo("status", "active")
                 .addSnapshotListener((snapshots, e) -> {
                     if (e != null) return;
                     int totalUnread = 0;
                     if (snapshots != null) {
                         for (DocumentSnapshot doc : snapshots.getDocuments()) {
-                            Long count = doc.getLong("unreadCounts." + currentUserId);
+                            Long count = doc.getLong("unreadCounts." + currentUser.getUid());
                             if (count != null) totalUnread += count;
                         }
                     }
@@ -395,39 +423,30 @@ public class ServiceProviderHomepage extends AppCompatActivity implements Pendin
 
     private void setupNotificationListener() {
         if (currentUser == null) return;
-        String currentUserId = currentUser.getUid();
+        // Ensure previous listener is detached before creating a new one
+        if (notificationListener != null) notificationListener.remove();
 
-        Query badgeQuery = db.collection("notifications")
-                .whereEqualTo("userId", currentUserId)
-                .whereEqualTo("read", false);
+        notificationListener = db.collection("notifications")
+                .whereEqualTo("userId", currentUser.getUid())
+                .whereEqualTo("read", false)
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) {
+                        Log.e(TAG, "Notification listener error", e);
+                        return;
+                    }
+                    boolean hasUnread = snapshots != null && !snapshots.isEmpty();
 
-        if (notificationListener != null) {
-            notificationListener.remove();
-        }
-
-        notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
-            if (e != null) {
-                Log.e(TAG, "Notification listener error", e);
-                return;
-            }
-            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-
-            if (unreadNotificationBadge != null) {
-                if (hasUnread) {
-                    unreadNotificationBadge.setVisibility(View.VISIBLE);
-                } else {
-                    unreadNotificationBadge.setVisibility(View.GONE);
-                }
-            }
-        });
+                    if (unreadNotificationBadge != null) {
+                        if (hasUnread) {
+                            unreadNotificationBadge.setVisibility(View.VISIBLE);
+                        } else {
+                            unreadNotificationBadge.setVisibility(View.GONE);
+                        }
+                    }
+                });
     }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (pendingListener != null) pendingListener.remove();
-        if (activeJobListener != null) activeJobListener.remove();
-        if (unreadListener != null) unreadListener.remove();
-        if (notificationListener != null) notificationListener.remove();
     }
 }

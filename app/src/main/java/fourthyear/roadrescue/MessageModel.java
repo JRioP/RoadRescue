@@ -9,21 +9,27 @@ public class MessageModel {
     private String senderName;
     private String text;
     private @ServerTimestamp Timestamp timestamp;
-    private String messageType; // "text", "image", "location"
+    private String imageUrl;
 
+    // A no-argument constructor is required for Firestore deserialization
     public MessageModel() {}
 
+    // Constructor for creating a standard text message
     public MessageModel(String messageId, String senderId, String senderName, String text) {
         this.messageId = messageId;
         this.senderId = senderId;
         this.senderName = senderName;
         this.text = text;
-        this.messageType = "text";
+        // The imageUrl will be null by default, indicating a text message
     }
 
-    // Getters and setters
+    // --- Getters and Setters ---
+
     public String getMessageId() { return messageId; }
     public void setMessageId(String messageId) { this.messageId = messageId; }
+
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 
     public String getSenderId() { return senderId; }
     public void setSenderId(String senderId) { this.senderId = senderId; }
@@ -36,9 +42,4 @@ public class MessageModel {
 
     public Timestamp getTimestamp() { return timestamp; }
     public void setTimestamp(Timestamp timestamp) { this.timestamp = timestamp; }
-
-    public String getMessageType() { return messageType; }
-    public void setMessageType(String messageType) { this.messageType = messageType; }
-
-
 }

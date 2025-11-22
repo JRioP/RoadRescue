@@ -72,6 +72,7 @@
                     android:layoutDirection="rtl"
                     android:fontFamily="@font/poppins"
                     android:padding="16dp"
+                    android:layout_marginRight="20dp"
                     android:text="English"
                     android:textColor="@color/black"
                     android:textSize="16sp" />
@@ -90,6 +91,7 @@
                     android:layoutDirection="rtl"
                     android:fontFamily="@font/poppins"
                     android:padding="16dp"
+                    android:layout_marginRight="20dp"
                     android:text="Filipino"
                     android:textColor="@color/black"
                     android:textSize="16sp" />
@@ -108,6 +110,7 @@
                     android:layoutDirection="rtl"
                     android:fontFamily="@font/poppins"
                     android:padding="16dp"
+                    android:layout_marginRight="20dp"
                     android:text="Español"
                     android:textColor="@color/black"
                     android:textSize="16sp" />
@@ -127,6 +130,7 @@
                     android:fontFamily="@font/poppins"
                     android:padding="16dp"
                     android:text="日本語"
+                    android:layout_marginRight="20dp"
                     android:textColor="@color/black"
                     android:textSize="16sp" />
 
@@ -144,6 +148,7 @@
                     android:layoutDirection="rtl"
                     android:fontFamily="@font/poppins"
                     android:padding="16dp"
+                    android:layout_marginRight="20dp"
                     android:text="简体中文"
                     android:textColor="@color/black"
                     android:textSize="16sp" />
@@ -162,6 +167,7 @@
                     android:layoutDirection="rtl"
                     android:fontFamily="@font/poppins"
                     android:padding="16dp"
+                    android:layout_marginRight="20dp"
                     android:text="Français"
                     android:textColor="@color/black"
                     android:textSize="16sp" />

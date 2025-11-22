@@ -3,6 +3,7 @@ package fourthyear.roadrescue;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -27,6 +28,8 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.SetOptions;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,6 +39,11 @@ import java.util.Map;
 import java.util.UUID;
 
 public class ChatConversationActivity extends AppCompatActivity {
+
+    private ImageButton attachButton;
+    private static final int PICK_IMAGE_REQUEST = 1;
+    private Uri imageUri;
+    private StorageReference storageReference;
 
     private static final String TAG = "ChatConversation";
 
@@ -76,6 +84,8 @@ public class ChatConversationActivity extends AppCompatActivity {
         auth = FirebaseAuth.getInstance();
         currentUser = auth.getCurrentUser();
 
+        storageReference = FirebaseStorage.getInstance().getReference("chat_images");
+
         if (currentUser == null) {
             finish();
             return;
@@ -108,7 +118,6 @@ public class ChatConversationActivity extends AppCompatActivity {
         setupNavbar();
         setupUnreadBadgeListener();
         setupNotificationBadgeListener();
-
         resetUnreadCount();
 
         // 3. Force fetch the correct Full Name
@@ -256,14 +265,12 @@ public class ChatConversationActivity extends AppCompatActivity {
             if (unreadNotificationBadge != null) unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
         });
     }
-
     private void setupToolbar() {
         ImageView backButton = findViewById(R.id.backButton);
         backButton.setOnClickListener(v -> finish());
         userNameText = findViewById(R.id.userNameText);
         userNameText.setText(otherUserName != null ? otherUserName : "Chat");
     }
-
     private void initializeRecyclerView() {
         messageList = new ArrayList<>();
         messagesRecyclerView = findViewById(R.id.messagesRecyclerView);
@@ -273,13 +280,77 @@ public class ChatConversationActivity extends AppCompatActivity {
         messagesRecyclerView.setLayoutManager(layoutManager);
         messagesRecyclerView.setAdapter(messageAdapter);
     }
-
     private void setupViews() {
         messageInput = findViewById(R.id.messageInput);
         sendButton = findViewById(R.id.sendButton);
         sendButton.setOnClickListener(v -> sendMessage());
+        attachButton = findViewById(R.id.attachButton);
+        attachButton.setOnClickListener(v -> openFileChooser());
     }
 
+    private void openFileChooser() {
+        Intent intent = new Intent();
+        intent.setType("image/*");
+        intent.setAction(Intent.ACTION_GET_CONTENT);
+        startActivityForResult(intent, PICK_IMAGE_REQUEST);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == PICK_IMAGE_REQUEST && resultCode == RESULT_OK
+                && data != null && data.getData() != null) {
+            imageUri = data.getData();
+            uploadImageToFirebase();
+        }
+    }
+    private void uploadImageToFirebase() {
+        if (imageUri != null) {
+            // Show a loading indicator to the user if you want
+            Toast.makeText(this, "Uploading image...", Toast.LENGTH_SHORT).show();
+
+            // Create a unique file name
+            final StorageReference fileReference = storageReference.child(System.currentTimeMillis() + ".jpg");
+
+            fileReference.putFile(imageUri)
+                    .addOnSuccessListener(taskSnapshot -> fileReference.getDownloadUrl()
+                            .addOnSuccessListener(uri -> {
+                                String imageUrl = uri.toString();
+                                sendImageMessage(imageUrl);
+                            }))
+                    .addOnFailureListener(e -> Toast.makeText(ChatConversationActivity.this, "Upload failed: " + e.getMessage(), Toast.LENGTH_LONG).show());
+        }
+    }
+
+    private void sendImageMessage(String imageUrl) {
+        if (isChatClosed) {
+            Toast.makeText(this, "This session is closed.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String messageId = UUID.randomUUID().toString();
+        String currentUserId = getCurrentUserId();
+        String currentUserName = getCurrentUserName();
+
+        // Create a message model, set the imageUrl, and leave the text empty
+        MessageModel message = new MessageModel();
+        message.setMessageId(messageId);
+        message.setSenderId(currentUserId);
+        message.setSenderName(currentUserName);
+        message.setTimestamp(Timestamp.now());
+        message.setImageUrl(imageUrl); // Set the image URL here
+        message.setText(""); // Set text as empty for an image message
+
+        db.collection("chats").document(chatId)
+                .collection("messages")
+                .document(messageId)
+                .set(message)
+                .addOnSuccessListener(aVoid -> {
+                    updateLastMessageAndUnreadCount("[Image]");
+                })
+                .addOnFailureListener(e -> Log.e(TAG, "Error sending image message: ", e));
+    }
     private void sendMessage() {
         // 4. PREVENT SENDING IF CLOSED
         if (isChatClosed) {

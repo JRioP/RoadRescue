@@ -47,25 +47,18 @@ public class NonVerifiedHomepage extends AppCompatActivity {
         }
 
         String userId = user.getUid();
-
-        // 1. Fetch the phone number saved in Firestore
         FirebaseFirestore.getInstance().collection("users").document(userId).get()
                 .addOnSuccessListener(documentSnapshot -> {
                     String phoneNumber = documentSnapshot.getString("phone");
                     String email = user.getEmail();
-
-                    // --- MODIFIED: Use placeholder if number is missing in Firestore ---
                     if (phoneNumber == null || phoneNumber.isEmpty()) {
                         phoneNumber = PLACEHOLDER_PHONE;
                         Toast.makeText(this, "⚠️ Using placeholder phone number for testing: " + PLACEHOLDER_PHONE, Toast.LENGTH_LONG).show();
                         Log.w(TAG, "Using placeholder phone number: " + PLACEHOLDER_PHONE);
                     }
-                    // --- END MODIFIED ---
 
                     if (phoneNumber != null && !phoneNumber.isEmpty()) {
                         Log.d(TAG, "Starting phone verification for user: " + phoneNumber);
-
-                        // 2. Launch the VerifyPhone activity with the number and email
                         Intent phoneVerificationIntent = new Intent(this, VerifyPhone.class);
                         phoneVerificationIntent.putExtra("phone", phoneNumber);
                         phoneVerificationIntent.putExtra("email", email);
