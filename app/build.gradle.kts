@@ -95,6 +95,10 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.google.code.gson:gson:2.11.0")
 
+    implementation("com.google.firebase:firebase-storage")
+    implementation("com.github.bumptech.glide:glide:4.12.0")
+    annotationProcessor("com.github.bumptech.glide:compiler:4.12.0")
+
     // Add this line for App Check debug testing
     implementation("com.google.firebase:firebase-appcheck-debug:17.1.2")
     debugImplementation("com.google.firebase:firebase-appcheck-debug:17.1.2")

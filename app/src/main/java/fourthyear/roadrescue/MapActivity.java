@@ -3,6 +3,7 @@ package fourthyear.roadrescue;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -11,6 +12,7 @@ import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -30,7 +32,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import com.bumptech.glide.Glide;
-
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -54,7 +55,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.GeoPoint;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
-import com.google.firebase.firestore.SetOptions; // Added for SetOptions
+import com.google.firebase.firestore.SetOptions;
 import com.google.maps.DirectionsApi;
 import com.google.maps.GeoApiContext;
 import com.google.maps.android.PolyUtil;
@@ -63,10 +64,10 @@ import com.google.maps.model.TravelMode;
 
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -99,7 +100,7 @@ public class MapActivity extends AppCompatActivity
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
-    private String currentRequestId; // Important: this is now part of the Chat ID
+    private String currentRequestId;
 
     private ListenerRegistration requestListener;
     private ListenerRegistration providerListener;
@@ -125,6 +126,9 @@ public class MapActivity extends AppCompatActivity
     private TextView distanceText;
     private TextView etaText;
     private TextView requestTypeText;
+
+    private TextView providerRatingText;
+    private ImageView providerRatingStar;
 
     private TextView unreadBadge;
     private TextView unreadNotificationBadge;
@@ -192,6 +196,10 @@ public class MapActivity extends AppCompatActivity
         distanceText = findViewById(R.id.distance_text);
         etaText = findViewById(R.id.eta_text);
         requestTypeText = findViewById(R.id.request_type_text);
+
+        providerRatingText = findViewById(R.id.rating_text);
+        providerRatingStar = findViewById(R.id.rating_star);
+
         messageButton = findViewById(R.id.message_button);
         callButton = findViewById(R.id.call_button);
         cancelRequestButton = findViewById(R.id.cancel_request_btn);
@@ -242,9 +250,20 @@ public class MapActivity extends AppCompatActivity
                     String photoUrl = snapshot.getString("profileImageUrl");
                     GeoPoint geoPoint = snapshot.getGeoPoint("liveLocation");
 
+                    Double avgRating = snapshot.getDouble("averageRating");
+                    Long ratingCount = snapshot.getLong("ratingCount");
+
                     handler.post(() -> {
                         providerNameText.setText(mProviderName != null ? mProviderName : "Provider");
                         providerSubtitleText.setText(providerLocText != null ? "En route from " + providerLocText : "Awaiting location...");
+
+                        if (avgRating != null && ratingCount != null && ratingCount > 0) {
+                            providerRatingText.setText(String.format(Locale.getDefault(), "%.1f", avgRating));
+                            providerRatingStar.setVisibility(View.VISIBLE);
+                        } else {
+                            providerRatingText.setText("Not rated yet");
+                            providerRatingStar.setVisibility(View.GONE);
+                        }
 
                         if (providerImage != null) {
                             if (photoUrl != null && !photoUrl.isEmpty()) {
@@ -267,7 +286,7 @@ public class MapActivity extends AppCompatActivity
         if (user == null) return;
         unreadListener = db.collection("chats")
                 .whereArrayContains("participantIds", user.getUid())
-                .whereEqualTo("status", "active") // Only count unread for ACTIVE chats
+                .whereEqualTo("status", "active")
                 .addSnapshotListener((snapshots, e) -> {
                     if (e != null) return;
                     int totalUnread = 0;
@@ -277,7 +296,16 @@ public class MapActivity extends AppCompatActivity
                             if (count != null) totalUnread += count;
                         }
                     }
-                    if (unreadBadge != null) unreadBadge.setVisibility(totalUnread > 0 ? View.VISIBLE : View.GONE);
+                    if (unreadBadge != null) {
+                        if (totalUnread > 0) {
+                            if (unreadBadge.getVisibility() == View.GONE) {
+                                playNotificationSound(this);
+                            }
+                            unreadBadge.setVisibility(View.VISIBLE);
+                        } else {
+                            unreadBadge.setVisibility(View.GONE);
+                        }
+                    }
                 });
     }
 
@@ -292,10 +320,17 @@ public class MapActivity extends AppCompatActivity
         if (notificationListener != null) notificationListener.remove();
 
         notificationListener = badgeQuery.addSnapshotListener((snapshots, e) -> {
-            if (e != null) return;
-            boolean hasUnread = snapshots != null && !snapshots.isEmpty();
-            if (unreadNotificationBadge != null)
-                unreadNotificationBadge.setVisibility(hasUnread ? View.VISIBLE : View.GONE);
+            if (unreadNotificationBadge != null) {
+                boolean hasUnread = (snapshots != null && !snapshots.isEmpty());
+                if (hasUnread) {
+                    if (unreadNotificationBadge.getVisibility() == View.GONE) {
+                        playNotificationSound(this);
+                    }
+                    unreadNotificationBadge.setVisibility(View.VISIBLE);
+                } else {
+                    unreadNotificationBadge.setVisibility(View.GONE);
+                }
+            }
         });
     }
 
@@ -404,7 +439,6 @@ public class MapActivity extends AppCompatActivity
             return;
         }
 
-        // FIX: Close chat BEFORE resetting UI (requires currentRequestId)
         if (mProviderId != null) {
             closeChatSession(mProviderId, currentRequestId);
         }
@@ -424,7 +458,6 @@ public class MapActivity extends AppCompatActivity
                 });
     }
 
-    // --- FIX: FULL FIX FOR CHAT CREATION (USES REQUEST ID) ---
     private void findOrCreateChatRoom() {
         if (mProviderId == null || mProviderName == null || currentRequestId == null) {
             Toast.makeText(this, "Service request details are not ready.", Toast.LENGTH_SHORT).show();
@@ -442,7 +475,6 @@ public class MapActivity extends AppCompatActivity
             String currentUserName = userDoc.getString("name");
             if (currentUserName == null) currentUserName = "Customer";
 
-            // UNIQUE CHAT ID LOGIC: RequestID + ID1 + ID2
             String chatRoomId;
             if (currentUserId.compareTo(mProviderId) > 0) {
                 chatRoomId = currentRequestId + "_" + currentUserId + "_" + mProviderId;
@@ -461,13 +493,12 @@ public class MapActivity extends AppCompatActivity
                     if (!document.exists()) {
                         Map<String, Object> chatData = new HashMap<>();
                         chatData.put("chatId", finalChatRoomId);
-                        chatData.put("requestId", currentRequestId); // Link chat to this request
+                        chatData.put("requestId", currentRequestId);
                         chatData.put("participantIds", Arrays.asList(currentUserId, mProviderId));
                         chatData.put("lastMessage", "Service started.");
                         chatData.put("lastMessageTimestamp", FieldValue.serverTimestamp());
                         chatData.put("status", "active");
 
-                        // Store initial names
                         Map<String, String> names = new HashMap<>();
                         names.put(currentUserId, finalCurrentUserName);
                         names.put(mProviderId, mProviderName);
@@ -482,14 +513,12 @@ public class MapActivity extends AppCompatActivity
                             startChatActivity(finalChatRoomId);
                         });
                     } else {
-                        // Just open the existing chat
                         startChatActivity(finalChatRoomId);
                     }
                 }
             });
         });
     }
-    // ---------------------------------------------------------
 
     private void startChatActivity(String chatRoomId) {
         Intent intent = new Intent(this, ChatConversationActivity.class);
@@ -860,6 +889,9 @@ public class MapActivity extends AppCompatActivity
         distanceText.setText("...");
         etaText.setText("...");
 
+        providerRatingText.setText("Loading...");
+        providerRatingStar.setVisibility(View.GONE);
+
         if (pickupLatLng != null && MyMap != null) {
             pickupMarker = MyMap.addMarker(new MarkerOptions()
                     .position(pickupLatLng)
@@ -888,16 +920,17 @@ public class MapActivity extends AppCompatActivity
                             listenForProviderLocation(mProviderId);
                         }
                     } else if ("completed".equals(status)) {
-                        // --- FIX: Close Chat Session ON COMPLETION ---
                         String providerId = snapshot.getString("providerId");
+                        if (providerId == null) providerId = mProviderId;
+
                         if (providerId != null) {
                             closeChatSession(providerId, requestId);
                         }
-                        // ---------------------------------------------
 
                         Intent intent = new Intent(MapActivity.this, PaymentReceiptActivity.class);
                         intent.putExtra("REFERENCE_ID", snapshot.getId());
                         intent.putExtra("AMOUNT_PAID", String.format(Locale.getDefault(), "PHP %.2f", snapshot.getDouble("amount")));
+                        intent.putExtra("SERVICE_PROVIDER_ID", providerId);
                         com.google.firebase.Timestamp ts = snapshot.getTimestamp("timestamp");
                         if (ts != null)
                             intent.putExtra("PAYMENT_DATE", new SimpleDateFormat("MMM dd, yyyy - hh:mm a", Locale.getDefault()).format(ts.toDate()));
@@ -1042,14 +1075,12 @@ public class MapActivity extends AppCompatActivity
         etaText.setText(String.format(Locale.getDefault(), "~ %d min", timeInMinutes));
     }
 
-    // --- FIX: CLOSING THE SPECIFIC CHAT FOR THIS REQUEST ---
     private void closeChatSession(String providerId, String requestId) {
         if (providerId == null || requestId == null || mAuth.getCurrentUser() == null) return;
 
         String currentUserId = mAuth.getCurrentUser().getUid();
         String chatRoomId;
 
-        // MUST MATCH THE GENERATION LOGIC IN findOrCreateChatRoom
         if (currentUserId.compareTo(providerId) > 0) {
             chatRoomId = requestId + "_" + currentUserId + "_" + providerId;
         } else {
@@ -1060,9 +1091,19 @@ public class MapActivity extends AppCompatActivity
         updates.put("status", "closed");
 
         db.collection("chats").document(chatRoomId)
-                .set(updates, SetOptions.merge()) // Use set/merge in case doc doesn't exist (unlikely but safe)
+                .set(updates, SetOptions.merge())
                 .addOnSuccessListener(aVoid -> Log.d(TAG, "Chat session closed."))
                 .addOnFailureListener(e -> Log.w(TAG, "Chat session not found or update failed."));
+    }
+
+    private void playNotificationSound(Context context) {
+        try {
+            MediaPlayer player = MediaPlayer.create(context, R.raw.notification_pop);
+            player.setOnCompletionListener(mp -> mp.release());
+            player.start();
+        } catch (Exception e) {
+            Log.e(TAG, "Error playing notification sound", e);
+        }
     }
 
     @Override

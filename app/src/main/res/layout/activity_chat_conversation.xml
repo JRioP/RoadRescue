@@ -44,6 +44,7 @@
             app:layout_constraintTop_toTopOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- vvv CHANGES ARE IN THIS SECTION vvv -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/messageInputContainer"
         android:layout_width="0dp"
@@ -54,10 +55,24 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
+        <ImageButton
+            android:id="@+id/attachButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Attach file"
+            android:scaleType="centerInside"
+            android:padding="12dp"
+            android:src="@drawable/ic_attach_file"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
         <EditText
             android:id="@+id/messageInput"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
             android:background="@drawable/edittext_background"
             android:hint="Type a message..."
             android:inputType="textMultiLine"
@@ -65,8 +80,7 @@
             android:padding="12dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@id/sendButton"
-            app:layout_constraintHorizontal_weight="1"
-            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintStart_toEndOf="@id/attachButton"
             app:layout_constraintTop_toTopOf="parent" />
 
         <ImageButton
@@ -83,6 +97,7 @@
             app:layout_constraintTop_toTopOf="parent" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
+    <!-- ^^^ CHANGES ARE IN THIS SECTION ^^^ -->
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/messagesRecyclerView"

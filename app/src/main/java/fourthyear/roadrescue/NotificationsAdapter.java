@@ -55,10 +55,6 @@ public class NotificationsAdapter extends RecyclerView.Adapter<NotificationsAdap
     public int getItemCount() {
         return notificationsList.size();
     }
-
-    /**
-     * ViewHolder for the NotificationModel items.
-     */
     static class NotificationViewHolder extends RecyclerView.ViewHolder {
         private final TextView notificationTitle;
         private final TextView notificationMessage;

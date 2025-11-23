@@ -50,7 +50,7 @@ public class PaymentReceiptActivity extends AppCompatActivity {
     private TextView serviceTypeText;
     private TextView pickupAddressText;
     private TextView destinationAddressText;
-    private TextView destinationLabelText; // To hide the label "Destination Address"
+    private TextView destinationLabelText;
     private ImageView closeButton;
     private Button downloadReceiptButton;
     private CardView receiptCardView;
@@ -63,6 +63,8 @@ public class PaymentReceiptActivity extends AppCompatActivity {
     private TextView unreadNotificationBadge;
 
     private String refId = "N/A";
+    private String serviceProviderId;
+
     private final ActivityResultLauncher<String> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
                 if (isGranted) {
@@ -89,10 +91,6 @@ public class PaymentReceiptActivity extends AppCompatActivity {
         pickupAddressText = findViewById(R.id.receipt_pickup_address);
         destinationAddressText = findViewById(R.id.receipt_destination_address);
 
-        // Assuming you have a label TextView for "Destination Address:" in your XML
-        // If not, you might need to add an ID to it in your XML to hide it properly.
-        // For now, we will just hide the address text view.
-
         closeButton = findViewById(R.id.receipt_close_btn);
         downloadReceiptButton = findViewById(R.id.receipt_download_btn);
         receiptCardView = findViewById(R.id.receipt_card_content);
@@ -104,6 +102,7 @@ public class PaymentReceiptActivity extends AppCompatActivity {
         String requestType = getIntent().getStringExtra("REQUEST_TYPE");
         String pickupAddress = getIntent().getStringExtra("PICKUP_ADDRESS");
         String destinationAddress = getIntent().getStringExtra("DESTINATION_ADDRESS");
+        serviceProviderId = getIntent().getStringExtra("SERVICE_PROVIDER_ID");
 
         referenceIdText.setText(refId != null ? refId : "N/A");
         amountPaidText.setText(amount != null ? amount : "N/A");
@@ -112,36 +111,76 @@ public class PaymentReceiptActivity extends AppCompatActivity {
         serviceTypeText.setText(requestType != null ? requestType : "N/A");
         pickupAddressText.setText(pickupAddress != null ? pickupAddress : "N/A");
 
-        // --- LOGIC FIX: HIDE DESTINATION IF NOT TOWING ---
         if (requestType != null && requestType.equalsIgnoreCase("Towing")) {
-            // Show Destination
             destinationAddressText.setVisibility(View.VISIBLE);
             destinationAddressText.setText(destinationAddress != null ? destinationAddress : "N/A");
 
-            // If you have a label TextView, set it visible here too
-            TextView destLabel = findViewById(R.id.label_destination_address); // Make sure this ID exists in XML
+            TextView destLabel = findViewById(R.id.label_destination_address);
             if (destLabel != null) destLabel.setVisibility(View.VISIBLE);
 
         } else {
-            // Hide Destination for Battery, Flat Tire, Fuel, etc.
             destinationAddressText.setVisibility(View.GONE);
-
-            // Hide the Label too
             TextView destLabel = findViewById(R.id.label_destination_address);
             if (destLabel != null) destLabel.setVisibility(View.GONE);
         }
-        // -------------------------------------------------
 
         loadCustomerName();
 
-        closeButton.setOnClickListener(v -> finish());
+        closeButton.setOnClickListener(v -> checkRatingAndProceed());
         downloadReceiptButton.setOnClickListener(v -> checkPermissionAndSaveReceipt());
         setupNavbar();
         setupUnreadMessageListener();
         setupNotificationListener();
     }
 
-    // ... [Rest of your methods remain unchanged] ...
+    private void checkRatingAndProceed() {
+        if (refId == null || refId.equals("N/A")) {
+            navigateToHome();
+            return;
+        }
+
+        db.collection("ratings")
+                .whereEqualTo("referenceId", refId)
+                .get()
+                .addOnSuccessListener(queryDocumentSnapshots -> {
+                    if (!queryDocumentSnapshots.isEmpty()) {
+                        navigateToHome();
+                    } else {
+                        goToRatingActivity();
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    navigateToHome();
+                });
+    }
+
+    private void goToRatingActivity() {
+        Intent intent = new Intent(PaymentReceiptActivity.this, RatingActivity.class);
+        intent.putExtra("REFERENCE_ID", refId);
+        intent.putExtra("SERVICE_PROVIDER_ID", serviceProviderId);
+        startActivity(intent);
+        finish();
+    }
+
+    private void navigateToHome() {
+        FirebaseUser user = mAuth.getCurrentUser();
+        if (user == null) {
+            finish();
+            return;
+        }
+        db.collection("users").document(user.getUid()).get().addOnSuccessListener(doc -> {
+            Intent intent;
+            String type = doc.getString("userType");
+            if (type != null && (type.equalsIgnoreCase("Service Provider") || type.equalsIgnoreCase("driver"))) {
+                intent = new Intent(PaymentReceiptActivity.this, ServiceProviderHomepage.class);
+            } else {
+                intent = new Intent(PaymentReceiptActivity.this, homepage.class);
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            finish();
+        });
+    }
 
     private void setupNavbar() {
         unreadBadge = findViewById(R.id.unread_message_badge);
@@ -173,28 +212,7 @@ public class PaymentReceiptActivity extends AppCompatActivity {
         }
         ImageView homeButton = findViewById(R.id.home_icon_btn);
         if (homeButton != null) {
-            homeButton.setOnClickListener(v -> {
-                FirebaseUser user = mAuth.getCurrentUser();
-                if (user == null) {
-                    Intent intent = new Intent(PaymentReceiptActivity.this, MainActivity.class);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                    startActivity(intent);
-                    finish();
-                    return;
-                }
-                db.collection("users").document(user.getUid()).get().addOnSuccessListener(doc -> {
-                    Intent intent;
-                    String type = doc.getString("userType");
-                    if (type != null && (type.equalsIgnoreCase("Service Provider") || type.equalsIgnoreCase("driver"))) {
-                        intent = new Intent(PaymentReceiptActivity.this, ServiceProviderHomepage.class);
-                    } else {
-                        intent = new Intent(PaymentReceiptActivity.this, homepage.class);
-                    }
-                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(intent);
-                    finish();
-                });
-            });
+            homeButton.setOnClickListener(v -> navigateToHome());
         }
     }
 
@@ -220,6 +238,7 @@ public class PaymentReceiptActivity extends AppCompatActivity {
                     }
                 });
     }
+
     private void setupNotificationListener() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) return;
@@ -336,7 +355,7 @@ public class PaymentReceiptActivity extends AppCompatActivity {
 
             Toast.makeText(this, "Receipt saved to Pictures", Toast.LENGTH_SHORT).show();
 
-            finish();
+            checkRatingAndProceed();
 
         } catch (Exception e) {
             e.printStackTrace();
