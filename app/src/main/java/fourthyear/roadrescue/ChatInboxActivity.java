@@ -29,6 +29,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import androidx.recyclerview.widget.ItemTouchHelper;
+import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.ColorDrawable;
+import androidx.core.content.ContextCompat;
+import androidx.appcompat.app.AlertDialog;
+import com.google.firebase.firestore.FieldValue;
+
 public class ChatInboxActivity extends AppCompatActivity {
 
     private static final String TAG = "ChatInboxActivity";
@@ -94,6 +102,7 @@ public class ChatInboxActivity extends AppCompatActivity {
             Intent intent = new Intent(this, ChatConversationActivity.class);
             intent.putExtra("chatId", chat.getChatId());
 
+            // ... (Your existing intent extra logic for names) ...
             String otherUserName = "Chat";
             if (chat.getParticipantNames() != null) {
                 for (Map.Entry<String, String> entry : chat.getParticipantNames().entrySet()) {
@@ -121,6 +130,9 @@ public class ChatInboxActivity extends AppCompatActivity {
 
         chatsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         chatsRecyclerView.setAdapter(chatInboxAdapter);
+
+        // --- ADDED: SWIPE TO DELETE FUNCTIONALITY ---
+        setupSwipeToDelete();
     }
 
     private void setupFirestoreListener() {
@@ -284,6 +296,91 @@ public class ChatInboxActivity extends AppCompatActivity {
             messageText.setTextColor(Color.BLACK);
             messageText.setTypeface(null, Typeface.BOLD);
         }
+    }private void setupSwipeToDelete() {
+        ItemTouchHelper.SimpleCallback simpleItemTouchCallback = new ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
+
+            // We don't need move (drag and drop), so return false
+            @Override
+            public boolean onMove(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder, RecyclerView.ViewHolder target) {
+                return false;
+            }
+
+            // Handle the swipe
+            @Override
+            public void onSwiped(RecyclerView.ViewHolder viewHolder, int direction) {
+                int position = viewHolder.getAdapterPosition();
+                ChatInboxItem chatToDelete = chatList.get(position);
+
+                // Show confirmation dialog before deleting
+                new AlertDialog.Builder(ChatInboxActivity.this)
+                        .setTitle("Delete Chat")
+                        .setMessage("Are you sure you want to remove this chat from your inbox?")
+                        .setPositiveButton("Delete", (dialog, which) -> {
+                            deleteChatFromFirestore(chatToDelete);
+                        })
+                        .setNegativeButton("Cancel", (dialog, which) -> {
+                            // If cancelled, refresh the adapter to bring the item back visually
+                            chatInboxAdapter.notifyItemChanged(position);
+                        })
+                        .setCancelable(false)
+                        .show();
+            }
+
+            // OPTIONAL: Draw a Red Background with Trash Icon while swiping
+            @Override
+            public void onChildDraw(Canvas c, RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder, float dX, float dY, int actionState, boolean isCurrentlyActive) {
+                super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive);
+
+                Drawable icon = ContextCompat.getDrawable(ChatInboxActivity.this, android.R.drawable.ic_menu_delete); // Or your own R.drawable.ic_trash
+                ColorDrawable background = new ColorDrawable(Color.RED);
+
+                View itemView = viewHolder.itemView;
+                int backgroundCornerOffset = 20;
+
+                if (dX < 0) { // Swiping to the Left
+                    background.setBounds(itemView.getRight() + ((int) dX) - backgroundCornerOffset,
+                            itemView.getTop(), itemView.getRight(), itemView.getBottom());
+                } else { // No Swipe or Right Swipe
+                    background.setBounds(0, 0, 0, 0);
+                }
+                background.draw(c);
+
+                if (icon != null && dX < 0) {
+                    int iconMargin = (itemView.getHeight() - icon.getIntrinsicHeight()) / 2;
+                    int iconTop = itemView.getTop() + (itemView.getHeight() - icon.getIntrinsicHeight()) / 2;
+                    int iconBottom = iconTop + icon.getIntrinsicHeight();
+                    int iconLeft = itemView.getRight() - iconMargin - icon.getIntrinsicWidth();
+                    int iconRight = itemView.getRight() - iconMargin;
+
+                    icon.setBounds(iconLeft, iconTop, iconRight, iconBottom);
+                    icon.draw(c);
+                }
+            }
+        };
+
+        ItemTouchHelper itemTouchHelper = new ItemTouchHelper(simpleItemTouchCallback);
+        itemTouchHelper.attachToRecyclerView(chatsRecyclerView);
+    }
+
+    private void deleteChatFromFirestore(ChatInboxItem chat) {
+        if (chat.getChatId() == null) return;
+
+        // We remove the current user's ID from the participantIds array.
+        // Since your main query filters by 'whereArrayContains("participantIds", currentUserId)',
+        // removing the ID will effectively hide it from this list.
+
+        db.collection("chats").document(chat.getChatId())
+                .update("participantIds", FieldValue.arrayRemove(currentUserId))
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, "Chat deleted", Toast.LENGTH_SHORT).show();
+                    // The SnapshotListener will automatically update the UI, so we don't need to manually remove it from the list here
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Failed to delete chat", Toast.LENGTH_SHORT).show();
+                    Log.e(TAG, "Error deleting chat", e);
+                    // Refresh to show the item again if it failed
+                    chatInboxAdapter.notifyDataSetChanged();
+                });
     }
 
     @Override

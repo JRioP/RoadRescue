@@ -101,7 +101,7 @@
                 <RelativeLayout style="@style/ReceiptRow">
                     <TextView
                         style="@style/ReceiptLabel"
-                        android:text="Payment date &amp; time:" />
+                        android:text="Payment date \n \t\t&amp; time:" />
                     <TextView
                         android:id="@+id/receipt_payment_date"
                         style="@style/ReceiptValue"

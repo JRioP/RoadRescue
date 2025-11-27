@@ -106,7 +106,7 @@ public class MapActivity extends AppCompatActivity
     private ListenerRegistration providerListener;
     private ListenerRegistration unreadListener;
     private ListenerRegistration notificationListener;
-
+    private TextView carPlateNumberText;
     private String mProviderId;
     private String mProviderName;
     private String mProviderPhone;
@@ -180,7 +180,7 @@ public class MapActivity extends AppCompatActivity
         editPickupButton = findViewById(R.id.edit_pickup_btn);
         statusCard = findViewById(R.id.status_card);
         searchingCard = findViewById(R.id.searching_card);
-
+        carPlateNumberText = findViewById(R.id.car_plate_number_text);
         providerImage = findViewById(R.id.provider_image);
         if (providerImage != null) {
             android.graphics.drawable.GradientDrawable border = new android.graphics.drawable.GradientDrawable();
@@ -249,13 +249,24 @@ public class MapActivity extends AppCompatActivity
                     String providerLocText = snapshot.getString("currentLocationAddress");
                     String photoUrl = snapshot.getString("profileImageUrl");
                     GeoPoint geoPoint = snapshot.getGeoPoint("liveLocation");
-
+                    String carPlateNumber = snapshot.getString("carPlateNumber");
                     Double avgRating = snapshot.getDouble("averageRating");
                     Long ratingCount = snapshot.getLong("ratingCount");
 
                     handler.post(() -> {
                         providerNameText.setText(mProviderName != null ? mProviderName : "Provider");
                         providerSubtitleText.setText(providerLocText != null ? "En route from " + providerLocText : "Awaiting location...");
+
+                        // NEW: Update the Car Plate TextView
+                        if (carPlateNumberText != null) {
+                            if (carPlateNumber != null && !carPlateNumber.isEmpty()) {
+                                carPlateNumberText.setText(String.format("Car Plate: %s", carPlateNumber));
+                                carPlateNumberText.setVisibility(View.VISIBLE);
+                            } else {
+                                // If the field is missing/empty, hide it or set a placeholder
+                                carPlateNumberText.setVisibility(View.GONE);
+                            }
+                        }
 
                         if (avgRating != null && ratingCount != null && ratingCount > 0) {
                             providerRatingText.setText(String.format(Locale.getDefault(), "%.1f", avgRating));

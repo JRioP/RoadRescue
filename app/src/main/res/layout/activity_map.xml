@@ -246,6 +246,19 @@
                 app:layout_constraintTop_toBottomOf="@id/provider_name" />
 
             <TextView
+                android:id="@+id/car_plate_number_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Car Plate: XYZ 123"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                app:layout_constraintStart_toStartOf="@id/provider_subtitle"
+                app:layout_constraintTop_toBottomOf="@id/provider_subtitle"
+                tools:text="Car Plate: ABC 789" />
+
+            <TextView
                 android:id="@+id/distance_label"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -257,20 +270,18 @@
                 app:layout_constraintEnd_toStartOf="@id/eta_label"
                 app:layout_constraintHorizontal_chainStyle="spread"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/provider_image" />
-
-            <TextView
-                android:id="@+id/distance_text"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:gravity="center_horizontal"
-                android:text="2 km"
-                android:textColor="@android:color/white"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                app:layout_constraintEnd_toEndOf="@id/distance_label"
-                app:layout_constraintStart_toStartOf="@id/distance_label"
-                app:layout_constraintTop_toBottomOf="@id/distance_label" />
+                app:layout_constraintTop_toBottomOf="@id/car_plate_number_text"  /> <TextView
+            android:id="@+id/distance_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:text="2 km"
+            android:textColor="@android:color/white"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="@id/distance_label"
+            app:layout_constraintStart_toStartOf="@id/distance_label"
+            app:layout_constraintTop_toBottomOf="@id/distance_label" />
 
             <TextView
                 android:id="@+id/eta_label"

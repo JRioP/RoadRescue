@@ -90,7 +90,7 @@ public class ProviderMapActivity extends AppCompatActivity implements
 
     private static final String TAG = "ProviderMapActivity";
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1002;
-    private static final float COMPLETION_RADIUS_METERS = 5.0f;
+    private static final float COMPLETION_RADIUS_METERS = 50.0f;
 
     private long lastClickTime = 0;
 
