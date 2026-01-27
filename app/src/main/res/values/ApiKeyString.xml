@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="google_maps_key" translatable="false">AIzaSyC6PicArcksAs4_kGV_rbYvYxF1mRP4rp8</string>
-    <string name="MyApiKey" translatable="false">AIzaSyC6PicArcksAs4_kGV_rbYvYxF1mRP4rp8</string>
-    <string name="paymongo_publishable_key" translatable="false">pk_test_tp5W5tB1Qe8Z415SH1MDB6AL</string>
+    <string name="google_maps_key" translatable="false">Enter Your Key here</string>
+    <string name="MyApiKey" translatable="false">Enter Your Key here</string>
+    <string name="paymongo_publishable_key" translatable="false">Enter Your Key here</string>
 </resources>
