@@ -1,67 +1,99 @@
-RoadRescue: "Your Journey, Our Priority" 🚗🛠️
-Mobile Application for Roadside Emergency Support
+# RoadRescue: "Your Journey, Our Priority" 🚗🛠️
 
-📖 Overview
-RoadRescue is a mobile-based roadside assistance system designed to provide fast, reliable, and accessible emergency support for motorists across the Philippines.
+![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?style=flat&logo=android)
+![Language](https://img.shields.io/badge/Language-Java-ED8B00?style=flat&logo=java)
+![Backend](https://img.shields.io/badge/Backend-Firebase-FFCA28?style=flat&logo=firebase)
+![Status](https://img.shields.io/badge/Status-Capstone%20Project-blue)
 
-Traditional roadside assistance often suffers from slow response times, weak coordination, and limited transparency. RoadRescue addresses these issues by integrating real-time GPS tracking, automated service provider matching, and secure cashless payments into a single, unified platform.
+> **Mobile Application for Roadside Emergency Support**
 
-Whether you are dealing with a flat tire, engine breakdown, or need towing, RoadRescue connects you instantly with verified service providers to ensure safety and peace of mind.
+---
 
-🌟 Key Features
-For Motorists (Users)
-📍 Real-Time GPS Tracking: View the live location of your service provider and get accurate ETA updates using Google Maps integration.
+## 📋 Table of Contents
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [How It Works](#-how-it-works)
+- [Tech Stack](#-tech-stack)
+- [Screenshots](#-screenshots)
+- [Getting Started](#-getting-started)
+- [Authors](#-authors)
 
-🛠️ One-Tap Emergency Requests: Quickly request services for towing, flat tires, battery jump-starts, fuel delivery, and lockout assistance.
+---
 
-💳 Cashless & Cash Payments: Secure digital transaction history with options for digital receipts.
+## 📖 Overview
+**RoadRescue** is a native Android roadside assistance system designed to connect stranded motorists with nearby service providers in the Philippines efficiently.
 
-📶 Offline Functionality: Access critical features, cached maps, and emergency contacts even with unstable internet connectivity.
+Traditional roadside assistance often suffers from slow response times, weak coordination, and lack of transparency. **RoadRescue** solves this by integrating **real-time GPS tracking**, **automated service provider matching**, and **secure cashless payments** into a unified platform.
 
-🆘 Emergency SOS: Instantly alert emergency contacts and local authorities with your GPS location and vehicle details.
+Whether you are dealing with a flat tire, engine breakdown, or need towing, RoadRescue ensures help is just one tap away.
 
-🗣️ Multilingual Support: User-friendly interface available in English and Tagalog.
+---
 
-For Service Providers
-📋 Job Management: Receive real-time alerts for nearby service requests and manage availability status.
+## 🌟 Key Features
 
-🗺️ Route Optimization: Integrated navigation to find the fastest route to the stranded motorist.
+### 🚙 For Motorists (Users)
+| Feature | Description |
+| :--- | :--- |
+| **📍 Real-Time GPS Tracking** | Live monitoring of service provider location with accurate ETA updates via Google Maps. |
+| **🛠️ One-Tap Assistance** | Instant requests for **Towing, Flat Tires, Battery Jump-starts, Fuel Delivery,** and **Lockouts**. |
+| **💳 Flexible Payments** | Supports both Cash and secure Cashless transactions with digital receipts. |
+| **📶 Offline Mode** | Access cached maps and emergency contacts even with unstable internet connectivity. |
+| **🆘 Emergency SOS** | Instantly alerts emergency contacts and local authorities with your precise GPS coordinates. |
+| **🗣️ Multilingual** | Full support for **English** and **Tagalog**. |
 
-⭐ Rating System: Build a reputation through user reviews and ratings.
+### 🔧 For Service Providers
+* **📋 Job Management:** Receive real-time alerts for nearby requests and toggle availability.
+* **🗺️ Route Optimization:** Integrated navigation to find the fastest route to the client.
+* **⭐ Reputation System:** Build trust through user reviews and ratings.
 
-🏗️ Tech Stack
-This project was built using a Native Android approach with a Serverless backend architecture.
+---
 
-Frontend (Mobile)
-Language: Java
+## 🔄 How It Works
+1.  **Request:** The motorist selects a service (e.g., Towing) and confirms their location.
+2.  **Matching:** The app queries the Firebase backend to find the nearest available Provider.
+3.  **Acceptance:** The Provider receives a notification and accepts the job.
+4.  **Tracking:** The Motorist tracks the Provider in real-time on the map.
+5.  **Completion:** Service is rendered, payment is processed, and both parties rate the experience.
 
-IDE: Android Studio
+---
 
-UI/UX Design: Figma (Material Design guidelines)
+## 🏗️ Tech Stack
 
-Local Database: Room Persistence Library (for offline caching)
+This project follows a **Native Android** architecture with a **Serverless** backend.
 
-Backend & Cloud Services
-Platform: Google Firebase
+| Category | Technologies |
+| :--- | :--- |
+| **Frontend** | Java, XML, Android Studio |
+| **Design** | Figma (Material Design), Room Database (Offline Cache) |
+| **Backend** | Google Firebase (Auth, Firestore NoSQL, Realtime DB) |
+| **Serverless** | Cloud Functions for Firebase |
+| **APIs** | Google Maps SDK, Fused Location Provider, Retrofit |
+| **Security** | AES-256 Encryption (User Data), OAuth 2.0 |
 
-Authentication: Firebase Auth (OAuth 2.0, Email/Password, OTP)
+---
 
-Database: Cloud Firestore (NoSQL) & Realtime Database
+## 📱 Screenshots
 
-Storage: Firebase Storage (for images and assets)
+| Splash Screen | Home Dashboard | Service Tracking |
+|:---:|:---:|:---:|
+| <img src="https://github.com/user-attachments/assets/f1608b0f-6132-474d-a1cd-a9716dcc1475" width="250"> | <img src="https://github.com/user-attachments/assets/444d4a15-be6f-4aa6-bf7c-89efd3d92ae5" width="250"> | <img src="https://github.com/user-attachments/assets/9072d41b-de61-46f0-9e60-240f56969fff" width="250"> |
 
-Serverless Logic: Cloud Functions
+---
 
-APIs & Integrations
-Maps & Location: Google Maps Android SDK, Fused Location Provider Client
-
-Networking: Retrofit
-
-Security: AES-256 Encryption for sensitive data
-
-📱 Screenshots
-
-<img width="271" height="569" alt="image" src="https://github.com/user-attachments/assets/f1608b0f-6132-474d-a1cd-a9716dcc1475" /> <img width="279" height="565" alt="image" src="https://github.com/user-attachments/assets/444d4a15-be6f-4aa6-bf7c-89efd3d92ae5" /> <img width="262" height="527" alt="image" src="https://github.com/user-attachments/assets/9072d41b-de61-46f0-9e60-240f56969fff" />
+### Prerequisites
+* Android Studio (Latest Version)
+* Java Development Kit (JDK) 11+
+* A Google Firebase Project
 
 
+## 👥 Authors
 
+* **Jemimah C. Sumague** - *Researcher / QA Tester*
+* **Joshua Alnie P. Rio** - *Lead Developer (Frontend & Backend)*
+* **Winnely Mae Anne A. Espinas** - *Project Manager / UI/UX Designer*
+
+---
+
+## 📄 License
+This project is a Capstone Project submitted to **STI College Tanauan**.
+*Developed as part of the Bachelor of Science in Information Technology program (2025).*
