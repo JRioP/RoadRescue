@@ -87,7 +87,7 @@ dependencies {
     implementation("com.google.maps:google-maps-services:2.2.0")
     implementation("com.google.maps.android:android-maps-utils:3.8.0")
 
-    // --- 4. ADDED REQUIRED DEPENDENCY FOR MAPS SERVICES ---
+    // REQUIRED DEPENDENCY FOR MAPS SERVICES ---
     implementation("org.slf4j:slf4j-simple:1.7.25")
 
     // Networking
