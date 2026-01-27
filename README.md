@@ -15,7 +15,6 @@
 - [How It Works](#-how-it-works)
 - [Tech Stack](#-tech-stack)
 - [Screenshots](#-screenshots)
-- [Getting Started](#-getting-started)
 - [Authors](#-authors)
 
 ---
