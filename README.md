@@ -4,6 +4,9 @@
 ![Language](https://img.shields.io/badge/Language-Java-ED8B00?style=flat&logo=java)
 ![Backend](https://img.shields.io/badge/Backend-Firebase-FFCA28?style=flat&logo=firebase)
 ![Status](https://img.shields.io/badge/Status-Capstone%20Project-blue)
+![Google Maps](https://img.shields.io/badge/Google%20Maps%20SDK-4285F4?style=flat&logo=googlemaps&logoColor=white)
+![Cloud Functions](https://img.shields.io/badge/Cloud%20Functions-FF6F00?style=flat&logo=firebase&logoColor=white)
+![License](https://img.shields.io/badge/License-Academic-lightgrey?style=flat)
 
 > **Mobile Application for Roadside Emergency Support**
 
@@ -84,11 +87,12 @@ This project follows a **Native Android** architecture with a **Serverless** bac
 * Java Development Kit (JDK) 11+
 * A Google Firebase Project
 
+---
 
 ## 👥 Authors
 
 * **Jemimah C. Sumague** - *Researcher / QA Tester*
-* **Joshua Alnie P. Rio** - *Lead Developer (Frontend & Backend)*
+* **Joshua Alnie P. Rio** - *Lead Developer (Frontend & Backend)* [![Portfolio](https://img.shields.io/badge/GitHub-JRioP-181717?style=flat&logo=github)](https://github.com/JRioP)
 * **Winnely Mae Anne A. Espinas** - *Project Manager / UI/UX Designer*
 
 ---
